@@ -38,7 +38,18 @@ function createRefreshToken(user) {
 }
 
 export async function issueTokens({ email, password }) {
-  const user = await findUserByEmail(email);
+  let user;
+
+  try {
+    user = await findUserByEmail(email);
+  } catch (error) {
+    const databaseErrorCodes = new Set(["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT", "ECONNRESET", "28P01", "3D000", "42P01"]);
+    if (databaseErrorCodes.has(error.code)) {
+      throw createError("Database is not ready for login. Verify the PostgreSQL environment variables, run migrations, and seed users.", 503);
+    }
+
+    throw error;
+  }
 
   if (!user || !(await verifyPassword(user, password))) {
     throw createError("Invalid email or password.", 401);

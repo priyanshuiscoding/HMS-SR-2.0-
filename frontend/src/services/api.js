@@ -1,4 +1,23 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1";
+function defaultApiBaseUrl() {
+  if (typeof window === "undefined") {
+    return "http://localhost:5000/api/v1";
+  }
+
+  const { hostname, origin, protocol } = window.location;
+  const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1";
+
+  if (isLocalhost) {
+    return "http://localhost:5000/api/v1";
+  }
+
+  if (hostname.endsWith(".vercel.app") && hostname.includes("-frontend")) {
+    return `${protocol}//${hostname.replace("-frontend", "-backend")}/api/v1`;
+  }
+
+  return `${origin}/api/v1`;
+}
+
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || defaultApiBaseUrl();
 
 function getAccessToken() {
   try {
@@ -34,7 +53,13 @@ function buildQuery(params = {}) {
 
 async function parseResponse(response) {
   const text = await response.text();
-  const data = text ? JSON.parse(text) : {};
+  let data = {};
+
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { message: text || "Request failed." };
+  }
 
   if (!response.ok) {
     throw new Error(data.message || "Request failed.");
