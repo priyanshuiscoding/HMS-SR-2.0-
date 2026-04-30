@@ -1,16 +1,13 @@
-import { persistPatients } from "../../data/persistence.js";
-import { db, createId, nextUhid } from "../../data/store.js";
-
-function createError(message, statusCode = 400) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.publicMessage = message;
-  return error;
-}
-
-function normalize(value) {
-  return String(value || "").trim().toLowerCase();
-}
+import { db, createId } from "../../data/store.js";
+import { createError } from "../../utils/errors.js";
+import {
+  findPatientById,
+  findPatients,
+  getNextPatientSequence,
+  insertPatient,
+  patientPhoneExists,
+  updatePatientRecord
+} from "./patients.repository.js";
 
 function calculateAge(dateOfBirth) {
   if (!dateOfBirth) {
@@ -45,39 +42,36 @@ function nextRegistrationNumber() {
   return `REG-${new Date().getFullYear()}-${String(db.patients.length + 1).padStart(5, "0")}`;
 }
 
-export function listPatients(query = {}) {
-  const search = normalize(query.search);
-  const city = normalize(query.city);
-
-  let items = [...db.patients];
-
-  if (search) {
-    items = items.filter((patient) =>
-      [
-        patient.uhid,
-        patient.registrationNumber,
-        patient.opdIpdNumber,
-        patient.firstName,
-        patient.lastName,
-        patient.phone,
-        patient.idNumber,
-        `${patient.firstName} ${patient.lastName}`
-      ]
-        .join(" ")
-        .toLowerCase()
-        .includes(search)
-    );
-  }
-
-  if (city) {
-    items = items.filter((patient) => normalize(patient.cityDistrict || patient.city) === city);
-  }
-
-  return items.sort((a, b) => `${b.registrationDate} ${b.registrationTime || ""}`.localeCompare(`${a.registrationDate} ${a.registrationTime || ""}`));
+function createPatientNumber(number) {
+  return String(number).padStart(4, "0");
 }
 
-export function getPatientById(id) {
-  const patient = db.patients.find((entry) => entry.id === id);
+function currentYear() {
+  return new Date().getFullYear();
+}
+
+async function nextDatabaseUhid() {
+  const nextNumber = await getNextPatientSequence();
+  return `SRAIIMS-${currentYear()}-${createPatientNumber(nextNumber)}`;
+}
+
+function syncPatientMirror(patient) {
+  const index = db.patients.findIndex((entry) => entry.id === patient.id);
+
+  if (index >= 0) {
+    db.patients[index] = patient;
+    return;
+  }
+
+  db.patients.unshift(patient);
+}
+
+export async function listPatients(query = {}) {
+  return findPatients(query);
+}
+
+export async function getPatientById(id) {
+  const patient = await findPatientById(id);
 
   if (!patient) {
     throw createError("Patient not found.", 404);
@@ -86,8 +80,8 @@ export function getPatientById(id) {
   return patient;
 }
 
-export function getPatientHistory(id) {
-  const patient = getPatientById(id);
+export async function getPatientHistory(id) {
+  const patient = await getPatientById(id);
 
   const appointmentHistory = db.appointments
     .filter((appointment) => appointment.patientId === id)
@@ -237,7 +231,7 @@ export async function createPatient(payload, createdBy) {
     throw createError("House/street or address is required.");
   }
 
-  const phoneExists = db.patients.some((patient) => patient.phone === payload.phone);
+  const phoneExists = await patientPhoneExists(payload.phone);
 
   if (phoneExists) {
     throw createError("A patient with this phone number already exists.");
@@ -250,7 +244,7 @@ export async function createPatient(payload, createdBy) {
 
   const patient = {
     id: createId(),
-    uhid: nextUhid(),
+    uhid: await nextDatabaseUhid(),
     registrationNumber: nextRegistrationNumber(),
     opdIpdNumber: payload.opdIpdNumber?.trim() || "",
     registrationDate,
@@ -284,13 +278,13 @@ export async function createPatient(payload, createdBy) {
     createdBy
   };
 
-  db.patients.unshift(patient);
-  await persistPatients();
-  return patient;
+  const savedPatient = await insertPatient(patient);
+  syncPatientMirror(savedPatient);
+  return savedPatient;
 }
 
 export async function updatePatient(id, payload) {
-  const patient = getPatientById(id);
+  const patient = await getPatientById(id);
   const nextDateOfBirth = payload.dateOfBirth ?? patient.dateOfBirth;
   const nextCityDistrict = payload.cityDistrict ?? payload.city ?? patient.cityDistrict ?? patient.city;
 
@@ -332,6 +326,7 @@ export async function updatePatient(id, payload) {
     referredBy: payload.referredBy ?? patient.referredBy
   });
 
-  await persistPatients();
-  return patient;
+  const savedPatient = await updatePatientRecord(id, patient);
+  syncPatientMirror(savedPatient);
+  return savedPatient;
 }

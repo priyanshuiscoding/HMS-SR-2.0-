@@ -9,6 +9,7 @@ import {
   getAppointmentHandler,
   listAppointmentsHandler,
   todayAppointmentsHandler,
+  updateAppointmentStatusHandler,
   updateAppointmentHandler
 } from "./appointments.controller.js";
 
@@ -21,6 +22,7 @@ appointmentsRouter.get("/available-slots", authorize(["admin", "reception", "doc
 appointmentsRouter.get("/masters", authorize(["admin", "reception", "doctor"]), appointmentMastersHandler);
 appointmentsRouter.get("/:id", authorize(["admin", "reception", "doctor"]), getAppointmentHandler);
 appointmentsRouter.put("/:id", authorize(["admin", "reception"]), updateAppointmentHandler);
+appointmentsRouter.put("/:id/status", authorize(["admin", "reception", "doctor"]), updateAppointmentStatusHandler);
 appointmentsRouter.delete("/:id", authorize(["admin", "reception"]), cancelAppointmentHandler);
 
 export { appointmentsRouter };

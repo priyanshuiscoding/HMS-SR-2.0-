@@ -1,203 +1,106 @@
-import { createId, db, getMedicineMasters, nextDispenseNumber } from "../../data/store.js";
+import { createId, db } from "../../data/store.js";
+import { createError } from "../../utils/errors.js";
+import { listBatchRecords, listMedicineRecords } from "../inventory/inventory.repository.js";
+import { loadInventoryMirrorsFromDatabase } from "../inventory/inventory.service.js";
+import {
+  dispensePrescriptionRecord,
+  getExpiringBatchRecords,
+  getStockSummaryRecords,
+  listDispensationRecords,
+  listPrescriptionQueueRecords,
+  loadPharmacyMirrors
+} from "./pharmacy.repository.js";
 
-function createError(message, statusCode = 400) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.publicMessage = message;
-  return error;
+function syncPharmacyMirrors({ stockTransactions = [], dispensations = [] } = {}) {
+  db.stockTransactions.splice(0, db.stockTransactions.length, ...stockTransactions);
+  db.dispensations.splice(0, db.dispensations.length, ...dispensations);
 }
 
-function sortByExpiry(a, b) {
-  return a.expiryDate.localeCompare(b.expiryDate);
+export async function loadPharmacyMirrorsFromDatabase() {
+  const mirrors = await loadPharmacyMirrors();
+  syncPharmacyMirrors(mirrors);
+  return mirrors;
 }
 
-function getPrescriptionById(prescriptionId) {
-  const prescription = db.prescriptions.find((entry) => entry.id === prescriptionId);
-
-  if (!prescription) {
-    throw createError("Prescription not found.", 404);
-  }
-
-  return prescription;
+export async function getPharmacyStock() {
+  const stock = await getStockSummaryRecords();
+  db.medicineMasters.splice(0, db.medicineMasters.length, ...stock.map(({ totalAvailable, nearestExpiry, lowStock, expiringSoon, activeBatches, ...medicine }) => medicine));
+  db.inventoryBatches.splice(0, db.inventoryBatches.length, ...(await listBatchRecords()));
+  return stock.sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function getBatchById(batchId) {
-  const batch = db.inventoryBatches.find((entry) => entry.id === batchId);
-
-  if (!batch) {
-    throw createError("Inventory batch not found.", 404);
-  }
-
-  return batch;
-}
-
-function getStockSummaryForMedicine(medicine) {
-  const batches = db.inventoryBatches
-    .filter((batch) => batch.medicineId === medicine.id)
-    .sort(sortByExpiry);
-  const totalAvailable = batches.reduce((sum, batch) => sum + Number(batch.quantityAvailable || 0), 0);
-  const nearestExpiry = batches[0]?.expiryDate || "";
-  const lowStock = totalAvailable <= Number(medicine.reorderLevel || 0);
-  const expiringSoon = Boolean(
-    nearestExpiry &&
-      new Date(nearestExpiry).getTime() - Date.now() <= 1000 * 60 * 60 * 24 * 90
-  );
-
-  return {
-    ...medicine,
-    totalAvailable,
-    nearestExpiry,
-    lowStock,
-    expiringSoon,
-    activeBatches: batches.length
-  };
-}
-
-function buildDispenseItems(prescription, payloadItems = []) {
-  const sourceItems = payloadItems.length
-    ? payloadItems
-    : prescription.medicines.map((item) => ({
-        medicineId: item.medicineId,
-        quantity: item.quantityDispensed || 0
-      }));
-
-  return sourceItems.map((item) => {
-    const medicine = getMedicineMasters().find((entry) => entry.id === item.medicineId);
-
-    if (!medicine) {
-      throw createError(`Unknown medicine: ${item.medicineId}`);
-    }
-
-    const quantity = Number(item.quantity || 0);
-
-    if (!quantity) {
-      throw createError(`Dispense quantity is required for ${medicine.name}.`);
-    }
-
-    const preferredBatch = item.batchId
-      ? getBatchById(item.batchId)
-      : db.inventoryBatches
-          .filter((batch) => batch.medicineId === item.medicineId && Number(batch.quantityAvailable) > 0)
-          .sort(sortByExpiry)[0];
-
-    if (!preferredBatch || Number(preferredBatch.quantityAvailable) < quantity) {
-      throw createError(`Insufficient stock for ${medicine.name}.`);
-    }
-
-    return {
-      id: createId(),
-      medicineId: medicine.id,
-      medicineName: medicine.name,
-      batchId: preferredBatch.id,
-      batchNumber: preferredBatch.batchNumber,
-      quantity,
-      unitPrice: Number(preferredBatch.sellingPrice || medicine.price || 0),
-      amount: quantity * Number(preferredBatch.sellingPrice || medicine.price || 0)
-    };
-  });
-}
-
-export function getPharmacyMasters() {
-  return {
-    medicines: getMedicineMasters(),
-    statuses: ["pending", "completed"],
-    alerts: getPharmacyAlerts()
-  };
-}
-
-export function getPharmacyStock() {
-  return getMedicineMasters()
-    .map((medicine) => getStockSummaryForMedicine(medicine))
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
-
-export function getPharmacyAlerts() {
-  const stock = getPharmacyStock();
-
+export async function getPharmacyAlerts(stockItems = null) {
+  const stock = stockItems || (await getPharmacyStock());
   return {
     lowStock: stock.filter((item) => item.lowStock),
     expiringSoon: stock.filter((item) => item.expiringSoon),
-    outOfStock: stock.filter((item) => item.totalAvailable === 0)
+    outOfStock: stock.filter((item) => Number(item.totalAvailable || 0) === 0)
   };
 }
 
-export function listPrescriptionQueue(query = {}) {
-  let items = [...db.prescriptions];
-
-  if (query.status === "pending") {
-    items = items.filter((item) => !item.isDispensed);
-  }
-
-  if (query.status === "completed") {
-    items = items.filter((item) => item.isDispensed);
-  }
-
-  if (query.patientId) {
-    items = items.filter((item) => item.patientId === query.patientId);
-  }
-
-  return items
-    .map((prescription) => ({
-      ...prescription,
-      visit: db.opdVisits.find((visit) => visit.id === prescription.visitId) || null,
-      dispensation:
-        db.dispensations.find((dispense) => dispense.prescriptionId === prescription.id) || null
-    }))
-    .sort((a, b) => b.prescriptionDate.localeCompare(a.prescriptionDate));
+export async function getPharmacyMasters() {
+  const [medicines, stock] = await Promise.all([listMedicineRecords(), getPharmacyStock()]);
+  db.medicineMasters.splice(0, db.medicineMasters.length, ...medicines);
+  return {
+    medicines,
+    statuses: ["pending", "completed"],
+    alerts: await getPharmacyAlerts(stock)
+  };
 }
 
-export function listDispensations(query = {}) {
-  let items = [...db.dispensations];
-
-  if (query.patientId) {
-    items = items.filter((item) => item.patientId === query.patientId);
-  }
-
-  return items.sort((a, b) => b.dispensedDate.localeCompare(a.dispensedDate));
+export async function getLowStockMedicines() {
+  return (await getPharmacyStock())
+    .filter((item) => item.lowStock)
+    .sort((a, b) => Number(a.totalAvailable || 0) - Number(b.totalAvailable || 0) || a.name.localeCompare(b.name));
 }
 
-export function dispensePrescription(prescriptionId, payload, userId) {
-  const prescription = getPrescriptionById(prescriptionId);
+export async function getExpiringStock(query = {}) {
+  const withinDaysRaw = Number(query.withinDays || 90);
+  const withinDays = Number.isFinite(withinDaysRaw) && withinDaysRaw > 0 ? withinDaysRaw : 90;
+  return getExpiringBatchRecords(withinDays);
+}
 
-  if (prescription.isDispensed) {
-    throw createError("This prescription has already been dispensed.");
-  }
+export async function listPrescriptionQueue(query = {}) {
+  return listPrescriptionQueueRecords(query);
+}
 
-  const items = buildDispenseItems(prescription, payload.items || []);
+export async function listDispensations(query = {}) {
+  const items = await listDispensationRecords(query);
+  db.dispensations.splice(0, db.dispensations.length, ...items);
+  return items;
+}
 
-  items.forEach((item) => {
-    const batch = getBatchById(item.batchId);
-    batch.quantityAvailable = Number(batch.quantityAvailable || 0) - Number(item.quantity || 0);
-
-    db.stockTransactions.unshift({
-      id: createId(),
-      transactionDate: new Date().toISOString(),
-      medicineId: item.medicineId,
-      medicineName: item.medicineName,
-      batchId: item.batchId,
-      type: "issue",
-      quantity: -Number(item.quantity || 0),
-      referenceNumber: prescription.prescriptionNumber,
-      note: `Dispensed against ${prescription.prescriptionNumber}`
-    });
+export async function dispensePrescription(prescriptionId, payload = {}, userId = "") {
+  const dispensation = await dispensePrescriptionRecord(prescriptionId, {
+    id: createId(),
+    createId,
+    items: payload.items || [],
+    dispensedBy: userId
   });
 
-  prescription.isDispensed = true;
+  if (!dispensation) {
+    throw createError("Prescription not found.", 404);
+  }
+  if (dispensation.conflict === "already_dispensed") {
+    throw createError("This prescription has already been dispensed.");
+  }
+  if (dispensation.conflict === "medicine_missing") {
+    throw createError(`Unknown medicine: ${dispensation.medicineId}`);
+  }
+  if (dispensation.conflict === "invalid_quantity") {
+    throw createError(`Dispense quantity is required for ${dispensation.medicineName}.`);
+  }
+  if (dispensation.conflict === "insufficient_stock") {
+    throw createError(`Insufficient stock for ${dispensation.medicineName}.`);
+  }
 
-  const dispensation = {
-    id: createId(),
-    dispenseNumber: nextDispenseNumber(),
-    prescriptionId: prescription.id,
-    patientId: prescription.patientId,
-    patientName: prescription.patientName,
-    visitId: prescription.visitId,
-    dispensedBy: userId,
-    dispensedDate: new Date().toISOString(),
-    status: "completed",
-    items
-  };
+  const prescription = db.prescriptions.find((entry) => entry.id === prescriptionId);
+  if (prescription) {
+    prescription.isDispensed = true;
+    prescription.dispensation = dispensation;
+  }
 
-  db.dispensations.unshift(dispensation);
-
+  await loadInventoryMirrorsFromDatabase();
+  await loadPharmacyMirrorsFromDatabase();
   return dispensation;
 }

@@ -81,11 +81,14 @@ export function OpdPage() {
   const [masters, setMasters] = useState({
     doctors: [],
     medicines: [],
+    labTests: [],
     nadiTypes: [],
     agniStatuses: [],
     koshthaTypes: [],
     frequencies: [],
-    routes: []
+    routes: [],
+    consultationFee: 0,
+    operatingHours: null
   });
   const [selectedQueueItem, setSelectedQueueItem] = useState(null);
   const [visitPayload, setVisitPayload] = useState(null);
@@ -515,6 +518,15 @@ export function OpdPage() {
             ))}
 
             {!queue.length ? <div className="empty-state">No OPD queue items for the selected doctor today.</div> : null}
+          </div>
+
+          <div className="content-card inset-card" style={{ marginTop: 18 }}>
+            <h3>OPD hours and charge</h3>
+            <div className="detail-list">
+              <div><strong>Mon-Sat:</strong> {masters.operatingHours?.mondayToSaturday?.map((slot) => slot.label).join(", ") || "Not set"}</div>
+              <div><strong>Sunday:</strong> {masters.operatingHours?.sunday?.map((slot) => slot.label).join(", ") || "Not set"}</div>
+              <div><strong>Consultation:</strong> Rs. {masters.consultationFee || 0}</div>
+            </div>
           </div>
         </aside>
 

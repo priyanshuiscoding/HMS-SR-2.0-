@@ -1,37 +1,56 @@
 import { demoUsers } from "../../config/constants.js";
-import { createId, db, nextBillNumber, nextReceiptNumber } from "../../data/store.js";
-
-function createError(message, statusCode = 400) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.publicMessage = message;
-  return error;
-}
-
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
+import { consultationCharge, invoiceProfiles, ipdWardCharges, panchkarmaTherapyRates } from "../../config/hospitalData.js";
+import { createId, db } from "../../data/store.js";
+import { todayDate } from "../../utils/dateTime.js";
+import { createError } from "../../utils/errors.js";
+import { getPatientById as getPersistedPatientById } from "../patients/patients.service.js";
+import {
+  applyDiscountRecord,
+  createBillRecord,
+  createPaymentRecord,
+  createRefundRecord,
+  findBillById,
+  listBillRecords,
+  listPaymentRecords,
+  listRefundRecords
+} from "./billing.repository.js";
 
 function sumItems(items) {
   return items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 }
 
-function getBillById(billId) {
-  const bill = db.bills.find((entry) => entry.id === billId);
-
-  if (!bill) {
-    throw createError("Bill not found.", 404);
+function getRefundStore() {
+  if (!Array.isArray(db.refunds)) {
+    db.refunds = [];
   }
 
-  return bill;
+  return db.refunds;
 }
 
-function getPatientById(patientId) {
-  return db.patients.find((entry) => entry.id === patientId) || null;
+function syncById(collection, item) {
+  if (!item) return;
+  const index = collection.findIndex((entry) => entry.id === item.id);
+  if (index >= 0) {
+    collection[index] = item;
+    return;
+  }
+  collection.unshift(item);
+}
+
+function syncBillMirror(bill) {
+  syncById(db.bills, bill);
+}
+
+function syncPaymentMirror(payment) {
+  syncById(db.payments, payment);
+}
+
+function syncRefundMirror(refund) {
+  syncById(getRefundStore(), refund);
 }
 
 function getDoctorById(doctorId) {
-  return demoUsers.find((entry) => entry.id === doctorId) || null;
+  return demoUsers.find((entry) => entry.id === doctorId || entry.metadata?.sourceId === doctorId) || null;
 }
 
 function getBedById(bedId) {
@@ -48,124 +67,60 @@ function formatPatientAddress(patient) {
     .join(", ");
 }
 
-function matchesDateRange(value, from, to) {
-  if (!value) {
-    return false;
+async function getPatientById(patientId) {
+  try {
+    return await getPersistedPatientById(patientId);
+  } catch (error) {
+    if (error.statusCode !== 404) {
+      throw error;
+    }
+    return db.patients.find((entry) => entry.id === patientId) || null;
   }
-
-  if (from && value < from) {
-    return false;
-  }
-
-  if (to && value > to) {
-    return false;
-  }
-
-  return true;
 }
 
-function enrichBill(bill) {
-  const payments = db.payments
-    .filter((payment) => payment.billId === bill.id)
-    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
-  const paidAmount = payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-  const balanceAmount = Number(bill.totalAmount || 0) - paidAmount;
-
-  let paymentStatus = "unpaid";
-
-  if (balanceAmount <= 0) {
-    paymentStatus = "paid";
-  } else if (paidAmount > 0) {
-    paymentStatus = "partial";
+async function getBillOrThrow(billId) {
+  const bill = await findBillById(billId);
+  if (!bill) {
+    throw createError("Bill not found.", 404);
   }
-
-  return {
-    ...bill,
-    paidAmount,
-    balanceAmount,
-    paymentStatus,
-    payments
-  };
+  return bill;
 }
 
-export function listBills(query = {}) {
-  const search = String(query.search || "").trim().toLowerCase();
-  let items = db.bills.map((bill) => enrichBill(bill));
+export async function loadBillingMirrorsFromDatabase() {
+  const bills = await listBillRecords();
+  const payments = await listPaymentRecords();
+  const refunds = await listRefundRecords();
 
-  if (query.patientId) {
-    items = items.filter((item) => item.patientId === query.patientId);
-  }
+  db.bills.splice(0, db.bills.length, ...bills);
+  db.payments.splice(0, db.payments.length, ...payments);
+  db.refunds = refunds;
 
-  if (query.visitId) {
-    items = items.filter((item) => item.visitId === query.visitId);
-  }
-
-  if (query.billType) {
-    items = items.filter((item) => item.billType === query.billType);
-  }
-
-  if (query.paymentStatus) {
-    items = items.filter((item) => item.paymentStatus === query.paymentStatus);
-  }
-
-  if (query.dateFrom || query.dateTo) {
-    items = items.filter((item) => matchesDateRange(item.billDate, query.dateFrom, query.dateTo));
-  }
-
-  if (search) {
-    items = items.filter((item) =>
-      [item.billNumber, item.patientName, item.billType, item.notes]
-        .join(" ")
-        .toLowerCase()
-        .includes(search)
-    );
-  }
-
-  return items.sort((a, b) => `${b.billDate} ${b.billNumber}`.localeCompare(`${a.billDate} ${a.billNumber}`));
+  return { bills, payments, refunds };
 }
 
-export function listPayments(query = {}) {
-  const search = String(query.search || "").trim().toLowerCase();
-  let items = [...db.payments];
-
-  if (query.billId) {
-    items = items.filter((payment) => payment.billId === query.billId);
-  }
-
-  if (query.patientId) {
-    items = items.filter((payment) => payment.patientId === query.patientId);
-  }
-
-  if (query.paymentMode) {
-    items = items.filter((payment) => payment.paymentMode === query.paymentMode);
-  }
-
-  if (query.dateFrom || query.dateTo) {
-    items = items.filter((payment) => matchesDateRange(payment.paymentDate.slice(0, 10), query.dateFrom, query.dateTo));
-  }
-
-  if (search) {
-    items = items.filter((payment) =>
-      [payment.receiptNumber, payment.patientName, payment.referenceNumber, payment.paymentMode]
-        .join(" ")
-        .toLowerCase()
-        .includes(search)
-    );
-  }
-
-  return items.sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
+export async function listBills(query = {}) {
+  return listBillRecords(query);
 }
 
-export function getBillDetails(billId) {
-  const bill = getBillById(billId);
-  const patient = getPatientById(bill.patientId);
+export async function listPayments(query = {}) {
+  return listPaymentRecords(query);
+}
+
+export async function listRefunds(query = {}) {
+  return listRefundRecords(query);
+}
+
+export async function getBillDetails(billId) {
+  const bill = await getBillOrThrow(billId);
+  const patient = bill.patientId ? await getPatientById(bill.patientId) : null;
   const visit = bill.visitId ? db.opdVisits.find((entry) => entry.id === bill.visitId) || null : null;
-  const bed = bill.bedId ? getBedById(bill.bedId) : null;
+  const sourceBedId = bill.metadata?.sourceBedId || "";
+  const bed = bill.bedId ? getBedById(bill.bedId) : (sourceBedId ? getBedById(sourceBedId) : null);
   const room = bed ? db.rooms.find((entry) => entry.id === bed.roomId) || null : null;
   const doctor = visit?.doctorId ? getDoctorById(visit.doctorId) : null;
 
   return {
-    item: enrichBill(bill),
+    item: bill,
     patient,
     visit,
     doctor,
@@ -174,8 +129,24 @@ export function getBillDetails(billId) {
   };
 }
 
-export function getBillingSummary() {
-  const bills = listBills();
+export async function getBillInvoice(billId) {
+  const details = await getBillDetails(billId);
+  const bill = details.item;
+
+  return {
+    ...details,
+    invoice: {
+      invoiceNumber: bill.billNumber,
+      generatedAt: new Date().toISOString(),
+      printable: true,
+      endpoint: `/api/v1/billing/bills/${bill.id}/invoice`
+    }
+  };
+}
+
+export async function getBillingSummary() {
+  const bills = await listBills();
+  const payments = await listPayments({ dateFrom: todayDate(), dateTo: todayDate() });
   const totalRevenue = bills.reduce((sum, bill) => sum + Number(bill.paidAmount || 0), 0);
   const outstanding = bills.reduce((sum, bill) => sum + Math.max(Number(bill.balanceAmount || 0), 0), 0);
 
@@ -186,10 +157,7 @@ export function getBillingSummary() {
     unpaidBills: bills.filter((bill) => bill.paymentStatus === "unpaid").length,
     totalRevenue,
     outstanding,
-    todayCollections: listPayments({ dateFrom: todayDate(), dateTo: todayDate() }).reduce(
-      (sum, payment) => sum + Number(payment.amount || 0),
-      0
-    )
+    todayCollections: payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0)
   };
 }
 
@@ -198,31 +166,21 @@ export function getBillingMasters() {
     billTypes: ["opd", "ipd", "lab", "pharmacy", "therapy", "room", "procedure", "miscellaneous"],
     paymentModes: ["cash", "upi", "card", "bank_transfer"],
     itemCategories: ["consultation", "lab", "pharmacy", "room", "therapy", "procedure", "service", "miscellaneous"],
-    invoiceProfiles: {
-      pharmacy: {
-        sellerName: "SU-RA MEDICAL STORES",
-        addressLines: ["NEHA NAGAR MAKRONIYA SAGAR (M.P)", "PIN - 470004"],
-        phone: "07582-357300",
-        website: "shantiratnam.com",
-        email: "shantiratnam@gmail.com",
-        gstin: "23BISPB2894Q1ZJ",
-        invoiceTitle: "GST INVOICE",
-        terms: [
-          "MEDICINE ONCE PREPARED AND SOLD WILL NOT BE TAKEN BACK OR EXCHANGED.",
-          "All disputes subject to SAGAR jurisdiction only."
-        ]
-      }
-    }
+    standardCharges: {
+      consultation: consultationCharge,
+      ipdWardCharges,
+      panchkarmaTherapies: panchkarmaTherapyRates
+    },
+    invoiceProfiles
   };
 }
 
-export function createBill(payload) {
+export async function createBill(payload) {
   if (!payload.patientId || !payload.items?.length) {
     throw createError("Patient and at least one bill item are required.");
   }
 
-  const patient = getPatientById(payload.patientId);
-
+  const patient = await getPatientById(payload.patientId);
   if (!patient) {
     throw createError("Patient not found.", 404);
   }
@@ -241,7 +199,7 @@ export function createBill(payload) {
     }
 
     return {
-      id: createId(),
+      id: item.id || createId(),
       description: item.description,
       category: item.category || "service",
       quantity,
@@ -250,7 +208,8 @@ export function createBill(payload) {
       batchNumber: item.batchNumber || "",
       pack: item.pack || "",
       expiryDate: item.expiryDate || "",
-      gstPercent: Number(item.gstPercent || 0)
+      gstPercent: Number(item.gstPercent || 0),
+      metadata: item.metadata || {}
     };
   });
 
@@ -262,11 +221,15 @@ export function createBill(payload) {
     throw createError("Discount and tax must be zero or greater.");
   }
 
-  const bill = {
-    id: createId(),
-    billNumber: nextBillNumber(),
+  if (discountAmount > subtotal) {
+    throw createError("Discount cannot be greater than subtotal.");
+  }
+
+  const bill = await createBillRecord({
+    id: payload.id || createId(),
+    billNumber: payload.billNumber,
     patientId: patient.id,
-    patientName: payload.patientName || `${patient.firstName} ${patient.lastName}`,
+    patientName: payload.patientName || patient.fullName || `${patient.firstName} ${patient.lastName}`.trim(),
     visitId: payload.visitId || "",
     bedId: payload.bedId || "",
     billType: payload.billType || "opd",
@@ -284,52 +247,121 @@ export function createBill(payload) {
       patientAddress: payload.invoiceMeta?.patientAddress || formatPatientAddress(patient),
       remark: payload.invoiceMeta?.remark || ""
     },
+    metadata: payload.metadata || {},
     items
-  };
+  });
 
-  db.bills.unshift(bill);
-  return enrichBill(bill);
+  syncBillMirror(bill);
+  return bill;
 }
 
-export function collectPayment(billId, payload) {
-  const bill = getBillById(billId);
-  const enrichedBill = enrichBill(bill);
+export async function applyBillDiscount(billId, payload = {}, actorId = "") {
+  const bill = await getBillOrThrow(billId);
+  const discountAmount = Number(payload.discountAmount);
+
+  if (!Number.isFinite(discountAmount) || discountAmount < 0) {
+    throw createError("Valid discount amount is required.");
+  }
+
+  if (discountAmount > Number(bill.subtotal || 0)) {
+    throw createError("Discount cannot be greater than subtotal.");
+  }
+
+  const nextTotal = Number(bill.subtotal || 0) - discountAmount + Number(bill.taxAmount || 0);
+  if (nextTotal < Number(bill.paidAmount || 0)) {
+    throw createError("Discount cannot reduce total below net collected amount.");
+  }
+
+  const updated = await applyDiscountRecord(
+    billId,
+    {
+      historyId: createId(),
+      discountAmount,
+      reason: String(payload.reason || "").trim()
+    },
+    actorId
+  );
+
+  syncBillMirror(updated);
+  return updated;
+}
+
+export async function collectPayment(billId, payload) {
+  const bill = await getBillOrThrow(billId);
 
   if (!payload.amount) {
     throw createError("Payment amount is required.");
   }
 
   const amount = Number(payload.amount || 0);
-
   if (amount <= 0) {
     throw createError("Payment amount must be greater than zero.");
   }
 
-  if (amount > enrichedBill.balanceAmount) {
+  if (amount > Number(bill.balanceAmount || 0)) {
     throw createError("Payment amount cannot exceed the outstanding balance.");
   }
 
-  const payment = {
-    id: createId(),
-    receiptNumber: nextReceiptNumber(),
-    billId: bill.id,
-    patientId: bill.patientId,
-    patientName: bill.patientName,
-    paymentDate: new Date().toISOString(),
+  const result = await createPaymentRecord(billId, {
+    id: payload.id || createId(),
+    receiptNumber: payload.receiptNumber,
+    paymentDate: payload.paymentDate,
     amount,
     paymentMode: payload.paymentMode || "cash",
     referenceNumber: payload.referenceNumber || "",
     receivedBy: payload.receivedBy,
-    note: payload.note || ""
-  };
+    note: payload.note || "",
+    metadata: payload.metadata || {}
+  });
 
-  db.payments.unshift(payment);
+  if (!result) {
+    throw createError("Bill not found.", 404);
+  }
 
-  const updated = enrichBill(bill);
-  bill.paymentStatus = updated.paymentStatus;
+  syncPaymentMirror(result.payment);
+  syncBillMirror(result.bill);
+  return result;
+}
 
-  return {
-    payment,
-    bill: updated
-  };
+export async function createRefund(payload = {}, actorId = "") {
+  if (!payload.billId || !payload.amount) {
+    throw createError("Bill and refund amount are required.");
+  }
+
+  if (!payload.reason || !String(payload.reason).trim()) {
+    throw createError("Refund reason is required.");
+  }
+
+  const bill = await getBillOrThrow(payload.billId);
+  const amount = Number(payload.amount || 0);
+
+  if (amount <= 0) {
+    throw createError("Refund amount must be greater than zero.");
+  }
+
+  if (amount > Number(bill.paidAmount || 0)) {
+    throw createError("Refund amount cannot exceed net collected amount.");
+  }
+
+  const result = await createRefundRecord({
+    id: payload.id || createId(),
+    refundNumber: payload.refundNumber,
+    billId: payload.billId,
+    refundDate: payload.refundDate,
+    amount,
+    paymentMode: payload.paymentMode || "cash",
+    referenceNumber: payload.referenceNumber || "",
+    reason: String(payload.reason).trim(),
+    note: payload.note || "",
+    approvedBy: actorId,
+    metadata: payload.metadata || {}
+  });
+
+  if (!result) {
+    throw createError("Bill not found.", 404);
+  }
+
+  syncRefundMirror(result.refund);
+  syncBillMirror(result.bill);
+  return result;
 }

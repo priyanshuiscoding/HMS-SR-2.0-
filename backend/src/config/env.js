@@ -1,6 +1,12 @@
+import path from "path";
+import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
+dotenv.config({ override: false });
 
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",
@@ -14,6 +20,8 @@ export const env = {
   jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "change_me_to_a_different_long_random_secret",
   jwtAccessExpires: process.env.JWT_ACCESS_EXPIRES || "8h",
   jwtRefreshExpires: process.env.JWT_REFRESH_EXPIRES || "30d",
+  cookieSecure: String(process.env.COOKIE_SECURE || "false").toLowerCase() === "true",
+  trustProxy: String(process.env.TRUST_PROXY || "false").toLowerCase() === "true",
   persistenceEnabled: String(process.env.PERSISTENCE_ENABLED || "true").toLowerCase() === "true",
   databaseUrl: process.env.DATABASE_URL || "",
   dbHost: process.env.DB_HOST || "localhost",

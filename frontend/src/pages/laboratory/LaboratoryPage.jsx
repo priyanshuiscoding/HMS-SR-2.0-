@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { formatCurrency } from "../../utils/format.js";
 import {
   collectLabSample,
   createLabBill,
@@ -20,10 +21,6 @@ const initialSampleForm = {
   sampleCollectionTime: "",
   collectionNote: ""
 };
-
-function formatCurrency(value) {
-  return Number(value || 0).toFixed(2);
-}
 
 export function LaboratoryPage() {
   const { user } = useAuth();

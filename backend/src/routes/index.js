@@ -1,6 +1,7 @@
 import { Router } from "express";
 
 import { authenticate } from "../middleware/auth.js";
+import { auditWrites } from "../middleware/audit.js";
 import { authorize } from "../middleware/rbac.js";
 import { appointmentsRouter } from "../modules/appointments/appointments.routes.js";
 import { authRouter } from "../modules/auth/auth.routes.js";
@@ -20,6 +21,7 @@ const apiRouter = Router();
 
 apiRouter.use("/auth", authRouter);
 apiRouter.use(authenticate);
+apiRouter.use(auditWrites);
 apiRouter.use("/patients", patientsRouter);
 apiRouter.use("/appointments", appointmentsRouter);
 apiRouter.use("/opd", opdRouter);

@@ -1,29 +1,35 @@
 import {
   createId,
   db,
-  getDoctors,
-  getLabTestMasters,
   getMedicineMasters,
-  nextOpdNumber,
-  nextPrescriptionNumber
 } from "../../data/store.js";
-import { getAppointmentById } from "../appointments/appointments.service.js";
+import { consultationCharge, opdOperatingHours } from "../../config/hospitalData.js";
+import { todayDate } from "../../utils/dateTime.js";
+import { createError } from "../../utils/errors.js";
+import { getAppointmentById, updateAppointmentStatus } from "../appointments/appointments.service.js";
+import { admitPatient } from "../ipd/ipd.service.js";
+import { createLabOrder, getLabMasters } from "../laboratory/laboratory.service.js";
+import { listDoctors } from "../users/users.service.js";
+import {
+  createVisitRecord,
+  findAssessmentByVisitId,
+  findPrescriptionByVisitId,
+  findVisitByAppointmentId,
+  findVisitById,
+  listAssessmentRecords,
+  listOpdQueue,
+  listPrescriptionRecords,
+  listVisitRecords,
+  updateVisitStatusRecord,
+  updateVisitVitalsRecord,
+  upsertAssessmentRecord,
+  upsertPrescriptionRecord
+} from "./opd.repository.js";
 
-function createError(message, statusCode = 400) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.publicMessage = message;
-  return error;
-}
+const CONSULTATION_FEE = consultationCharge;
 
-const CONSULTATION_FEE = 200;
-
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function getVisitById(visitId) {
-  const visit = db.opdVisits.find((entry) => entry.id === visitId);
+async function getVisitById(visitId) {
+  const visit = await findVisitById(visitId);
 
   if (!visit) {
     throw createError("OPD visit not found.", 404);
@@ -32,47 +38,64 @@ function getVisitById(visitId) {
   return visit;
 }
 
-function getDoctorName(doctorId) {
-  return getDoctors().find((doctor) => doctor.id === doctorId)?.fullName || "Unassigned";
+function syncList(list, item) {
+  const index = list.findIndex((entry) => entry.id === item.id);
+
+  if (index >= 0) {
+    list[index] = item;
+    return;
+  }
+
+  list.push(item);
 }
 
-function getAssessmentByVisitId(visitId) {
-  return db.ayurvedaAssessments.find((entry) => entry.visitId === visitId) || null;
+function syncVisitMirror(visit) {
+  syncList(db.opdVisits, visit);
 }
 
-function getPrescriptionByVisitId(visitId) {
-  return db.prescriptions.find((entry) => entry.visitId === visitId) || null;
+function syncAssessmentMirror(assessment) {
+  syncList(db.ayurvedaAssessments, assessment);
 }
 
-export function getQueue(date = todayDate(), doctorId = "") {
-  return db.appointments
-    .filter((appointment) => appointment.appointmentDate === date)
-    .filter((appointment) => !doctorId || appointment.doctorId === doctorId)
-    .filter((appointment) => !["cancelled", "no_show"].includes(appointment.status))
-    .map((appointment) => {
-      const visit = db.opdVisits.find((entry) => entry.appointmentId === appointment.id);
-
-      return {
-        ...appointment,
-        doctorName: getDoctorName(appointment.doctorId),
-        visitId: visit?.id || null,
-        visitStatus: visit?.status || null
-      };
-    })
-    .sort((a, b) => a.tokenNumber - b.tokenNumber);
+function syncPrescriptionMirror(prescription) {
+  syncList(db.prescriptions, prescription);
 }
 
-export function createVisit({ appointmentId }) {
-  const appointment = getAppointmentById(appointmentId);
-  const existingVisit = db.opdVisits.find((entry) => entry.appointmentId === appointmentId);
+export function syncOpdMirrors({ visits = [], assessments = [], prescriptions = [] } = {}) {
+  visits.forEach(syncVisitMirror);
+  assessments.forEach(syncAssessmentMirror);
+  prescriptions.forEach(syncPrescriptionMirror);
+}
+
+export async function loadOpdMirrorsFromDatabase() {
+  const [visits, assessments, prescriptions] = await Promise.all([
+    listVisitRecords(),
+    listAssessmentRecords(),
+    listPrescriptionRecords()
+  ]);
+
+  db.opdVisits.splice(0, db.opdVisits.length, ...visits);
+  db.ayurvedaAssessments.splice(0, db.ayurvedaAssessments.length, ...assessments);
+  db.prescriptions.splice(0, db.prescriptions.length, ...prescriptions);
+
+  return { visits, assessments, prescriptions };
+}
+
+export async function getQueue(date = todayDate(), doctorId = "") {
+  return listOpdQueue(date, doctorId);
+}
+
+export async function createVisit({ appointmentId }) {
+  const appointment = await getAppointmentById(appointmentId);
+  const existingVisit = await findVisitByAppointmentId(appointmentId);
 
   if (existingVisit) {
+    syncVisitMirror(existingVisit);
     return existingVisit;
   }
 
   const visit = {
     id: createId(),
-    opdNumber: nextOpdNumber(),
     patientId: appointment.patientId,
     patientName: appointment.patientName,
     doctorId: appointment.doctorId,
@@ -91,45 +114,40 @@ export function createVisit({ appointmentId }) {
     consultationFee: CONSULTATION_FEE
   };
 
-  db.opdVisits.push(visit);
+  const savedVisit = await createVisitRecord(visit);
+  syncVisitMirror(savedVisit);
   appointment.status = "in_progress";
+  await updateAppointmentStatus(appointment.id, { status: "in_progress", note: `OPD visit ${savedVisit.opdNumber} created.` });
 
-  return visit;
+  return savedVisit;
 }
 
-export function getVisitDetails(visitId) {
-  const visit = getVisitById(visitId);
+export async function getVisitDetails(visitId) {
+  const visit = await getVisitById(visitId);
+  const doctors = await listDoctors();
+  const assessment = await findAssessmentByVisitId(visitId);
+  const prescription = await findPrescriptionByVisitId(visitId);
 
   return {
     visit,
-    doctorName: getDoctorName(visit.doctorId),
-    assessment: getAssessmentByVisitId(visitId),
-    prescription: getPrescriptionByVisitId(visitId),
+    doctorName: doctors.find((doctor) => doctor.id === visit.doctorId)?.fullName || "Unassigned",
+    assessment,
+    prescription,
     labOrders: db.labOrders.filter((entry) => entry.visitId === visitId),
     bills: db.bills.filter((entry) => entry.visitId === visitId)
   };
 }
 
-export function saveVitals(visitId, payload) {
-  const visit = getVisitById(visitId);
-
-  Object.assign(visit, {
-    vitalsBp: payload.vitalsBp ?? visit.vitalsBp,
-    vitalsPulse: payload.vitalsPulse ?? visit.vitalsPulse,
-    vitalsTemp: payload.vitalsTemp ?? visit.vitalsTemp,
-    vitalsWeight: payload.vitalsWeight ?? visit.vitalsWeight,
-    vitalsHeight: payload.vitalsHeight ?? visit.vitalsHeight,
-    vitalsSpo2: payload.vitalsSpo2 ?? visit.vitalsSpo2,
-    vitalsRr: payload.vitalsRr ?? visit.vitalsRr,
-    status: visit.status === "waiting" ? "in_consultation" : visit.status
-  });
-
+export async function saveVitals(visitId, payload) {
+  await getVisitById(visitId);
+  const visit = await updateVisitVitalsRecord(visitId, payload);
+  syncVisitMirror(visit);
   return visit;
 }
 
-export function saveAssessment(visitId, payload, doctorId) {
-  const visit = getVisitById(visitId);
-  let assessment = getAssessmentByVisitId(visitId);
+export async function saveAssessment(visitId, payload, doctorId) {
+  const visit = await getVisitById(visitId);
+  let assessment = await findAssessmentByVisitId(visitId);
 
   if (!assessment) {
     assessment = {
@@ -139,7 +157,6 @@ export function saveAssessment(visitId, payload, doctorId) {
       doctorId: doctorId || visit.doctorId,
       assessmentDate: todayDate()
     };
-    db.ayurvedaAssessments.push(assessment);
   }
 
   Object.assign(assessment, {
@@ -160,12 +177,14 @@ export function saveAssessment(visitId, payload, doctorId) {
     observations: payload.observations ?? assessment.observations ?? ""
   });
 
-  return assessment;
+  const savedAssessment = await upsertAssessmentRecord(assessment);
+  syncAssessmentMirror(savedAssessment);
+  return savedAssessment;
 }
 
-export function savePrescription(visitId, payload, doctorId) {
-  const visit = getVisitById(visitId);
-  let prescription = getPrescriptionByVisitId(visitId);
+export async function savePrescription(visitId, payload, doctorId) {
+  const visit = await getVisitById(visitId);
+  let prescription = await findPrescriptionByVisitId(visitId);
 
   if (!payload.diagnosis) {
     throw createError("Diagnosis is required to save a prescription.");
@@ -174,7 +193,7 @@ export function savePrescription(visitId, payload, doctorId) {
   if (!prescription) {
     prescription = {
       id: createId(),
-      prescriptionNumber: nextPrescriptionNumber(),
+      prescriptionNumber: "",
       patientId: visit.patientId,
       patientName: visit.patientName,
       doctorId: doctorId || visit.doctorId,
@@ -183,7 +202,6 @@ export function savePrescription(visitId, payload, doctorId) {
       isDispensed: false,
       medicines: []
     };
-    db.prescriptions.push(prescription);
   }
 
   Object.assign(prescription, {
@@ -214,32 +232,95 @@ export function savePrescription(visitId, payload, doctorId) {
     }))
   });
 
-  return prescription;
+  const savedPrescription = await upsertPrescriptionRecord(prescription);
+  syncPrescriptionMirror(savedPrescription);
+  return savedPrescription;
 }
 
-export function completeVisit(visitId) {
-  const visit = getVisitById(visitId);
-  const appointment = visit.appointmentId ? getAppointmentById(visit.appointmentId) : null;
-
-  visit.status = "completed";
-
-  if (appointment) {
-    appointment.status = "completed";
+export async function completeVisit(visitId) {
+  const visit = await getVisitById(visitId);
+  const savedVisit = await updateVisitStatusRecord(visitId, "completed");
+  syncVisitMirror(savedVisit);
+  if (visit.appointmentId) {
+    await updateAppointmentStatus(visit.appointmentId, { status: "completed", note: `Completed from OPD visit ${visit.opdNumber}` });
   }
 
-  return visit;
+  return savedVisit;
 }
 
-export function getOpdMasters() {
+export async function createVisitLabOrder(visitId, payload, userId) {
+  const visit = await getVisitById(visitId);
+
+  if (!visit.patientId) {
+    throw createError("Lab order can only be created for a registered patient linked to this OPD visit.");
+  }
+
+  if (!payload.tests?.length) {
+    throw createError("At least one lab test is required.");
+  }
+
+  return createLabOrder({
+    visitId: visit.id,
+    patientId: visit.patientId,
+    patientName: visit.patientName,
+    orderedBy: userId || visit.doctorId,
+    priority: payload.priority || "routine",
+    tests: payload.tests
+  });
+}
+
+export async function referVisitToIpd(visitId, payload, userId) {
+  const visit = await getVisitById(visitId);
+
+  if (!visit.patientId) {
+    throw createError("IPD referral requires a registered patient linked to this OPD visit.");
+  }
+
+  const admission = await admitPatient(
+    {
+      patientId: visit.patientId,
+      roomId: payload.roomId,
+      bedId: payload.bedId,
+      attendingDoctorId: payload.attendingDoctorId || visit.doctorId,
+      reasonForAdmission: payload.reasonForAdmission || visit.chiefComplaint || "Referred from OPD",
+      diagnosis: payload.diagnosis || "",
+      expectedDischargeDate: payload.expectedDischargeDate || "",
+      admissionSource: "opd",
+      admissionType: payload.admissionType || "ipd",
+      initialNote: payload.initialNote || `Referred from OPD visit ${visit.opdNumber}`
+    },
+    userId
+  );
+
+  const savedVisit = await updateVisitStatusRecord(visitId, "completed", {
+    referredIpdAdmissionId: admission.id,
+    referredIpdAdmissionNumber: admission.admissionNumber,
+    referredAt: new Date().toISOString()
+  });
+  syncVisitMirror(savedVisit);
+  if (visit.appointmentId) {
+    await updateAppointmentStatus(visit.appointmentId, { status: "completed", note: `Referred to IPD from OPD visit ${visit.opdNumber}` });
+  }
+
   return {
-    doctors: getDoctors(),
+    visit: savedVisit,
+    admission
+  };
+}
+
+export async function getOpdMasters() {
+  const labMasters = await getLabMasters();
+
+  return {
+    doctors: await listDoctors(),
     medicines: getMedicineMasters(),
-    labTests: getLabTestMasters(),
+    labTests: labMasters.tests,
     nadiTypes: ["Vataja", "Pittaja", "Kaphaja", "Mixed"],
     agniStatuses: ["sama", "vishama", "tikshna", "manda"],
     koshthaTypes: ["mridu", "madhyama", "krura"],
     frequencies: ["OD", "BD", "TDS", "QID", "SOS"],
     routes: ["oral", "external", "nasya", "enema"],
-    consultationFee: CONSULTATION_FEE
+    consultationFee: CONSULTATION_FEE,
+    operatingHours: opdOperatingHours
   };
 }

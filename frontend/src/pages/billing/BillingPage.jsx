@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { formatCurrency } from "../../utils/format.js";
 import {
   collectBillPayment,
   createBill,
@@ -49,10 +50,6 @@ function formatDisplayDate(value) {
   }
 
   return value;
-}
-
-function formatCurrency(value) {
-  return Number(value || 0).toFixed(2);
 }
 
 function GenericInvoice({ selectedBill, invoiceTotals }) {

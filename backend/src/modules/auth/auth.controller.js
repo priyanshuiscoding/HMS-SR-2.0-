@@ -1,3 +1,4 @@
+import { env } from "../../config/env.js";
 import {
   changePassword,
   getCurrentUser,
@@ -8,13 +9,13 @@ import {
   resetPassword
 } from "./auth.service.js";
 
-export function loginHandler(req, res, next) {
+export async function loginHandler(req, res, next) {
   try {
-    const result = issueTokens(req.body);
+    const result = await issueTokens(req.body);
     res.cookie("refreshToken", result.refreshToken, {
       httpOnly: true,
-      sameSite: req.secure ? "none" : "lax",
-      secure: req.secure
+      sameSite: env.cookieSecure || req.secure ? "none" : "lax",
+      secure: env.cookieSecure || req.secure
     });
 
     res.json(result);
@@ -33,42 +34,42 @@ export function logoutHandler(req, res, next) {
   }
 }
 
-export function refreshHandler(req, res, next) {
+export async function refreshHandler(req, res, next) {
   try {
-    const result = refreshAccessToken(req.cookies.refreshToken);
+    const result = await refreshAccessToken(req.cookies.refreshToken);
     res.json(result);
   } catch (error) {
     next(error);
   }
 }
 
-export function meHandler(req, res, next) {
+export async function meHandler(req, res, next) {
   try {
-    res.json({ user: getCurrentUser(req.user.email) });
+    res.json({ user: await getCurrentUser(req.user.email) });
   } catch (error) {
     next(error);
   }
 }
 
-export function forgotPasswordHandler(req, res, next) {
+export async function forgotPasswordHandler(req, res, next) {
   try {
-    res.json(requestPasswordReset(req.body.email));
+    res.json(await requestPasswordReset(req.body.email));
   } catch (error) {
     next(error);
   }
 }
 
-export function resetPasswordHandler(req, res, next) {
+export async function resetPasswordHandler(req, res, next) {
   try {
-    res.json(resetPassword(req.body));
+    res.json(await resetPassword(req.body));
   } catch (error) {
     next(error);
   }
 }
 
-export function changePasswordHandler(req, res, next) {
+export async function changePasswordHandler(req, res, next) {
   try {
-    res.json(changePassword(req.user.email, req.body));
+    res.json(await changePassword(req.user.email, req.body));
   } catch (error) {
     next(error);
   }

@@ -6,25 +6,25 @@ import {
   updatePatient
 } from "./patients.service.js";
 
-export function listPatientsHandler(req, res, next) {
+export async function listPatientsHandler(req, res, next) {
   try {
-    res.json({ items: listPatients(req.query) });
+    res.json({ items: await listPatients(req.query) });
   } catch (error) {
     next(error);
   }
 }
 
-export function getPatientHandler(req, res, next) {
+export async function getPatientHandler(req, res, next) {
   try {
-    res.json({ item: getPatientById(req.params.id) });
+    res.json({ item: await getPatientById(req.params.id) });
   } catch (error) {
     next(error);
   }
 }
 
-export function searchPatientsHandler(req, res, next) {
+export async function searchPatientsHandler(req, res, next) {
   try {
-    res.json({ items: listPatients({ search: req.query.q || req.query.search || "" }) });
+    res.json({ items: await listPatients({ search: req.query.q || req.query.search || "" }) });
   } catch (error) {
     next(error);
   }
@@ -47,9 +47,9 @@ export async function updatePatientHandler(req, res, next) {
   }
 }
 
-export function patientHistoryHandler(req, res, next) {
+export async function patientHistoryHandler(req, res, next) {
   try {
-    res.json(getPatientHistory(req.params.id));
+    res.json(await getPatientHistory(req.params.id));
   } catch (error) {
     next(error);
   }

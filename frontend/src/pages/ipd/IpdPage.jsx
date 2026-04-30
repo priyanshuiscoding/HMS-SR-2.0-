@@ -67,7 +67,7 @@ export function IpdPage() {
   const [summary, setSummary] = useState(null);
   const [admissions, setAdmissions] = useState([]);
   const [patients, setPatients] = useState([]);
-  const [masters, setMasters] = useState({ doctors: [], admissionSources: [], noteCategories: [], dischargeStatuses: [], rooms: [] });
+  const [masters, setMasters] = useState({ doctors: [], admissionSources: [], noteCategories: [], dischargeStatuses: [], wardCharges: [], rooms: [] });
   const [selectedAdmission, setSelectedAdmission] = useState(null);
   const [filters, setFilters] = useState({ status: "active", search: "" });
   const [admissionForm, setAdmissionForm] = useState(initialAdmissionForm);
@@ -373,6 +373,19 @@ export function IpdPage() {
         </article>
 
         <section className="consultation-column">
+          <article className="content-card">
+            <div className="section-header"><div><div className="eyebrow">Ward Charges</div><h3>IPD package rates</h3></div></div>
+            <div className="stack-list compact-list">
+              {masters.wardCharges.map((ward) => (
+                <div className="quick-action" key={ward.id}>
+                  <strong>{ward.ward}</strong>
+                  <div className="timeline-copy">Rs. {currency(ward.chargePerDay)} / day{ward.perPerson ? " / person" : ""}</div>
+                  <div className="timeline-copy">{ward.packageIncludes}</div>
+                </div>
+              ))}
+            </div>
+          </article>
+
           <article className="content-card">
             <div className="section-header"><div><div className="eyebrow">Clinical Note</div><h3>Add progress note</h3></div></div>
             {!selectedAdmission ? <div className="empty-state">Select an admission to add notes.</div> : selectedAdmission.status !== "active" ? <div className="empty-state">This admission is discharged. Notes are read-only now.</div> : (

@@ -10,7 +10,7 @@ from openpyxl import load_workbook
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FILE = ROOT / "ALL COMPANY GOUDOWN STOCK 14-03-2026.xlsx"
-OUTPUT_FILE = ROOT / "backend" / "src" / "data" / "godownInventory.generated.js"
+OUTPUT_FILE = ROOT / "backend" / "src" / "data" / "generated" / "godownInventory.generated.js"
 
 
 def slugify(value: str) -> str:

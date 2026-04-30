@@ -11,6 +11,12 @@
     "dev:backend": "npm --workspace backend run dev",
     "build:frontend": "npm --workspace frontend run build",
     "start:backend": "npm --workspace backend run start",
+    "db:migrate": "npm --workspace backend run db:migrate",
+    "db:seed": "npm --workspace backend run db:seed",
+    "db:setup": "npm --workspace backend run db:setup",
+    "db:backup": "node scripts/db-backup.mjs",
+    "db:restore": "node scripts/db-restore.mjs",
+    "check:deployment": "node scripts/check-deployment.mjs",
     "validate:workflows": "node scripts/validate-workflows.mjs"
   }
 }

@@ -8,50 +8,50 @@ import {
   listRooms
 } from "./rooms.service.js";
 
-export function roomMastersHandler(_req, res, next) {
+export async function roomMastersHandler(_req, res, next) {
   try {
-    res.json(getRoomMasters());
+    res.json(await getRoomMasters());
   } catch (error) {
     next(error);
   }
 }
 
-export function listRoomsHandler(req, res, next) {
+export async function listRoomsHandler(req, res, next) {
   try {
-    res.json({ items: listRooms(req.query) });
+    res.json({ items: await listRooms(req.query) });
   } catch (error) {
     next(error);
   }
 }
 
-export function roomAvailabilityHandler(_req, res, next) {
+export async function roomAvailabilityHandler(_req, res, next) {
   try {
-    res.json(getRoomsAvailability());
+    res.json(await getRoomsAvailability());
   } catch (error) {
     next(error);
   }
 }
 
-export function roomDetailsHandler(req, res, next) {
+export async function roomDetailsHandler(req, res, next) {
   try {
-    res.json(getRoomDetails(req.params.id));
+    res.json(await getRoomDetails(req.params.id));
   } catch (error) {
     next(error);
   }
 }
 
-export function createRoomHandler(req, res, next) {
+export async function createRoomHandler(req, res, next) {
   try {
-    res.status(201).json({ ...createRoom(req.body), message: "Room created successfully." });
+    res.status(201).json({ ...(await createRoom(req.body)), message: "Room created successfully." });
   } catch (error) {
     next(error);
   }
 }
 
-export function assignBedHandler(req, res, next) {
+export async function assignBedHandler(req, res, next) {
   try {
     res.status(201).json({
-      ...assignBed(req.params.roomId, req.params.bedId, { ...req.body, assignedBy: req.user.sub }),
+      ...(await assignBed(req.params.roomId, req.params.bedId, { ...req.body, assignedBy: req.user.sub })),
       message: "Bed assigned successfully."
     });
   } catch (error) {
@@ -59,10 +59,10 @@ export function assignBedHandler(req, res, next) {
   }
 }
 
-export function dischargeBedHandler(req, res, next) {
+export async function dischargeBedHandler(req, res, next) {
   try {
     res.json({
-      ...dischargeBed(req.params.roomId, req.params.bedId, req.body),
+      ...(await dischargeBed(req.params.roomId, req.params.bedId, req.body)),
       message: "Bed discharged successfully."
     });
   } catch (error) {

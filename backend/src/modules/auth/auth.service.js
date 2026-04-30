@@ -1,20 +1,14 @@
 import jwt from "jsonwebtoken";
 
-import { demoUsers } from "../../config/constants.js";
 import { env } from "../../config/env.js";
+import { createError } from "../../utils/errors.js";
+import { findUserByEmail, hashPasswordForStorage, updateUserPasswordHash, updateUserRecord, verifyPassword } from "../users/users.repository.js";
 
 const refreshStore = new Map();
 const resetOtpStore = new Map();
 
-function createError(message, statusCode = 400) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.publicMessage = message;
-  return error;
-}
-
 function sanitizeUser(user) {
-  const { password, ...safeUser } = user;
+  const { passwordHash, ...safeUser } = user;
   return safeUser;
 }
 
@@ -43,13 +37,15 @@ function createRefreshToken(user) {
   );
 }
 
-export function issueTokens({ email, password }) {
-  const user = demoUsers.find(
-    (entry) => entry.email.toLowerCase() === String(email).toLowerCase() && entry.password === password
-  );
+export async function issueTokens({ email, password }) {
+  const user = await findUserByEmail(email);
 
-  if (!user) {
+  if (!user || !(await verifyPassword(user, password))) {
     throw createError("Invalid email or password.", 401);
+  }
+
+  if (user.passwordHash?.startsWith("seed-sha256:")) {
+    await updateUserPasswordHash(user.id, await hashPasswordForStorage(user.email, password));
   }
 
   const accessToken = createAccessToken(user);
@@ -64,7 +60,7 @@ export function issueTokens({ email, password }) {
   };
 }
 
-export function refreshAccessToken(refreshToken) {
+export async function refreshAccessToken(refreshToken) {
   if (!refreshToken) {
     throw createError("Refresh token is required.", 401);
   }
@@ -74,7 +70,7 @@ export function refreshAccessToken(refreshToken) {
   }
 
   const payload = jwt.verify(refreshToken, env.jwtRefreshSecret);
-  const user = demoUsers.find((entry) => entry.email === payload.email);
+  const user = await findUserByEmail(payload.email);
 
   if (!user) {
     throw createError("User no longer exists.", 404);
@@ -89,8 +85,8 @@ export function logoutUser(refreshToken) {
   }
 }
 
-export function getCurrentUser(email) {
-  const user = demoUsers.find((entry) => entry.email === email);
+export async function getCurrentUser(email) {
+  const user = await findUserByEmail(email);
 
   if (!user) {
     throw createError("User not found.", 404);
@@ -99,8 +95,8 @@ export function getCurrentUser(email) {
   return sanitizeUser(user);
 }
 
-export function requestPasswordReset(email) {
-  const user = demoUsers.find((entry) => entry.email.toLowerCase() === String(email).toLowerCase());
+export async function requestPasswordReset(email) {
+  const user = await findUserByEmail(email);
 
   if (!user) {
     return { message: "If the account exists, an OTP reset flow has been initiated." };
@@ -115,36 +111,36 @@ export function requestPasswordReset(email) {
   };
 }
 
-export function resetPassword({ email, otp, newPassword }) {
+export async function resetPassword({ email, otp, newPassword }) {
   const expectedOtp = resetOtpStore.get(email);
 
   if (!expectedOtp || expectedOtp !== otp) {
     throw createError("Invalid OTP.", 400);
   }
 
-  const user = demoUsers.find((entry) => entry.email === email);
+  const user = await findUserByEmail(email);
 
   if (!user) {
     throw createError("User not found.", 404);
   }
 
-  user.password = newPassword;
+  await updateUserRecord(user.id, { email: user.email, password: newPassword });
   resetOtpStore.delete(email);
 
   return { message: "Password updated successfully." };
 }
 
-export function changePassword(email, payload) {
-  const user = demoUsers.find((entry) => entry.email === email);
+export async function changePassword(email, payload) {
+  const user = await findUserByEmail(email);
 
   if (!user) {
     throw createError("User not found.", 404);
   }
 
-  if (user.password !== payload.currentPassword) {
+  if (!(await verifyPassword(user, payload.currentPassword))) {
     throw createError("Current password is incorrect.", 400);
   }
 
-  user.password = payload.newPassword;
+  await updateUserRecord(user.id, { email: user.email, password: payload.newPassword });
   return { message: "Password changed successfully." };
 }

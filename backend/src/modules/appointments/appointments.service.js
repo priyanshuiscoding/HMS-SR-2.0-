@@ -1,27 +1,36 @@
-import { persistAppointments } from "../../data/persistence.js";
-import { db, getDepartments, getDoctors, nextAppointmentNumber, createId } from "../../data/store.js";
+import { db, getDepartments, createId } from "../../data/store.js";
+import { consultationCharge, opdOperatingHours } from "../../config/hospitalData.js";
+import { createError } from "../../utils/errors.js";
 import { getPatientById } from "../patients/patients.service.js";
-
-function createError(message, statusCode = 400) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.publicMessage = message;
-  return error;
-}
+import { listDoctors } from "../users/users.service.js";
+import {
+  cancelAppointmentRecord,
+  countAppointmentsForDate,
+  createAppointmentRecord,
+  findAppointmentById,
+  getBookedTimesForDoctor,
+  listAppointmentRecords,
+  updateAppointmentRecord,
+  updateAppointmentStatusRecord
+} from "./appointments.repository.js";
 
 const MAX_PATIENTS_PER_DAY = 100;
 const SLOT_DURATION_MINUTES = 10;
-const CONSULTATION_FEE = 200;
+const CONSULTATION_FEE = consultationCharge;
 const BOOKING_TYPES = ["new", "follow_up"];
 const BOOKING_SOURCES = ["Website", "Reception", "Call", "WhatsApp", "Walk-in"];
+const APPOINTMENT_STATUSES = ["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"];
+const STATUS_TRANSITIONS = {
+  scheduled: ["confirmed", "in_progress", "cancelled", "no_show"],
+  confirmed: ["in_progress", "cancelled", "no_show"],
+  in_progress: ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+  no_show: []
+};
 const OPD_SCHEDULE = {
-  weekday: [
-    { label: "Morning", start: "09:00", end: "13:30" },
-    { label: "Evening", start: "15:30", end: "19:30" }
-  ],
-  sundayAndHoliday: [
-    { label: "Morning", start: "09:00", end: "12:30" }
-  ]
+  weekday: opdOperatingHours.mondayToSaturday,
+  sundayAndHoliday: opdOperatingHours.sunday
 };
 const OPD_HOLIDAYS = [];
 
@@ -128,6 +137,16 @@ function normalizeGender(gender = "") {
   throw createError("Gender must be male, female, or other.");
 }
 
+function normalizeStatus(status) {
+  const nextStatus = String(status || "").trim().toLowerCase();
+
+  if (!APPOINTMENT_STATUSES.includes(nextStatus)) {
+    throw createError("Invalid appointment status.");
+  }
+
+  return nextStatus;
+}
+
 function ensureValidTimeForDate(date, time) {
   const slots = getSlotsForDate(date);
   if (!slots.includes(time)) {
@@ -135,46 +154,31 @@ function ensureValidTimeForDate(date, time) {
   }
 }
 
-function validateDailyCapacity(date) {
-  const dailyCount = db.appointments
-    .filter((appointment) => appointment.appointmentDate === date)
-    .filter((appointment) => appointment.status !== "cancelled")
-    .length;
+async function validateDailyCapacity(date) {
+  const dailyCount = await countAppointmentsForDate(date);
 
   if (dailyCount >= MAX_PATIENTS_PER_DAY) {
     throw createError(`Daily booking limit reached (${MAX_PATIENTS_PER_DAY} patients).`);
   }
 }
 
-function sameSlot(appointment, date, doctorId, time) {
-  return (
-    appointment.appointmentDate === date &&
-    appointment.doctorId === doctorId &&
-    appointment.appointmentTime === time &&
-    appointment.status !== "cancelled"
-  );
+function syncAppointmentMirror(appointment) {
+  const index = db.appointments.findIndex((entry) => entry.id === appointment.id);
+
+  if (index >= 0) {
+    db.appointments[index] = appointment;
+    return;
+  }
+
+  db.appointments.push(appointment);
 }
 
-export function listAppointments(query = {}) {
-  let items = [...db.appointments];
-
-  if (query.date) {
-    items = items.filter((appointment) => appointment.appointmentDate === query.date);
-  }
-
-  if (query.doctorId) {
-    items = items.filter((appointment) => appointment.doctorId === query.doctorId);
-  }
-
-  if (query.status) {
-    items = items.filter((appointment) => appointment.status === query.status);
-  }
-
-  return items.sort((a, b) => `${a.appointmentDate} ${a.appointmentTime}`.localeCompare(`${b.appointmentDate} ${b.appointmentTime}`));
+export async function listAppointments(query = {}) {
+  return listAppointmentRecords(query);
 }
 
-export function getAppointmentById(id) {
-  const item = db.appointments.find((appointment) => appointment.id === id);
+export async function getAppointmentById(id) {
+  const item = await findAppointmentById(id);
 
   if (!item) {
     throw createError("Appointment not found.", 404);
@@ -198,11 +202,12 @@ export async function createAppointment(payload, bookedBy) {
   ensureValidTimeForDate(appointmentDate, appointmentTime);
   normalizeType(payload.type);
 
-  if (db.appointments.some((appointment) => sameSlot(appointment, appointmentDate, payload.doctorId, appointmentTime))) {
+  const bookedTimes = await getBookedTimesForDoctor(appointmentDate, payload.doctorId);
+  if (bookedTimes.includes(appointmentTime)) {
     throw createError("This slot is already booked for the selected doctor.");
   }
 
-  validateDailyCapacity(appointmentDate);
+  await validateDailyCapacity(appointmentDate);
 
   const hasExistingPatient = Boolean(payload.patientId);
   let patientId = payload.patientId || null;
@@ -212,7 +217,7 @@ export async function createAppointment(payload, bookedBy) {
   let patientMobile = payload.patientMobile || "";
 
   if (hasExistingPatient) {
-    const patient = getPatientById(patientId);
+    const patient = await getPatientById(patientId);
     patientName = `${patient.firstName} ${patient.lastName}`.trim();
     patientAge = calculatePatientAge(patient);
     patientGender = patient.gender || "";
@@ -237,11 +242,8 @@ export async function createAppointment(payload, bookedBy) {
     throw createError("Problem / chief complaint is required.");
   }
 
-  const dailyCount = db.appointments.filter((appointment) => appointment.appointmentDate === appointmentDate).length;
-
   const item = {
     id: createId(),
-    appointmentNumber: nextAppointmentNumber(),
     patientId,
     patientName: String(patientName).trim(),
     patientAge: patientAge ? Number(patientAge) : null,
@@ -254,19 +256,31 @@ export async function createAppointment(payload, bookedBy) {
     department: payload.department,
     status: payload.status || "scheduled",
     chiefComplaint: String(payload.chiefComplaint || "").trim(),
-    tokenNumber: dailyCount + 1,
     bookedBy,
     source: BOOKING_SOURCES.includes(payload.source) ? payload.source : "Reception",
     smsSent: false
   };
 
-  db.appointments.push(item);
-  await persistAppointments();
-  return item;
+  try {
+    const savedAppointment = await createAppointmentRecord(item);
+    syncAppointmentMirror(savedAppointment);
+    return savedAppointment;
+  } catch (error) {
+    if (error.code === "23505") {
+      throw createError("This slot is already booked for the selected doctor.");
+    }
+
+    throw error;
+  }
 }
 
 export async function updateAppointment(id, payload) {
-  const item = getAppointmentById(id);
+  const item = await getAppointmentById(id);
+
+  if (payload.status !== undefined) {
+    throw createError("Use the dedicated status endpoint to update appointment status.");
+  }
+
   const nextDate = payload.appointmentDate ?? item.appointmentDate;
   const nextTime = payload.appointmentTime ?? item.appointmentTime;
   const nextDoctorId = payload.doctorId ?? item.doctorId;
@@ -277,57 +291,83 @@ export async function updateAppointment(id, payload) {
 
   if (
     (payload.appointmentDate || payload.doctorId || payload.appointmentTime) &&
-    db.appointments.some(
-      (appointment) =>
-        appointment.id !== id &&
-        sameSlot(
-          appointment,
-          nextDate,
-          nextDoctorId,
-          nextTime
-        )
-    )
+    (await getBookedTimesForDoctor(nextDate, nextDoctorId, id)).includes(nextTime)
   ) {
     throw createError("The updated slot conflicts with an existing booking.");
   }
 
-  Object.assign(item, {
+  const nextAppointment = {
+    ...item,
     appointmentDate: nextDate,
     appointmentTime: nextTime,
     doctorId: nextDoctorId,
     type: normalizeType(payload.type ?? item.type),
     department: payload.department ?? item.department,
-    status: payload.status ?? item.status,
     chiefComplaint: payload.chiefComplaint ?? item.chiefComplaint,
     source: BOOKING_SOURCES.includes(payload.source) ? payload.source : (payload.source ?? item.source)
-  });
+  };
 
-  await persistAppointments();
-  return item;
+  try {
+    const savedAppointment = await updateAppointmentRecord(id, nextAppointment);
+    syncAppointmentMirror(savedAppointment);
+    return savedAppointment;
+  } catch (error) {
+    if (error.code === "23505") {
+      throw createError("The updated slot conflicts with an existing booking.");
+    }
+
+    throw error;
+  }
+}
+
+export async function updateAppointmentStatus(id, payload = {}, actor = {}) {
+  const item = await getAppointmentById(id);
+  const nextStatus = normalizeStatus(payload.status);
+  const currentStatus = normalizeStatus(item.status);
+
+  if (currentStatus === nextStatus) {
+    return item;
+  }
+
+  const allowedNext = STATUS_TRANSITIONS[currentStatus] || [];
+
+  if (!allowedNext.includes(nextStatus)) {
+    throw createError(`Cannot move appointment from ${currentStatus} to ${nextStatus}.`);
+  }
+
+  const savedAppointment = await updateAppointmentStatusRecord(id, nextStatus, {
+    statusUpdatedAt: new Date().toISOString(),
+    statusUpdatedBy: actor.sub || "",
+    statusUpdateNote: String(payload.note || "").trim()
+  });
+  syncAppointmentMirror(savedAppointment);
+  return savedAppointment;
 }
 
 export async function cancelAppointment(id) {
-  const item = getAppointmentById(id);
-  item.status = "cancelled";
-  await persistAppointments();
-  return item;
+  const item = await getAppointmentById(id);
+  if (item.status === "cancelled") {
+    return item;
+  }
+
+  const savedAppointment = await cancelAppointmentRecord(id);
+  syncAppointmentMirror(savedAppointment);
+  return savedAppointment;
 }
 
-export function getTodayAppointments() {
+export async function getTodayAppointments() {
   const today = new Date().toISOString().slice(0, 10);
   return listAppointments({ date: today });
 }
 
-export function getAvailableSlots(date, doctorId) {
+export async function getAvailableSlots(date, doctorId) {
   if (!date || !doctorId) {
     throw createError("Date and doctor are required.");
   }
   const normalizedDate = normalizeDate(date);
   const slots = getSlotsForDate(normalizedDate);
 
-  const bookedTimes = db.appointments
-    .filter((appointment) => sameSlot(appointment, normalizedDate, doctorId, appointment.appointmentTime))
-    .map((appointment) => appointment.appointmentTime);
+  const bookedTimes = await getBookedTimesForDoctor(normalizedDate, doctorId);
 
   return slots.map((time) => ({
     time,
@@ -335,12 +375,12 @@ export function getAvailableSlots(date, doctorId) {
   }));
 }
 
-export function getAppointmentMasters() {
+export async function getAppointmentMasters() {
   return {
-    doctors: getDoctors(),
+    doctors: await listDoctors(),
     departments: getDepartments(),
     types: BOOKING_TYPES,
-    statuses: ["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"],
+    statuses: APPOINTMENT_STATUSES,
     sources: BOOKING_SOURCES,
     slotDurationMinutes: SLOT_DURATION_MINUTES,
     consultationFee: CONSULTATION_FEE,

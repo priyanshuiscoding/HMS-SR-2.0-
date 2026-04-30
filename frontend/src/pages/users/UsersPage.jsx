@@ -128,6 +128,7 @@ export function UsersPage() {
                     <th>Department</th>
                     <th>Role</th>
                     <th>Designation</th>
+                    <th>Schedule</th>
                     <th>Contact</th>
                   </tr>
                 </thead>
@@ -144,6 +145,17 @@ export function UsersPage() {
                         <span className="status-pill waiting">{titleize(user.role)}</span>
                       </td>
                       <td>{user.designation || user.title || "Not specified"}</td>
+                      <td>
+                        {user.workSchedules?.length ? (
+                          user.workSchedules.map((schedule, index) => (
+                            <div className="muted-text" key={`${user.id}-schedule-${index}`}>
+                              {schedule.workingTime} | Break: {schedule.breakTime || "N/A"} | Off: {schedule.weekOff || "N/A"}
+                            </div>
+                          ))
+                        ) : (
+                          <span className="muted-text">Not available</span>
+                        )}
+                      </td>
                       <td>{user.phone || "Not available"}</td>
                     </tr>
                   ))}

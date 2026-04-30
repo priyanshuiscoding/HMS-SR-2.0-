@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { formatCurrency } from "../../utils/format.js";
 import {
   completePanchkarmaSession,
   createPanchkarmaSchedule,
@@ -46,10 +47,6 @@ const initialCompletionForm = {
   addMaterialCharges: true,
   materialsUsed: [{ ...emptyMaterial }]
 };
-
-function formatCurrency(value) {
-  return Number(value || 0).toFixed(2);
-}
 
 export function PanchkarmaPage() {
   const { user } = useAuth();

@@ -1,3 +1,5 @@
+import { staffWorkSchedules } from "./hospitalData.js";
+
 export const roles = {
   ADMIN: "admin",
   RECEPTION: "reception",
@@ -97,6 +99,25 @@ function normalizeDepartment(value) {
     default:
       return department;
   }
+}
+
+function normalizePersonName(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\b(dr|mr|mrs|ms|miss)\.?\b/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function schedulesForUser(fullName) {
+  const normalizedName = normalizePersonName(fullName);
+  const parts = normalizedName.split(" ").filter(Boolean);
+  const firstLastKey = parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1]}` : normalizedName;
+
+  return staffWorkSchedules.filter((schedule) => {
+    const scheduleName = normalizePersonName(schedule.name);
+    return scheduleName === normalizedName || scheduleName === firstLastKey || normalizedName.endsWith(scheduleName);
+  });
 }
 
 function inferRole(department, designation, fullName) {
@@ -348,6 +369,7 @@ export const demoUsers = employeeSeedRows.map((entry, index) => {
     title: entry.designation || department,
     designation: entry.designation || department,
     phone: cleanPhone(entry.phone),
+    workSchedules: schedulesForUser(fullName),
     isActive: true
   };
 });

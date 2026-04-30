@@ -2,15 +2,15 @@
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   color: #10375c;
   background:
-    radial-gradient(circle at top right, rgba(255, 96, 31, 0.14), transparent 22%),
-    radial-gradient(circle at top left, rgba(0, 174, 214, 0.14), transparent 26%),
+    radial-gradient(circle at top right, rgba(244, 184, 108, 0.2), transparent 22%),
+    radial-gradient(circle at top left, rgba(87, 183, 223, 0.16), transparent 26%),
     radial-gradient(circle at bottom left, rgba(43, 180, 72, 0.12), transparent 24%),
     linear-gradient(180deg, #fbfdff 0%, #eef7fd 48%, #fefcf8 100%);
   --color-navy: #1f4f8f;
-  --color-blue: #1b8fcb;
-  --color-sky: #74c4e3;
-  --color-saffron: #ff8a1f;
-  --color-saffron-deep: #f35b1c;
+  --color-blue: #4aa8d3;
+  --color-sky: #9fd8ee;
+  --color-saffron: #f4b86c;
+  --color-saffron-deep: #e6a14f;
   --color-green: #2fb548;
   --color-ink: #16324f;
   --color-muted: #6283a1;
@@ -60,8 +60,8 @@ select {
   overflow: hidden;
   padding: 64px;
   background:
-    linear-gradient(140deg, rgba(13, 68, 115, 0.95), rgba(31, 111, 178, 0.92)),
-    linear-gradient(180deg, #0f3e6a, #1f6fb2);
+    linear-gradient(140deg, rgba(36, 111, 159, 0.9), rgba(88, 165, 207, 0.9)),
+    linear-gradient(180deg, #2f8bbf, #5aaed6);
   color: #ffffff;
 }
 
@@ -249,9 +249,9 @@ select {
   overflow-y: auto;
   padding: 24px;
   background:
-    radial-gradient(circle at top right, rgba(255, 138, 31, 0.22), transparent 28%),
+    radial-gradient(circle at top right, rgba(244, 184, 108, 0.26), transparent 28%),
     radial-gradient(circle at bottom left, rgba(47, 181, 72, 0.16), transparent 24%),
-    linear-gradient(180deg, #127db0 0%, #2d59a8 52%, #24407e 100%);
+    linear-gradient(180deg, #3f9ec8 0%, #5b98c8 52%, #6c8fbb 100%);
   color: #ffffff;
 }
 

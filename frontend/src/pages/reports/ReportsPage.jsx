@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
+import { formatCurrency } from "../../utils/format.js";
 import {
   getDailyOpdReport,
   getIpdCensusReport,
@@ -12,10 +13,6 @@ import {
 } from "../../services/api.js";
 
 const today = new Date().toISOString().slice(0, 10);
-
-function formatCurrency(value) {
-  return Number(value || 0).toFixed(2);
-}
 
 export function ReportsPage() {
   const [filters, setFilters] = useState({ dateFrom: today, dateTo: today, date: today });

@@ -1,78 +1,27 @@
-import { demoUsers } from "../../config/constants.js";
-import { createId, db, nextIpdNumber } from "../../data/store.js";
+import { ipdWardCharges } from "../../config/hospitalData.js";
+import { createId, db } from "../../data/store.js";
+import { currentTime, nowIso, todayDate } from "../../utils/dateTime.js";
+import { createError } from "../../utils/errors.js";
 import { createBill } from "../billing/billing.service.js";
-
-function createError(message, statusCode = 400) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.publicMessage = message;
-  return error;
-}
-
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function currentTime() {
-  return new Date().toTimeString().slice(0, 5);
-}
-
-function getAdmissionById(admissionId) {
-  const admission = db.ipdAdmissions.find((entry) => entry.id === admissionId);
-
-  if (!admission) {
-    throw createError("IPD admission not found.", 404);
-  }
-
-  return admission;
-}
-
-function getPatientById(patientId) {
-  const patient = db.patients.find((entry) => entry.id === patientId);
-
-  if (!patient) {
-    throw createError("Patient not found.", 404);
-  }
-
-  return patient;
-}
-
-function getRoomById(roomId) {
-  const room = db.rooms.find((entry) => entry.id === roomId);
-
-  if (!room) {
-    throw createError("Room not found.", 404);
-  }
-
-  return room;
-}
-
-function getBedById(bedId) {
-  const bed = db.beds.find((entry) => entry.id === bedId);
-
-  if (!bed) {
-    throw createError("Bed not found.", 404);
-  }
-
-  return bed;
-}
-
-function getDoctorById(doctorId) {
-  return demoUsers.find((entry) => entry.id === doctorId) || null;
-}
-
-function ensureDoctorExists(doctorId) {
-  const doctor = getDoctorById(doctorId);
-
-  if (!doctor || doctor.role !== "doctor") {
-    throw createError("Attending doctor not found.");
-  }
-
-  return doctor;
-}
+import { getPatientById } from "../patients/patients.service.js";
+import { listDoctors } from "../users/users.service.js";
+import {
+  addNoteRecord,
+  addVitalRecord,
+  createAdmissionRecord,
+  dischargeAdmissionRecord,
+  findAdmissionRecord,
+  getRoomAndBedSnapshot,
+  listActiveAdmissionRecords,
+  listAdmissionRecords,
+  listNoteRecords,
+  listVitalRecords,
+  loadIpdRelatedRecords,
+  updateAdmissionRecord
+} from "./ipd.repository.js";
 
 function formatPatientName(patient) {
-  return `${patient.firstName} ${patient.lastName}`.trim();
+  return patient.fullName || `${patient.firstName || ""} ${patient.lastName || ""}`.trim();
 }
 
 function calculateStayDays(admissionDate, dischargeDate, explicitStayDays) {
@@ -91,11 +40,56 @@ function calculateStayDays(admissionDate, dischargeDate, explicitStayDays) {
   return Math.max(diff || 1, 1);
 }
 
-function enrichAdmission(admission) {
-  const patient = db.patients.find((entry) => entry.id === admission.patientId) || null;
+function syncAdmissionMirror(admission) {
+  const index = db.ipdAdmissions.findIndex((entry) => entry.id === admission.id);
+  if (index >= 0) {
+    db.ipdAdmissions[index] = admission;
+    return;
+  }
+  db.ipdAdmissions.unshift(admission);
+}
+
+function syncRoomAndBedMirrors({ rooms = [], beds = [] } = {}) {
+  db.rooms.splice(0, db.rooms.length, ...rooms);
+  db.beds.splice(0, db.beds.length, ...beds);
+}
+
+export async function loadIpdMirrorsFromDatabase() {
+  const [admissions, snapshot] = await Promise.all([
+    loadIpdRelatedRecords(),
+    getRoomAndBedSnapshot()
+  ]);
+
+  db.ipdAdmissions.splice(0, db.ipdAdmissions.length, ...admissions);
+  syncRoomAndBedMirrors(snapshot);
+
+  return { admissions, ...snapshot };
+}
+
+async function doctorsById() {
+  const doctors = await listDoctors();
+  return new Map(doctors.map((doctor) => [doctor.id, doctor]));
+}
+
+async function ensureDoctorExists(doctorId) {
+  const doctors = await doctorsById();
+  const doctor = doctors.get(doctorId);
+
+  if (!doctor || doctor.role !== "doctor") {
+    throw createError("Attending doctor not found.");
+  }
+
+  return doctor;
+}
+
+async function enrichAdmission(admission) {
+  const [patient, doctors] = await Promise.all([
+    admission.patientId ? getPatientById(admission.patientId).catch(() => null) : null,
+    doctorsById()
+  ]);
   const room = db.rooms.find((entry) => entry.id === admission.roomId) || null;
   const bed = db.beds.find((entry) => entry.id === admission.bedId) || null;
-  const doctor = getDoctorById(admission.attendingDoctorId);
+  const doctor = doctors.get(admission.attendingDoctorId) || null;
   const bill = admission.billId ? db.bills.find((entry) => entry.id === admission.billId) || null : null;
 
   return {
@@ -110,29 +104,45 @@ function enrichAdmission(admission) {
   };
 }
 
-export function getIpdMasters() {
-  const bedsByRoom = db.rooms.map((room) => ({
+async function getAdmissionById(admissionId) {
+  const admission = await findAdmissionRecord(admissionId);
+
+  if (!admission) {
+    throw createError("IPD admission not found.", 404);
+  }
+
+  syncAdmissionMirror(admission);
+  return admission;
+}
+
+export async function getIpdMasters() {
+  const [doctors, snapshot] = await Promise.all([listDoctors(), getRoomAndBedSnapshot()]);
+  syncRoomAndBedMirrors(snapshot);
+
+  const bedsByRoom = snapshot.rooms.map((room) => ({
     roomId: room.id,
     roomNumber: room.roomNumber,
     ward: room.ward,
     roomType: room.roomType,
     chargePerDay: room.chargePerDay,
-    beds: db.beds
+    beds: snapshot.beds
       .filter((bed) => bed.roomId === room.id && ["available", "reserved"].includes(bed.status))
       .sort((a, b) => a.bedNumber.localeCompare(b.bedNumber))
   }));
 
   return {
-    doctors: demoUsers.filter((user) => user.role === "doctor").map(({ password, ...doctor }) => doctor),
+    doctors,
     admissionSources: ["opd", "direct", "emergency", "referral"],
     noteCategories: ["admission", "progress", "doctor_round", "nursing", "diet", "discharge_plan"],
     dischargeStatuses: ["recovered", "referred", "discharged_on_request", "absconded"],
+    wardCharges: ipdWardCharges,
     rooms: bedsByRoom
   };
 }
 
-export function getIpdSummary() {
-  const admissions = db.ipdAdmissions.map((entry) => enrichAdmission(entry));
+export async function getIpdSummary() {
+  const admissions = await listAdmissionRecords();
+  admissions.forEach(syncAdmissionMirror);
   const activeAdmissions = admissions.filter((entry) => entry.status === "active");
   const dischargedAdmissions = admissions.filter((entry) => entry.status === "discharged");
 
@@ -146,21 +156,66 @@ export function getIpdSummary() {
   };
 }
 
-export function listAdmissions(query = {}) {
+export async function getIpdCensus() {
+  const [activeAdmissions, snapshot] = await Promise.all([
+    listActiveAdmissionRecords(),
+    getRoomAndBedSnapshot()
+  ]);
+  syncRoomAndBedMirrors(snapshot);
+
+  const enrichedAdmissions = await Promise.all(activeAdmissions.map(enrichAdmission));
+  const roomCensus = snapshot.rooms
+    .map((room) => {
+      const beds = snapshot.beds.filter((bed) => bed.roomId === room.id);
+      const occupiedBeds = beds.filter((bed) => bed.status === "occupied").length;
+      const availableBeds = beds.filter((bed) => bed.status === "available").length;
+      const blockedBeds = beds.filter((bed) => ["cleaning", "maintenance"].includes(bed.status)).length;
+
+      return {
+        roomId: room.id,
+        roomNumber: room.roomNumber,
+        ward: room.ward,
+        roomType: room.roomType,
+        totalBeds: beds.length,
+        occupiedBeds,
+        availableBeds,
+        blockedBeds,
+        occupancyPercent: beds.length ? Math.round((occupiedBeds / beds.length) * 100) : 0
+      };
+    })
+    .sort((a, b) => a.roomNumber.localeCompare(b.roomNumber));
+
+  return {
+    date: todayDate(),
+    summary: {
+      activeAdmissions: activeAdmissions.length,
+      totalBeds: snapshot.beds.length,
+      occupiedBeds: snapshot.beds.filter((bed) => bed.status === "occupied").length,
+      availableBeds: snapshot.beds.filter((bed) => bed.status === "available").length,
+      blockedBeds: snapshot.beds.filter((bed) => ["cleaning", "maintenance"].includes(bed.status)).length
+    },
+    activePatients: enrichedAdmissions.map((entry) => ({
+      admissionId: entry.id,
+      admissionNumber: entry.admissionNumber,
+      patientId: entry.patientId,
+      patientName: entry.patientName,
+      attendingDoctorId: entry.attendingDoctorId,
+      diagnosis: entry.diagnosis,
+      roomId: entry.roomId,
+      roomNumber: entry.room?.roomNumber || "",
+      bedId: entry.bedId,
+      bedNumber: entry.bed?.bedNumber || "",
+      expectedDischargeDate: entry.expectedDischargeDate || ""
+    })),
+    roomCensus
+  };
+}
+
+export async function listAdmissions(query = {}) {
   const search = String(query.search || "").trim().toLowerCase();
-  let items = db.ipdAdmissions.map((entry) => enrichAdmission(entry));
-
-  if (query.status) {
-    items = items.filter((entry) => entry.status === query.status);
-  }
-
-  if (query.patientId) {
-    items = items.filter((entry) => entry.patientId === query.patientId);
-  }
-
-  if (query.roomId) {
-    items = items.filter((entry) => entry.roomId === query.roomId);
-  }
+  const records = await listAdmissionRecords(query);
+  records.forEach(syncAdmissionMirror);
+  let items = await Promise.all(records.map(enrichAdmission));
 
   if (search) {
     items = items.filter((entry) =>
@@ -174,41 +229,60 @@ export function listAdmissions(query = {}) {
   return items.sort((a, b) => `${b.admissionDate} ${b.admissionTime}`.localeCompare(`${a.admissionDate} ${a.admissionTime}`));
 }
 
-export function getAdmissionDetails(admissionId) {
-  return enrichAdmission(getAdmissionById(admissionId));
+export async function getAdmissionDetails(admissionId) {
+  return enrichAdmission(await getAdmissionById(admissionId));
 }
 
-export function admitPatient(payload, userId) {
+export async function getAdmissionNotes(admissionId) {
+  const admission = await getAdmissionById(admissionId);
+  const notes = await listNoteRecords(admissionId);
+
+  return {
+    admissionId: admission.id,
+    admissionNumber: admission.admissionNumber,
+    status: admission.status,
+    items: notes
+  };
+}
+
+export async function getAdmissionVitals(admissionId) {
+  const admission = await getAdmissionById(admissionId);
+  const vitals = await listVitalRecords(admissionId);
+
+  return {
+    admissionId: admission.id,
+    admissionNumber: admission.admissionNumber,
+    status: admission.status,
+    items: vitals
+  };
+}
+
+function admissionConflictToError(result) {
+  if (result.conflict === "room_missing") throw createError("Room not found.", 404);
+  if (result.conflict === "bed_missing") throw createError("Bed not found.", 404);
+  if (result.conflict === "bed_room_mismatch") throw createError("Selected bed does not belong to the selected room.");
+  if (result.conflict === "bed_unavailable") throw createError("Selected bed is not available for admission.");
+  if (result.conflict === "patient_active") throw createError("This patient already has an active IPD admission.");
+  if (result.conflict === "inactive") throw createError("Only active admissions can be updated.");
+}
+
+export async function admitPatient(payload, userId) {
   if (!payload.patientId || !payload.roomId || !payload.bedId || !payload.attendingDoctorId || !payload.reasonForAdmission) {
     throw createError("Patient, room, bed, doctor, and admission reason are required.");
   }
 
-  const patient = getPatientById(payload.patientId);
-  const room = getRoomById(payload.roomId);
-  const bed = getBedById(payload.bedId);
-  ensureDoctorExists(payload.attendingDoctorId);
+  const [patient] = await Promise.all([
+    getPatientById(payload.patientId),
+    ensureDoctorExists(payload.attendingDoctorId)
+  ]);
 
-  if (bed.roomId !== room.id) {
-    throw createError("Selected bed does not belong to the selected room.");
-  }
-
-  if (!["available", "reserved"].includes(bed.status)) {
-    throw createError("Selected bed is not available for admission.");
-  }
-
-  const existingActiveAdmission = db.ipdAdmissions.find((entry) => entry.patientId === patient.id && entry.status === "active");
-  if (existingActiveAdmission) {
-    throw createError("This patient already has an active IPD admission.");
-  }
-
-  const admissionNumber = nextIpdNumber();
-  const admission = {
+  const patientName = formatPatientName(patient);
+  const result = await createAdmissionRecord({
     id: createId(),
-    admissionNumber,
     patientId: patient.id,
-    patientName: formatPatientName(patient),
-    roomId: room.id,
-    bedId: bed.id,
+    patientName,
+    roomId: payload.roomId,
+    bedId: payload.bedId,
     attendingDoctorId: payload.attendingDoctorId,
     admissionDate: payload.admissionDate || todayDate(),
     admissionTime: payload.admissionTime || currentTime(),
@@ -217,79 +291,103 @@ export function admitPatient(payload, userId) {
     reasonForAdmission: payload.reasonForAdmission,
     diagnosis: payload.diagnosis || "",
     expectedDischargeDate: payload.expectedDischargeDate || "",
-    status: "active",
+    depositAmount: Number(payload.depositAmount || 0),
+    mlcCase: Boolean(payload.mlcCase),
     admittedBy: userId,
-    notes: payload.initialNote ? [{ id: createId(), noteDate: new Date().toISOString(), category: "admission", note: payload.initialNote, authorId: userId }] : [],
-    vitals: [],
-    dischargeSummary: null,
-    billId: ""
-  };
+    initialNote: payload.initialNote ? { id: createId(), note: payload.initialNote } : null
+  });
 
-  bed.status = "occupied";
-  bed.patientId = patient.id;
-  bed.patientName = formatPatientName(patient);
-  bed.assignedAt = new Date().toISOString();
-  bed.expectedDischargeDate = admission.expectedDischargeDate;
-  bed.note = payload.reasonForAdmission || "";
-  bed.admissionType = "ipd";
-  bed.assignedBy = userId;
-  patient.opdIpdNumber = admissionNumber;
-
-  db.ipdAdmissions.unshift(admission);
-  return enrichAdmission(admission);
-}
-
-export function addAdmissionNote(admissionId, payload, userId) {
-  const admission = getAdmissionById(admissionId);
-
-  if (admission.status !== "active") {
-    throw createError("Notes can only be added to active admissions.");
+  if (!result || result.conflict) {
+    admissionConflictToError(result || { conflict: "bed_missing" });
   }
 
+  syncAdmissionMirror(result);
+  await loadIpdMirrorsFromDatabase();
+  return enrichAdmission(result);
+}
+
+export async function addAdmissionNote(admissionId, payload, userId) {
   if (!payload.note) {
     throw createError("Clinical note is required.");
   }
 
-  admission.notes.unshift({
+  const result = await addNoteRecord(admissionId, {
     id: createId(),
-    noteDate: new Date().toISOString(),
+    noteDate: nowIso(),
     category: payload.category || "progress",
     note: payload.note,
     authorId: userId
   });
 
-  return enrichAdmission(admission);
+  if (!result) throw createError("IPD admission not found.", 404);
+  if (result.conflict === "inactive") throw createError("Notes can only be added to active admissions.");
+
+  syncAdmissionMirror(result);
+  return enrichAdmission(result);
 }
 
-export function addAdmissionVitals(admissionId, payload, userId) {
-  const admission = getAdmissionById(admissionId);
-
-  if (admission.status !== "active") {
-    throw createError("Vitals can only be recorded for active admissions.");
-  }
-
+export async function addAdmissionVitals(admissionId, payload, userId) {
   if (!payload.bp && !payload.pulse && !payload.temp && !payload.spo2 && !payload.rr && !payload.weight) {
     throw createError("At least one vital measurement is required.");
   }
 
-  admission.vitals.unshift({
+  const result = await addVitalRecord(admissionId, {
     id: createId(),
-    recordedAt: new Date().toISOString(),
+    recordedAt: nowIso(),
     bp: payload.bp || "",
-    pulse: Number(payload.pulse || 0),
-    temp: Number(payload.temp || 0),
-    spo2: Number(payload.spo2 || 0),
-    rr: Number(payload.rr || 0),
-    weight: Number(payload.weight || 0),
+    pulse: payload.pulse ? Number(payload.pulse) : null,
+    temp: payload.temp ? Number(payload.temp) : null,
+    spo2: payload.spo2 ? Number(payload.spo2) : null,
+    rr: payload.rr ? Number(payload.rr) : null,
+    weight: payload.weight ? Number(payload.weight) : null,
     notes: payload.notes || "",
     recordedBy: userId
   });
 
-  return enrichAdmission(admission);
+  if (!result) throw createError("IPD admission not found.", 404);
+  if (result.conflict === "inactive") throw createError("Vitals can only be recorded for active admissions.");
+
+  syncAdmissionMirror(result);
+  return enrichAdmission(result);
 }
 
-export function dischargeAdmission(admissionId, payload, userId) {
-  const admission = getAdmissionById(admissionId);
+export async function updateAdmission(admissionId, payload, userId) {
+  const admission = await getAdmissionById(admissionId);
+
+  if (admission.status !== "active") {
+    throw createError("Only active admissions can be updated.");
+  }
+
+  if ((payload.roomId !== undefined || payload.bedId !== undefined) && (!payload.roomId || !payload.bedId)) {
+    throw createError("Both roomId and bedId are required to update bed assignment.");
+  }
+
+  if (payload.attendingDoctorId) {
+    await ensureDoctorExists(payload.attendingDoctorId);
+  }
+
+  const result = await updateAdmissionRecord(admissionId, {
+    attendingDoctorId: payload.attendingDoctorId,
+    roomId: payload.roomId,
+    bedId: payload.bedId,
+    reasonForAdmission: payload.reasonForAdmission,
+    diagnosis: payload.diagnosis,
+    expectedDischargeDate: payload.expectedDischargeDate,
+    admissionSource: payload.admissionSource,
+    admissionType: payload.admissionType,
+    updatedBy: userId
+  });
+
+  if (!result) throw createError("IPD admission not found.", 404);
+  if (result.conflict) admissionConflictToError(result);
+
+  syncAdmissionMirror(result);
+  await loadIpdMirrorsFromDatabase();
+  return enrichAdmission(result);
+}
+
+export async function dischargeAdmission(admissionId, payload, userId) {
+  const admission = await getAdmissionById(admissionId);
 
   if (admission.status !== "active") {
     throw createError("This admission is already discharged.");
@@ -299,22 +397,22 @@ export function dischargeAdmission(admissionId, payload, userId) {
     throw createError("Discharge summary note is required.");
   }
 
-  const patient = getPatientById(admission.patientId);
-  const room = getRoomById(admission.roomId);
-  const bed = getBedById(admission.bedId);
+  const patient = admission.patientId ? await getPatientById(admission.patientId) : null;
+  const room = db.rooms.find((entry) => entry.id === admission.roomId) || null;
+  const bed = db.beds.find((entry) => entry.id === admission.bedId) || null;
   const dischargeDate = payload.dischargeDate || todayDate();
   const stayDays = calculateStayDays(admission.admissionDate, dischargeDate, payload.stayDays);
-  const roomCharge = Number(room.chargePerDay || 0) * stayDays;
+  const roomCharge = Number(room?.chargePerDay || 0) * stayDays;
   const extraCharge = Number(payload.extraCharge || 0);
   let bill = null;
 
-  if (payload.createBill) {
+  if (payload.createBill && patient) {
     const billItems = [
       {
-        description: `IPD Room Charges (${room.roomNumber})`,
+        description: `IPD Room Charges (${room?.roomNumber || admission.roomId})`,
         category: "room",
         quantity: stayDays,
-        unitPrice: Number(room.chargePerDay || 0)
+        unitPrice: Number(room?.chargePerDay || 0)
       }
     ];
 
@@ -327,21 +425,19 @@ export function dischargeAdmission(admissionId, payload, userId) {
       });
     }
 
-    bill = createBill({
+    bill = await createBill({
       patientId: patient.id,
       patientName: admission.patientName,
-      bedId: bed.id,
+      bedId: bed?.id || admission.bedId,
       billType: "ipd",
       billDate: dischargeDate,
       notes: `Generated from discharge ${admission.admissionNumber}`,
       items: billItems,
       createdBy: userId
     });
-    admission.billId = bill.id;
   }
 
-  admission.status = "discharged";
-  admission.dischargeSummary = {
+  const dischargeSummary = {
     dischargeDate,
     dischargeTime: payload.dischargeTime || currentTime(),
     dischargeStatus: payload.dischargeStatus || "recovered",
@@ -355,22 +451,19 @@ export function dischargeAdmission(admissionId, payload, userId) {
     billId: bill?.id || admission.billId || ""
   };
 
-  admission.notes.unshift({
-    id: createId(),
-    noteDate: new Date().toISOString(),
-    category: "discharge_plan",
-    note: payload.dischargeNote,
-    authorId: userId
+  const result = await dischargeAdmissionRecord(admissionId, {
+    dischargeSummary,
+    billId: bill?.id || admission.billId || "",
+    nextBedStatus: payload.nextBedStatus || "cleaning",
+    bedNote: payload.bedNote || "Discharged from IPD",
+    dischargeNoteId: createId(),
+    dischargedBy: userId
   });
 
-  bed.status = payload.nextBedStatus || "cleaning";
-  bed.patientId = null;
-  bed.patientName = "";
-  bed.assignedAt = "";
-  bed.expectedDischargeDate = "";
-  bed.note = payload.bedNote || "Discharged from IPD";
-  bed.admissionType = "";
-  bed.assignedBy = "";
+  if (!result) throw createError("IPD admission not found.", 404);
+  if (result.conflict === "inactive") throw createError("This admission is already discharged.");
 
-  return enrichAdmission(admission);
+  syncAdmissionMirror(result);
+  await loadIpdMirrorsFromDatabase();
+  return enrichAdmission(result);
 }

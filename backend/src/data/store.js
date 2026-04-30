@@ -1,7 +1,8 @@
 import crypto from "crypto";
 
 import { departments, demoUsers, roles } from "../config/constants.js";
-import { godownInventoryImport } from "./godownInventory.generated.js";
+import { consultationCharge, ipdWardCharges, panchkarmaTherapyRates } from "../config/hospitalData.js";
+import { godownInventoryImport } from "./generated/godownInventory.generated.js";
 
 function createPatientNumber(number) {
   return String(number).padStart(4, "0");
@@ -36,12 +37,15 @@ const panchkarmaRoomId = createId();
 const generalWardRoomId = createId();
 const generalWardBedTwoId = createId();
 const rajeshAdmissionId = createId();
-const abhyangaTherapyId = "therapy-001";
-const patraPindaTherapyId = "therapy-002";
-const shirodharaTherapyId = "therapy-003";
-const katiBastiTherapyId = "therapy-004";
+const abhyangaTherapyId = panchkarmaTherapyRates.find((therapy) => therapy.name === "SARVANG ABHYANG")?.id || "therapy-001";
+const patraPindaTherapyId = panchkarmaTherapyRates.find((therapy) => therapy.name === "PATRA PINDA SWEDAN")?.id || "therapy-031";
+const shirodharaTherapyId = panchkarmaTherapyRates.find((therapy) => therapy.name === "SIRO DHARA")?.id || "therapy-048";
+const katiBastiTherapyId = panchkarmaTherapyRates.find((therapy) => therapy.name === "KATI VASTI")?.id || "therapy-007";
 const meeraTherapyScheduleId = createId();
 const rajeshTherapyScheduleId = createId();
+const generalWardCharge = ipdWardCharges.find((ward) => ward.roomType === "general")?.chargePerDay || 1500;
+const semiPrivateWardCharge = ipdWardCharges.find((ward) => ward.roomType === "semi_private")?.chargePerDay || 2500;
+const privateWardCharge = ipdWardCharges.find((ward) => ward.roomType === "private")?.chargePerDay || 3500;
 
 export const db = {
   patients: [
@@ -198,7 +202,7 @@ export const db = {
       vitalsSpo2: 98,
       vitalsRr: 17,
       status: "completed",
-      consultationFee: 200
+      consultationFee: consultationCharge
     }
   ],
   ayurvedaAssessments: [
@@ -335,8 +339,8 @@ export const db = {
           description: "OPD Consultation Fee",
           category: "consultation",
           quantity: 1,
-          unitPrice: 200,
-          amount: 200
+          unitPrice: consultationCharge,
+          amount: consultationCharge
         },
         {
           id: createId(),
@@ -367,13 +371,13 @@ export const db = {
   rooms: [
     {
       id: deluxeRoomId,
-      roomNumber: "A-101",
-      ward: "Ayurveda Deluxe",
-      roomType: "deluxe",
+      roomNumber: "P-101",
+      ward: "Private Ward",
+      roomType: "private",
       floor: "First Floor",
-      chargePerDay: 2200,
+      chargePerDay: privateWardCharge,
       nursingStation: "North Wing",
-      notes: "Attached washroom and attendant chair."
+      notes: "Package includes bed charges and diet only."
     },
     {
       id: panchkarmaRoomId,
@@ -381,7 +385,7 @@ export const db = {
       ward: "Panchkarma Therapy",
       roomType: "therapy",
       floor: "Second Floor",
-      chargePerDay: 1800,
+      chargePerDay: semiPrivateWardCharge,
       nursingStation: "Therapy Block",
       notes: "Suitable for supervised therapy recovery."
     },
@@ -391,9 +395,9 @@ export const db = {
       ward: "General Ward",
       roomType: "general",
       floor: "Ground Floor",
-      chargePerDay: 950,
+      chargePerDay: generalWardCharge,
       nursingStation: "Main Ward",
-      notes: "Two-bed monitored general ward."
+      notes: "Package includes bed charges and diet only."
     }
   ],
   beds: [
@@ -491,52 +495,7 @@ export const db = {
       billId: ""
     }
   ],
-  panchkarmaTherapies: [
-    {
-      id: abhyangaTherapyId,
-      code: "PK-ABHY",
-      name: "Abhyanga",
-      category: "Snehana",
-      defaultDurationMinutes: 45,
-      price: 1200,
-      roomType: "therapy",
-      requiresRecovery: false,
-      description: "Full-body medicated oil massage for vata pacification and circulation support."
-    },
-    {
-      id: patraPindaTherapyId,
-      code: "PK-PPS",
-      name: "Patra Pinda Sweda",
-      category: "Swedana",
-      defaultDurationMinutes: 50,
-      price: 1500,
-      roomType: "therapy",
-      requiresRecovery: true,
-      description: "Herbal bolus fomentation for pain, stiffness, and musculoskeletal support."
-    },
-    {
-      id: shirodharaTherapyId,
-      code: "PK-SD",
-      name: "Shirodhara",
-      category: "Murdha Taila",
-      defaultDurationMinutes: 40,
-      price: 1800,
-      roomType: "therapy",
-      requiresRecovery: true,
-      description: "Medicated oil stream therapy for stress regulation and sleep support."
-    },
-    {
-      id: katiBastiTherapyId,
-      code: "PK-KB",
-      name: "Kati Basti",
-      category: "Basti External",
-      defaultDurationMinutes: 35,
-      price: 1400,
-      roomType: "therapy",
-      requiresRecovery: false,
-      description: "Localized oil retention therapy for lower-back discomfort and stiffness."
-    }
-  ],
+  panchkarmaTherapies: panchkarmaTherapyRates,
   panchkarmaSchedules: [
     {
       id: meeraTherapyScheduleId,
@@ -544,7 +503,7 @@ export const db = {
       patientId: meeraPatientId,
       patientName: "Meera Sharma",
       therapyId: shirodharaTherapyId,
-      therapyName: "Shirodhara",
+      therapyName: "SIRO DHARA",
       recommendedBy: doctorLookup[0]?.id || "",
       recommendedByName: doctorLookup[0]?.fullName || "Unassigned",
       linkedVisitId: meeraVisitId,
@@ -575,7 +534,7 @@ export const db = {
       patientId: rajeshPatientId,
       patientName: "Rajesh Patel",
       therapyId: patraPindaTherapyId,
-      therapyName: "Patra Pinda Sweda",
+      therapyName: "PATRA PINDA SWEDAN",
       recommendedBy: doctorLookup[2]?.id || doctorLookup[0]?.id || "",
       recommendedByName: doctorLookup[2]?.fullName || doctorLookup[0]?.fullName || "Unassigned",
       linkedVisitId: "",

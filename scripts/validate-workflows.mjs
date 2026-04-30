@@ -1,12 +1,13 @@
 import { db } from "../backend/src/data/store.js";
-import { createAppointment } from "../backend/src/modules/appointments/appointments.service.js";
+import { createAppointment, getAvailableSlots } from "../backend/src/modules/appointments/appointments.service.js";
 import { createBill, collectPayment } from "../backend/src/modules/billing/billing.service.js";
-import { admitPatient, addAdmissionNote, addAdmissionVitals, dischargeAdmission } from "../backend/src/modules/ipd/ipd.service.js";
-import { collectLabSample, createLabBill, createLabOrder, getLabOrderDetails, saveLabResults } from "../backend/src/modules/laboratory/laboratory.service.js";
+import { admitPatient, addAdmissionNote, addAdmissionVitals, dischargeAdmission, loadIpdMirrorsFromDatabase } from "../backend/src/modules/ipd/ipd.service.js";
+import { collectLabSample, createLabBill, createLabOrder, getLabMasters, getLabOrderDetails, saveLabResults } from "../backend/src/modules/laboratory/laboratory.service.js";
 import { saveAssessment, completeVisit, createVisit, savePrescription, saveVitals } from "../backend/src/modules/opd/opd.service.js";
-import { completePanchkarmaSession, createPanchkarmaSchedule, startPanchkarmaSession } from "../backend/src/modules/panchkarma/panchkarma.service.js";
+import { completePanchkarmaSession, createPanchkarmaSchedule, getPanchkarmaMasters, startPanchkarmaSession } from "../backend/src/modules/panchkarma/panchkarma.service.js";
 import { dispensePrescription } from "../backend/src/modules/pharmacy/pharmacy.service.js";
 import { createPatient, getPatientHistory } from "../backend/src/modules/patients/patients.service.js";
+import { createRoom } from "../backend/src/modules/rooms/rooms.service.js";
 import {
   getDailyOpdReport,
   getIpdCensusReport,
@@ -16,14 +17,97 @@ import {
   getReportsOverview,
   getRevenueReport
 } from "../backend/src/modules/reports/reports.service.js";
+import { listDoctors, listUsers } from "../backend/src/modules/users/users.service.js";
+import { query } from "../backend/src/config/postgres.js";
 
 const results = [];
 const today = new Date().toISOString().slice(0, 10);
+const runId = String(Date.now()).slice(-6);
+const users = await listUsers({ includeInactive: true });
+const persistedDoctors = await listDoctors();
+const actor = users.find((user) => user.role === "admin") || users[0];
+const persistedDoctorId = persistedDoctors[0]?.id;
+const mirrorDoctorId = db.appointments[0]?.doctorId;
+let slotCursor = 0;
+let patientCursor = 0;
+
+if (!actor?.id || !persistedDoctorId || !mirrorDoctorId) {
+  throw new Error("Workflow validation requires seeded users and doctors.");
+}
+
+await loadIpdMirrorsFromDatabase();
 
 function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+async function nextAvailableSlot() {
+  const response = await getAvailableSlots(today, persistedDoctorId);
+  const slots = response.filter((slot) => !slot.isBooked);
+  const slot = slots[slotCursor];
+  slotCursor += 1;
+
+  if (!slot) {
+    throw new Error("No appointment slots available for workflow validation.");
+  }
+
+  return slot.time;
+}
+
+async function registerPatient(suffix, overrides = {}) {
+  patientCursor += 1;
+  return createPatient(
+    {
+      firstName: "Validate",
+      lastName: suffix,
+      phone: `9010${runId}${String(patientCursor).padStart(3, "0")}`,
+      dateOfBirth: "1992-05-04",
+      gender: "female",
+      houseStreet: "Validation Street",
+      cityDistrict: "Sagar",
+      state: "Madhya Pradesh",
+      ...overrides
+    },
+    actor.id
+  );
+}
+
+async function stockedMedicineIdForValidation() {
+  const stocked = await query(
+    `
+    SELECT m.id
+    FROM medicine_masters m
+    JOIN inventory_batches b ON b.medicine_id = m.id
+    WHERE m.is_active = true
+      AND b.quantity_available >= 1
+    ORDER BY m.name ASC
+    LIMIT 1
+    `
+  );
+
+  if (stocked.rows[0]?.id) {
+    return stocked.rows[0].id;
+  }
+
+  const medicine = await query("SELECT id, name, selling_price FROM medicine_masters WHERE is_active = true ORDER BY name ASC LIMIT 1");
+  const item = medicine.rows[0];
+  if (!item?.id) {
+    return "";
+  }
+
+  await query(
+    `
+    INSERT INTO inventory_batches (
+      medicine_id, medicine_name, batch_number, received_date, quantity_received, quantity_available, purchase_price, selling_price, metadata
+    )
+    VALUES ($1, $2, $3, $4, 5, 5, 0, $5, $6::jsonb)
+    `,
+    [item.id, item.name, `VAL-${runId}`, today, item.selling_price || 0, JSON.stringify({ validationSeed: true })]
+  );
+
+  return item.id;
 }
 
 async function run(name, fn) {
@@ -36,52 +120,42 @@ async function run(name, fn) {
 }
 
 await run("Register patient to OPD billing flow", async () => {
-  const patient = await createPatient(
-    {
-      firstName: "Validate",
-      lastName: "Opd",
-      phone: "9010000001",
-      dateOfBirth: "1992-05-04",
-      gender: "female",
-      houseStreet: "Validation Street",
-      cityDistrict: "Sagar",
-      state: "Madhya Pradesh"
-    },
-    "validator"
-  );
-  const doctorId = db.appointments[0].doctorId;
+  const patient = await registerPatient("Opd");
+  const medicineId = await stockedMedicineIdForValidation();
   const appointment = await createAppointment(
     {
       patientId: patient.id,
-      doctorId,
+      doctorId: persistedDoctorId,
       appointmentDate: today,
-      appointmentTime: "09:00",
+      appointmentTime: await nextAvailableSlot(),
       department: "Clinical Department",
       chiefComplaint: "Fatigue and stiffness"
     },
-    "validator"
+    actor.id
   );
-  const visit = createVisit({ appointmentId: appointment.id });
-  saveVitals(visit.id, { vitalsBp: "120/80", vitalsPulse: 74, vitalsTemp: 98.4 });
-  saveAssessment(visit.id, { prakritiDominant: "Vata", observations: "Stable" }, doctorId);
-  const prescription = savePrescription(
+  const visit = await createVisit({ appointmentId: appointment.id });
+  await saveVitals(visit.id, { vitalsBp: "120/80", vitalsPulse: 74, vitalsTemp: 98.4 });
+  await saveAssessment(visit.id, { prakritiDominant: "Vata", observations: "Stable" }, persistedDoctorId);
+  const prescription = await savePrescription(
     visit.id,
     {
       diagnosis: "General fatigue",
-      medicines: [{ medicineId: "med-001", medicineName: "Mahayograj Guggulu", quantityDispensed: 5, dose: "1 tab", frequency: "BD" }]
+      medicines: [{ medicineId, quantityDispensed: 1, dose: "1 tab", frequency: "BD" }]
     },
-    doctorId
+    persistedDoctorId
   );
-  createLabOrder({ visitId: visit.id, patientId: patient.id, patientName: patient.fullName, orderedBy: doctorId, tests: ["lab-001"] });
-  completeVisit(visit.id);
-  const bill = createBill({
+  const labMasters = await getLabMasters();
+  assert(labMasters.tests[0]?.id, "Expected at least one lab test master for validation.");
+  await createLabOrder({ visitId: visit.id, patientId: patient.id, patientName: patient.fullName, orderedBy: actor.id, tests: [labMasters.tests[0].id] });
+  await completeVisit(visit.id);
+  const bill = await createBill({
     patientId: patient.id,
     visitId: visit.id,
     billType: "opd",
     items: [{ description: "Consultation", category: "consultation", quantity: 1, unitPrice: 500 }]
   });
-  const payment = collectPayment(bill.id, { amount: 250, paymentMode: "cash", receivedBy: "validator" });
-  const dispensation = dispensePrescription(prescription.id, { items: [{ medicineId: "med-001", quantity: 5 }] }, "validator");
+  const payment = await collectPayment(bill.id, { amount: 250, paymentMode: "cash", receivedBy: actor.id });
+  const dispensation = await dispensePrescription(prescription.id, { items: [{ medicineId, quantity: 1 }] }, actor.id);
 
   assert(payment.bill.paymentStatus === "partial", "Expected OPD bill to become partial after payment.");
   assert(dispensation.items.length === 1, "Expected prescription dispense item to be created.");
@@ -90,54 +164,44 @@ await run("Register patient to OPD billing flow", async () => {
 });
 
 await run("Laboratory collection to reporting flow", async () => {
-  const patient = await createPatient(
-    {
-      firstName: "Validate",
-      lastName: "Lab",
-      phone: "9010000004",
-      dateOfBirth: "1991-03-14",
-      gender: "male",
-      houseStreet: "Validation Street",
-      cityDistrict: "Sagar",
-      state: "Madhya Pradesh"
-    },
-    "validator"
-  );
-  const doctorId = db.appointments[0].doctorId;
+  const patient = await registerPatient("Lab", { gender: "male", dateOfBirth: "1991-03-14" });
   const appointment = await createAppointment(
     {
       patientId: patient.id,
-      doctorId,
+      doctorId: persistedDoctorId,
       appointmentDate: today,
-      appointmentTime: "09:10",
+      appointmentTime: await nextAvailableSlot(),
       department: "Clinical Department",
       chiefComplaint: "Needs investigations"
     },
-    "validator"
+    actor.id
   );
-  const visit = createVisit({ appointmentId: appointment.id });
-  const order = createLabOrder({
+  const visit = await createVisit({ appointmentId: appointment.id });
+  const labMasters = await getLabMasters();
+  const selectedTests = labMasters.tests.slice(0, 2);
+  assert(selectedTests.length >= 2, "Expected at least two lab test masters for validation.");
+  const order = await createLabOrder({
     visitId: visit.id,
     patientId: patient.id,
     patientName: `${patient.firstName} ${patient.lastName}`,
-    orderedBy: doctorId,
-    tests: ["lab-001", "lab-002"]
+    orderedBy: actor.id,
+    tests: selectedTests.map((test) => test.id)
   });
-  collectLabSample(order.id, { sampleType: "blood" }, "validator");
-  saveLabResults(
+  await collectLabSample(order.id, { sampleType: "blood" }, actor.id);
+  await saveLabResults(
     order.id,
     {
       processingSummary: "CBC and ESR processed successfully",
       markReported: true,
       tests: [
-        { testId: "lab-001", result: "Normal", resultFlag: "normal", remarks: "Within range" },
-        { testId: "lab-002", result: "18 mm/hr", resultFlag: "borderline", remarks: "Slightly elevated" }
+        { testId: selectedTests[0].id, result: "Normal", resultFlag: "normal", remarks: "Within range" },
+        { testId: selectedTests[1].id, result: "18 mm/hr", resultFlag: "borderline", remarks: "Slightly elevated" }
       ]
     },
-    "validator"
+    actor.id
   );
-  createLabBill(order.id, {}, "validator");
-  const detail = getLabOrderDetails(order.id);
+  await createLabBill(order.id, {}, actor.id);
+  const detail = await getLabOrderDetails(order.id);
 
   assert(detail.status === "reported", "Expected lab order to be reported.");
   assert(detail.billId, "Expected lab order to have a bill.");
@@ -147,35 +211,36 @@ await run("Laboratory collection to reporting flow", async () => {
 });
 
 await run("IPD admission to discharge billing flow", async () => {
-  const patient = await createPatient(
-    {
-      firstName: "Validate",
-      lastName: "Ipd",
-      phone: "9010000002",
-      dateOfBirth: "1988-08-12",
-      gender: "male",
-      houseStreet: "Validation Street",
-      cityDistrict: "Sagar",
-      state: "Madhya Pradesh"
-    },
-    "validator"
-  );
-  const room = db.rooms.find((entry) => entry.roomNumber === "A-101");
-  const bed = db.beds.find((entry) => entry.roomId === room.id && entry.status === "available");
-  const doctorId = db.appointments[0].doctorId;
-  const admission = admitPatient(
+  const patient = await registerPatient("Ipd", { gender: "male", dateOfBirth: "1988-08-12" });
+  let room = db.rooms.find((entry) => entry.roomType === "private" && db.beds.some((bed) => bed.roomId === entry.id && bed.status === "available"));
+  let bed = room ? db.beds.find((entry) => entry.roomId === room.id && entry.status === "available") : null;
+
+  if (!room || !bed) {
+    const createdRoom = await createRoom({
+      roomNumber: `VAL-${runId}`,
+      roomType: "private",
+      floor: "Validation Floor",
+      ward: "Validation Ward",
+      bedCount: 1,
+      chargePerDay: 1500
+    });
+    room = createdRoom.item;
+    bed = createdRoom.beds[0];
+  }
+
+  const admission = await admitPatient(
     {
       patientId: patient.id,
       roomId: room.id,
       bedId: bed.id,
-      attendingDoctorId: doctorId,
+      attendingDoctorId: persistedDoctorId,
       reasonForAdmission: "Observation stay"
     },
-    "validator"
+    actor.id
   );
-  addAdmissionNote(admission.id, { category: "progress", note: "Responding well" }, "validator");
-  addAdmissionVitals(admission.id, { bp: "118/76", pulse: 70 }, "validator");
-  const discharged = dischargeAdmission(admission.id, { dischargeNote: "Recovered", createBill: true }, "validator");
+  await addAdmissionNote(admission.id, { category: "progress", note: "Responding well" }, actor.id);
+  await addAdmissionVitals(admission.id, { bp: "118/76", pulse: 70 }, actor.id);
+  const discharged = await dischargeAdmission(admission.id, { dischargeNote: "Recovered", createBill: true }, actor.id);
 
   assert(discharged.status === "discharged", "Expected IPD admission to be discharged.");
   assert(discharged.billId, "Expected discharge to create a bill.");
@@ -184,45 +249,36 @@ await run("IPD admission to discharge billing flow", async () => {
 });
 
 await run("Panchkarma schedule to therapy billing flow", async () => {
-  const patient = await createPatient(
-    {
-      firstName: "Validate",
-      lastName: "Therapy",
-      phone: "9010000003",
-      dateOfBirth: "1994-11-09",
-      gender: "female",
-      houseStreet: "Validation Street",
-      cityDistrict: "Sagar",
-      state: "Madhya Pradesh"
-    },
-    "validator"
-  );
+  const patient = await registerPatient("Therapy", { dateOfBirth: "1994-11-09" });
+  const masters = await getPanchkarmaMasters();
   const therapyRoom = db.rooms.find((entry) => entry.roomType === "therapy");
-  const therapistId = db.panchkarmaSchedules[0].therapistId;
-  const doctorId = db.appointments[0].doctorId;
-  const schedule = createPanchkarmaSchedule(
+  const therapistId = masters.therapists[0]?.id;
+  const therapyId = masters.therapies[0]?.id;
+  const materialMedicineId = await stockedMedicineIdForValidation();
+  assert(therapistId && therapyId && materialMedicineId, "Expected Panchkarma validation data to include therapist, therapy, and stocked material medicine.");
+  const schedule = await createPanchkarmaSchedule(
     {
       patientId: patient.id,
-      therapyId: db.panchkarmaTherapies[0].id,
+      therapyId,
       therapistId,
-      recommendedBy: doctorId,
+      recommendedBy: persistedDoctorId,
       therapyRoomId: therapyRoom.id,
       scheduledDate: today,
       scheduledTime: "12:00",
       complaint: "Stress relief"
     },
-    "validator"
+    actor.id
   );
-  startPanchkarmaSession(schedule.id, {}, "validator");
-  const completed = completePanchkarmaSession(
+  await startPanchkarmaSession(schedule.id, {}, actor.id);
+  const completed = await completePanchkarmaSession(
     schedule.id,
     {
       outcome: "Session tolerated well",
       createBill: true,
       addMaterialCharges: true,
-      materialsUsed: [{ medicineId: "med-005", quantity: 1 }]
+      materialsUsed: [{ medicineId: materialMedicineId, quantity: 1 }]
     },
-    "validator"
+    actor.id
   );
 
   assert(completed.status === "completed", "Expected Panchkarma session to be completed.");
@@ -232,8 +288,8 @@ await run("Panchkarma schedule to therapy billing flow", async () => {
 });
 
 await run("Patient timeline integration", async () => {
-  const latestPatient = db.patients.find((entry) => entry.phone === "9010000003");
-  const history = getPatientHistory(latestPatient.id);
+  const latestPatient = db.patients.find((entry) => entry.lastName === "Therapy" && entry.phone.includes(runId));
+  const history = await getPatientHistory(latestPatient.id);
 
   assert(history.timeline.some((item) => item.type === "panchkarma"), "Expected Panchkarma timeline item.");
   assert(history.bills.length > 0, "Expected patient history to include bills.");
@@ -242,13 +298,15 @@ await run("Patient timeline integration", async () => {
 });
 
 await run("Operational reports generation", async () => {
-  const overview = getReportsOverview({ dateFrom: today, dateTo: today });
-  const opd = getDailyOpdReport({ date: today });
-  const ipd = getIpdCensusReport({ date: today });
-  const revenue = getRevenueReport({ dateFrom: today, dateTo: today });
-  const pharmacy = getPharmacySalesReport({ dateFrom: today, dateTo: today });
-  const lab = getLabWorkloadReport({ dateFrom: today, dateTo: today });
-  const panchkarma = getPanchkarmaStatsReport({ dateFrom: today, dateTo: today });
+  const [overview, opd, ipd, revenue, pharmacy, lab, panchkarma] = await Promise.all([
+    getReportsOverview({ dateFrom: today, dateTo: today }),
+    getDailyOpdReport({ date: today }),
+    getIpdCensusReport({ date: today }),
+    getRevenueReport({ dateFrom: today, dateTo: today }),
+    getPharmacySalesReport({ dateFrom: today, dateTo: today }),
+    getLabWorkloadReport({ dateFrom: today, dateTo: today }),
+    getPanchkarmaStatsReport({ dateFrom: today, dateTo: today })
+  ]);
 
   assert(overview.revenue >= 0, "Expected reports overview revenue to be numeric.");
   assert(opd.summary.totalVisits >= 0, "Expected OPD report summary.");

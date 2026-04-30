@@ -9,50 +9,50 @@ import {
   startPanchkarmaSession
 } from "./panchkarma.service.js";
 
-export function panchkarmaTherapiesHandler(_req, res, next) {
+export async function panchkarmaTherapiesHandler(_req, res, next) {
   try {
-    res.json({ items: getPanchkarmaTherapies() });
+    res.json({ items: await getPanchkarmaTherapies() });
   } catch (error) {
     next(error);
   }
 }
 
-export function panchkarmaMastersHandler(_req, res, next) {
+export async function panchkarmaMastersHandler(_req, res, next) {
   try {
-    res.json(getPanchkarmaMasters());
+    res.json(await getPanchkarmaMasters());
   } catch (error) {
     next(error);
   }
 }
 
-export function panchkarmaSummaryHandler(_req, res, next) {
+export async function panchkarmaSummaryHandler(_req, res, next) {
   try {
-    res.json(getPanchkarmaSummary());
+    res.json(await getPanchkarmaSummary());
   } catch (error) {
     next(error);
   }
 }
 
-export function listPanchkarmaSchedulesHandler(req, res, next) {
+export async function listPanchkarmaSchedulesHandler(req, res, next) {
   try {
-    res.json({ items: listPanchkarmaSchedules(req.query) });
+    res.json({ items: await listPanchkarmaSchedules(req.query) });
   } catch (error) {
     next(error);
   }
 }
 
-export function panchkarmaScheduleDetailsHandler(req, res, next) {
+export async function panchkarmaScheduleDetailsHandler(req, res, next) {
   try {
-    res.json(getPanchkarmaScheduleDetails(req.params.id));
+    res.json(await getPanchkarmaScheduleDetails(req.params.id));
   } catch (error) {
     next(error);
   }
 }
 
-export function createPanchkarmaScheduleHandler(req, res, next) {
+export async function createPanchkarmaScheduleHandler(req, res, next) {
   try {
     res.status(201).json({
-      item: createPanchkarmaSchedule(req.body, req.user.sub),
+      item: await createPanchkarmaSchedule(req.body, req.user.sub),
       message: "Panchkarma session scheduled successfully."
     });
   } catch (error) {
@@ -60,10 +60,10 @@ export function createPanchkarmaScheduleHandler(req, res, next) {
   }
 }
 
-export function startPanchkarmaSessionHandler(req, res, next) {
+export async function startPanchkarmaSessionHandler(req, res, next) {
   try {
     res.json({
-      item: startPanchkarmaSession(req.params.id, req.body, req.user.sub),
+      item: await startPanchkarmaSession(req.params.id, req.body, req.user.sub),
       message: "Panchkarma session started successfully."
     });
   } catch (error) {
@@ -71,10 +71,10 @@ export function startPanchkarmaSessionHandler(req, res, next) {
   }
 }
 
-export function completePanchkarmaSessionHandler(req, res, next) {
+export async function completePanchkarmaSessionHandler(req, res, next) {
   try {
     res.json({
-      item: completePanchkarmaSession(req.params.id, req.body, req.user.sub),
+      item: await completePanchkarmaSession(req.params.id, req.body, req.user.sub),
       message: "Panchkarma session completed successfully."
     });
   } catch (error) {

@@ -1,67 +1,90 @@
 import { createId, db, getRoomMasters as getStaticRoomMasters } from "../../data/store.js";
+import { createError } from "../../utils/errors.js";
+import { getPatientById } from "../patients/patients.service.js";
+import {
+  assignBedRecord,
+  createRoomRecord,
+  dischargeBedRecord,
+  findBedRecord,
+  findRoomRecord,
+  listBedRecords,
+  listRoomRecords,
+  roomNumberExists
+} from "./rooms.repository.js";
 
-function createError(message, statusCode = 400) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.publicMessage = message;
-  return error;
-}
+const BLOCKED_BED_STATUSES = ["cleaning", "maintenance"];
 
-function getRoomById(roomId) {
-  const room = db.rooms.find((entry) => entry.id === roomId);
-
-  if (!room) {
-    throw createError("Room not found.", 404);
+function syncRoomMirror(room) {
+  const index = db.rooms.findIndex((entry) => entry.id === room.id);
+  if (index >= 0) {
+    db.rooms[index] = room;
+    return;
   }
-
-  return room;
+  db.rooms.push(room);
 }
 
-function getBedById(roomId, bedId) {
-  const bed = db.beds.find((entry) => entry.id === bedId && entry.roomId === roomId);
-
-  if (!bed) {
-    throw createError("Bed not found.", 404);
+function syncBedMirror(bed) {
+  const index = db.beds.findIndex((entry) => entry.id === bed.id);
+  if (index >= 0) {
+    db.beds[index] = bed;
+    return;
   }
-
-  return bed;
+  db.beds.push(bed);
 }
 
-function getPatientById(patientId) {
-  const patient = db.patients.find((entry) => entry.id === patientId);
-
-  if (!patient) {
-    throw createError("Patient not found.", 404);
-  }
-
-  return patient;
+export function syncRoomMirrors({ rooms = [], beds = [] } = {}) {
+  db.rooms.splice(0, db.rooms.length, ...rooms);
+  db.beds.splice(0, db.beds.length, ...beds);
 }
 
-function findExistingBedAssignment(patientId, excludeBedId = "") {
-  return db.beds.find((entry) => entry.patientId === patientId && entry.status === "occupied" && entry.id !== excludeBedId) || null;
+export async function loadRoomMirrorsFromDatabase() {
+  const [rooms, beds] = await Promise.all([listRoomRecords(), listBedRecords()]);
+  syncRoomMirrors({ rooms, beds });
+  return { rooms, beds };
 }
 
-function summarizeRoom(room) {
-  const beds = db.beds.filter((bed) => bed.roomId === room.id);
-  const occupiedBeds = beds.filter((bed) => bed.status === "occupied").length;
-  const availableBeds = beds.filter((bed) => bed.status === "available").length;
-  const reservedBeds = beds.filter((bed) => bed.status === "reserved").length;
-  const maintenanceBeds = beds.filter((bed) => ["cleaning", "maintenance"].includes(bed.status)).length;
+function summarizeRoom(room, beds = db.beds) {
+  const roomBeds = beds.filter((bed) => bed.roomId === room.id);
+  const occupiedBeds = roomBeds.filter((bed) => bed.status === "occupied").length;
+  const availableBeds = roomBeds.filter((bed) => bed.status === "available").length;
+  const reservedBeds = roomBeds.filter((bed) => bed.status === "reserved").length;
+  const maintenanceBeds = roomBeds.filter((bed) => BLOCKED_BED_STATUSES.includes(bed.status)).length;
 
   return {
     ...room,
-    totalBeds: beds.length,
+    totalBeds: roomBeds.length,
     occupiedBeds,
     availableBeds,
     reservedBeds,
     maintenanceBeds,
-    occupancyPercent: beds.length ? Math.round((occupiedBeds / beds.length) * 100) : 0,
+    occupancyPercent: roomBeds.length ? Math.round((occupiedBeds / roomBeds.length) * 100) : 0,
     status: availableBeds > 0 ? "available" : occupiedBeds > 0 ? "full" : "blocked"
   };
 }
 
-export function listRooms(query = {}) {
-  let items = db.rooms.map((room) => summarizeRoom(room));
+async function roomOrThrow(roomId) {
+  const room = await findRoomRecord(roomId);
+  if (!room) {
+    throw createError("Room not found.", 404);
+  }
+  syncRoomMirror(room);
+  return room;
+}
+
+async function bedOrThrow(bedId) {
+  const bed = await findBedRecord(bedId);
+  if (!bed) {
+    throw createError("Bed not found.", 404);
+  }
+  syncBedMirror(bed);
+  return bed;
+}
+
+export async function listRooms(query = {}) {
+  const [rooms, beds] = await Promise.all([listRoomRecords(), listBedRecords()]);
+  syncRoomMirrors({ rooms, beds });
+
+  let items = rooms.map((room) => summarizeRoom(room, beds));
 
   if (query.roomType) {
     items = items.filter((room) => room.roomType === query.roomType);
@@ -78,19 +101,20 @@ export function listRooms(query = {}) {
   return items.sort((a, b) => a.roomNumber.localeCompare(b.roomNumber));
 }
 
-export function getRoomDetails(roomId) {
-  const room = summarizeRoom(getRoomById(roomId));
-  const beds = db.beds.filter((bed) => bed.roomId === roomId).sort((a, b) => a.bedNumber.localeCompare(b.bedNumber));
+export async function getRoomDetails(roomId) {
+  const room = await roomOrThrow(roomId);
+  const beds = (await listBedRecords()).filter((bed) => bed.roomId === roomId).sort((a, b) => a.bedNumber.localeCompare(b.bedNumber));
+  beds.forEach(syncBedMirror);
 
   return {
-    item: room,
+    item: summarizeRoom(room, beds),
     beds
   };
 }
 
-export function getRoomsAvailability() {
-  const rooms = listRooms();
-  const beds = [...db.beds].sort((a, b) => a.bedNumber.localeCompare(b.bedNumber));
+export async function getRoomsAvailability() {
+  const rooms = await listRooms();
+  const beds = await listBedRecords();
 
   return {
     summary: {
@@ -99,114 +123,114 @@ export function getRoomsAvailability() {
       occupiedBeds: beds.filter((bed) => bed.status === "occupied").length,
       availableBeds: beds.filter((bed) => bed.status === "available").length,
       reservedBeds: beds.filter((bed) => bed.status === "reserved").length,
-      blockedBeds: beds.filter((bed) => ["cleaning", "maintenance"].includes(bed.status)).length
+      blockedBeds: beds.filter((bed) => BLOCKED_BED_STATUSES.includes(bed.status)).length
     },
     items: rooms
   };
 }
 
-export function createRoom(payload) {
+export async function createRoom(payload) {
   if (!payload.roomNumber || !payload.roomType || !payload.floor || !payload.bedCount) {
     throw createError("Room number, type, floor, and bed count are required.");
   }
 
-  if (db.rooms.some((room) => room.roomNumber === payload.roomNumber)) {
+  const roomNumber = payload.roomNumber.trim();
+  if (await roomNumberExists(roomNumber)) {
     throw createError("A room with this room number already exists.");
   }
 
   const bedCount = Number(payload.bedCount || 0);
-
   if (bedCount <= 0) {
     throw createError("Bed count must be greater than zero.");
   }
 
   const room = {
     id: createId(),
-    roomNumber: payload.roomNumber.trim(),
+    roomNumber,
     ward: payload.ward?.trim() || "General Ward",
     roomType: payload.roomType,
     floor: payload.floor.trim(),
     chargePerDay: Number(payload.chargePerDay || 0),
     nursingStation: payload.nursingStation?.trim() || "Main Ward",
-    notes: payload.notes || ""
+    notes: payload.notes || "",
+    metadata: {}
   };
 
-  db.rooms.push(room);
+  const beds = Array.from({ length: bedCount }).map((_, index) => ({
+    id: createId(),
+    bedNumber: `${room.roomNumber}-${index + 1}`,
+    bedLabel: payload.bedPrefix ? `${payload.bedPrefix} ${index + 1}` : `Bed ${index + 1}`,
+    status: "available"
+  }));
 
-  Array.from({ length: bedCount }).forEach((_, index) => {
-    db.beds.push({
-      id: createId(),
-      roomId: room.id,
-      bedNumber: `${room.roomNumber}-${index + 1}`,
-      bedLabel: payload.bedPrefix ? `${payload.bedPrefix} ${index + 1}` : `Bed ${index + 1}`,
-      status: "available",
-      patientId: null,
-      patientName: "",
-      assignedAt: "",
-      expectedDischargeDate: "",
-      note: ""
-    });
-  });
+  const created = await createRoomRecord({ ...room, beds });
+  syncRoomMirror(created.item);
+  created.beds.forEach(syncBedMirror);
 
-  return getRoomDetails(room.id);
+  return {
+    item: summarizeRoom(created.item, created.beds),
+    beds: created.beds
+  };
 }
 
-export function assignBed(roomId, bedId, payload) {
-  getRoomById(roomId);
-  const bed = getBedById(roomId, bedId);
+export async function assignBed(roomId, bedId, payload) {
+  const room = await roomOrThrow(roomId);
+  const bed = await bedOrThrow(bedId);
 
-  if (!["available", "reserved"].includes(bed.status)) {
-    throw createError("This bed is not currently assignable.");
+  if (bed.roomId !== room.id) {
+    throw createError("Bed not found.", 404);
   }
 
   if (!payload.patientId) {
     throw createError("Patient is required for bed assignment.");
   }
 
-  const patient = getPatientById(payload.patientId);
-  const existingAssignment = findExistingBedAssignment(patient.id, bed.id);
+  const patient = await getPatientById(payload.patientId);
+  const patientName = patient.fullName || `${patient.firstName} ${patient.lastName}`.trim();
+  const result = await assignBedRecord(roomId, bedId, {
+    ...payload,
+    patientName
+  });
 
-  if (existingAssignment) {
+  if (!result) {
+    throw createError("Bed not found.", 404);
+  }
+
+  if (result.conflict === "unassignable") {
+    throw createError("This bed is not currently assignable.");
+  }
+
+  if (result.conflict === "patient_occupied") {
     throw createError("This patient already occupies another bed.");
   }
 
-  bed.status = "occupied";
-  bed.patientId = patient.id;
-  bed.patientName = `${patient.firstName} ${patient.lastName}`;
-  bed.assignedAt = new Date().toISOString();
-  bed.expectedDischargeDate = payload.expectedDischargeDate || "";
-  bed.note = payload.note || "";
-  bed.admissionType = payload.admissionType || "observation";
-  bed.assignedBy = payload.assignedBy;
-
+  syncBedMirror(result);
   return getRoomDetails(roomId);
 }
 
-export function dischargeBed(roomId, bedId, payload) {
-  getRoomById(roomId);
-  const bed = getBedById(roomId, bedId);
+export async function dischargeBed(roomId, bedId, payload) {
+  await roomOrThrow(roomId);
+  const result = await dischargeBedRecord(roomId, bedId, payload);
 
-  if (bed.status !== "occupied") {
+  if (!result) {
+    throw createError("Bed not found.", 404);
+  }
+
+  if (result.conflict === "not_occupied") {
     throw createError("Only occupied beds can be discharged.");
   }
 
-  bed.status = payload.nextStatus || "cleaning";
-  bed.patientId = null;
-  bed.patientName = "";
-  bed.assignedAt = "";
-  bed.expectedDischargeDate = "";
-  bed.note = payload.note || "";
-  bed.admissionType = "";
-  bed.assignedBy = "";
-
+  syncBedMirror(result);
   return getRoomDetails(roomId);
 }
 
-export function getRoomMasters() {
+export async function getRoomMasters() {
+  const rooms = await listRoomRecords();
+
   return {
     ...getStaticRoomMasters(),
-    floors: Array.from(new Set(db.rooms.map((room) => room.floor))).sort(),
-    wards: Array.from(new Set(db.rooms.map((room) => room.ward))).sort(),
+    floors: Array.from(new Set(rooms.map((room) => room.floor))).sort(),
+    wards: Array.from(new Set(rooms.map((room) => room.ward))).sort(),
     roomStatuses: ["available", "full", "blocked"]
   };
 }

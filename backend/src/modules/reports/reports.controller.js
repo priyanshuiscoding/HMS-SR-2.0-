@@ -8,57 +8,57 @@ import {
   getRevenueReport
 } from "./reports.service.js";
 
-export function reportsOverviewHandler(req, res, next) {
+export async function reportsOverviewHandler(req, res, next) {
   try {
-    res.json(getReportsOverview(req.query));
+    res.json(await getReportsOverview(req.query));
   } catch (error) {
     next(error);
   }
 }
 
-export function dailyOpdReportHandler(req, res, next) {
+export async function dailyOpdReportHandler(req, res, next) {
   try {
-    res.json(getDailyOpdReport(req.query));
+    res.json(await getDailyOpdReport(req.query));
   } catch (error) {
     next(error);
   }
 }
 
-export function ipdCensusReportHandler(req, res, next) {
+export async function ipdCensusReportHandler(req, res, next) {
   try {
-    res.json(getIpdCensusReport(req.query));
+    res.json(await getIpdCensusReport(req.query));
   } catch (error) {
     next(error);
   }
 }
 
-export function revenueReportHandler(req, res, next) {
+export async function revenueReportHandler(req, res, next) {
   try {
-    res.json(getRevenueReport(req.query));
+    res.json(await getRevenueReport(req.query));
   } catch (error) {
     next(error);
   }
 }
 
-export function pharmacySalesReportHandler(req, res, next) {
+export async function pharmacySalesReportHandler(req, res, next) {
   try {
-    res.json(getPharmacySalesReport(req.query));
+    res.json(await getPharmacySalesReport(req.query));
   } catch (error) {
     next(error);
   }
 }
 
-export function labWorkloadReportHandler(req, res, next) {
+export async function labWorkloadReportHandler(req, res, next) {
   try {
-    res.json(getLabWorkloadReport(req.query));
+    res.json(await getLabWorkloadReport(req.query));
   } catch (error) {
     next(error);
   }
 }
 
-export function panchkarmaStatsReportHandler(req, res, next) {
+export async function panchkarmaStatsReportHandler(req, res, next) {
   try {
-    res.json(getPanchkarmaStatsReport(req.query));
+    res.json(await getPanchkarmaStatsReport(req.query));
   } catch (error) {
     next(error);
   }

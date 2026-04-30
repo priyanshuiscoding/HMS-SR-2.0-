@@ -1,174 +1,87 @@
+import { createId, db } from "../../data/store.js";
+import { todayDate } from "../../utils/dateTime.js";
+import { createError } from "../../utils/errors.js";
+import { getPatientById } from "../patients/patients.service.js";
+import { listDoctors, listTherapists } from "../users/users.service.js";
 import {
-  createId,
-  db,
-  getDoctors,
-  getMedicineMasters,
-  getTherapists,
-  nextPanchkarmaScheduleNumber
-} from "../../data/store.js";
-import { createBill } from "../billing/billing.service.js";
+  completeSessionRecord,
+  createSessionRecord,
+  findSessionRecord,
+  findTherapyRecord,
+  listMaterialMedicineRecords,
+  listSessionRecords,
+  listTherapyRecords,
+  loadPanchkarmaMirrors,
+  startSessionRecord
+} from "./panchkarma.repository.js";
 
-function createError(message, statusCode = 400) {
-  const error = new Error(message);
-  error.statusCode = statusCode;
-  error.publicMessage = message;
-  return error;
-}
-
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function currentTime() {
-  return new Date().toTimeString().slice(0, 5);
-}
-
-function getPatientById(patientId) {
-  const patient = db.patients.find((entry) => entry.id === patientId);
-
-  if (!patient) {
-    throw createError("Patient not found.", 404);
+function syncById(collection, item, prepend = false) {
+  const index = collection.findIndex((entry) => entry.id === item.id);
+  if (index >= 0) {
+    collection[index] = item;
+    return;
   }
-
-  return patient;
-}
-
-function getTherapyById(therapyId) {
-  const therapy = db.panchkarmaTherapies.find((entry) => entry.id === therapyId);
-
-  if (!therapy) {
-    throw createError("Therapy not found.", 404);
+  if (prepend) {
+    collection.unshift(item);
+    return;
   }
-
-  return therapy;
+  collection.push(item);
 }
 
-function getTherapistById(therapistId) {
-  const therapist = getTherapists().find((entry) => entry.id === therapistId);
+function syncScheduleMirror(schedule) {
+  syncById(db.panchkarmaSchedules, schedule, true);
+}
 
-  if (!therapist) {
-    throw createError("Therapist not found.", 404);
+function syncBillMirror(bill) {
+  if (bill) {
+    syncById(db.bills, bill, true);
   }
-
-  return therapist;
 }
 
-function getDoctorById(doctorId) {
-  return getDoctors().find((entry) => entry.id === doctorId) || null;
+export async function loadPanchkarmaMirrorsFromDatabase() {
+  const { therapies, sessions } = await loadPanchkarmaMirrors();
+  db.panchkarmaTherapies.splice(0, db.panchkarmaTherapies.length, ...therapies);
+  db.panchkarmaSchedules.splice(0, db.panchkarmaSchedules.length, ...sessions);
+  return { therapies, sessions };
 }
 
-function getRoomById(roomId) {
-  const room = db.rooms.find((entry) => entry.id === roomId);
-
-  if (!room) {
-    throw createError("Room not found.", 404);
-  }
-
-  return room;
+async function therapistById(therapistId) {
+  const therapists = await listTherapists();
+  return therapists.find((entry) => entry.id === therapistId) || null;
 }
 
-function getBedById(bedId) {
-  const bed = db.beds.find((entry) => entry.id === bedId);
-
-  if (!bed) {
-    throw createError("Bed not found.", 404);
-  }
-
-  return bed;
+async function doctorById(doctorId) {
+  const doctors = await listDoctors();
+  return doctors.find((entry) => entry.id === doctorId) || null;
 }
 
-function getScheduleById(scheduleId) {
-  const schedule = db.panchkarmaSchedules.find((entry) => entry.id === scheduleId);
-
+async function scheduleOrThrow(scheduleId) {
+  const schedule = await findSessionRecord(scheduleId);
   if (!schedule) {
     throw createError("Panchkarma session not found.", 404);
   }
-
+  syncScheduleMirror(schedule);
   return schedule;
 }
 
-function getAvailableTherapyBatches(medicineId) {
-  return db.inventoryBatches
-    .filter((batch) => batch.medicineId === medicineId && Number(batch.quantityAvailable || 0) > 0)
-    .sort((left, right) => left.expiryDate.localeCompare(right.expiryDate));
+async function therapyOrThrow(therapyId) {
+  const therapy = await findTherapyRecord(therapyId);
+  if (!therapy) {
+    throw createError("Therapy not found.", 404);
+  }
+  return therapy;
 }
 
-function consumeMaterials(materials, scheduleNumber) {
-  return materials.map((item) => {
-    const medicine = getMedicineMasters().find((entry) => entry.id === item.medicineId);
-
-    if (!medicine) {
-      throw createError("Material medicine not found.", 404);
-    }
-
-    const quantity = Number(item.quantity || 0);
-
-    if (quantity <= 0) {
-      throw createError(`Material quantity must be greater than zero for ${medicine.name}.`);
-    }
-
-    const availableBatches = getAvailableTherapyBatches(medicine.id);
-    const totalAvailable = availableBatches.reduce((sum, batch) => sum + Number(batch.quantityAvailable || 0), 0);
-
-    if (totalAvailable < quantity) {
-      throw createError(`Insufficient stock for ${medicine.name}.`);
-    }
-
-    let pendingQuantity = quantity;
-
-    availableBatches.forEach((batch) => {
-      if (pendingQuantity <= 0) {
-        return;
-      }
-
-      const issued = Math.min(Number(batch.quantityAvailable || 0), pendingQuantity);
-      batch.quantityAvailable = Number(batch.quantityAvailable || 0) - issued;
-      pendingQuantity -= issued;
-
-      db.stockTransactions.unshift({
-        id: createId(),
-        transactionDate: new Date().toISOString(),
-        medicineId: medicine.id,
-        medicineName: medicine.name,
-        batchId: batch.id,
-        type: "therapy_issue",
-        quantity: -issued,
-        referenceNumber: scheduleNumber,
-        note: item.notes || "Panchkarma therapy consumption"
-      });
-    });
-
-    return {
-      id: createId(),
-      medicineId: medicine.id,
-      medicineName: medicine.name,
-      quantity,
-      unit: medicine.unit || "unit",
-      notes: item.notes || ""
-    };
-  });
-}
-
-function buildMaterialBillItems(materialsUsed) {
-  return materialsUsed.map((item) => {
-    const medicine = getMedicineMasters().find((entry) => entry.id === item.medicineId);
-    const unitPrice = Number(medicine?.price || 0);
-
-    return {
-      description: `${item.medicineName} therapy material`,
-      category: "therapy",
-      quantity: Number(item.quantity || 0),
-      unitPrice,
-      amount: Number(item.quantity || 0) * unitPrice
-    };
-  });
-}
-
-function enrichSchedule(schedule) {
-  const therapy = db.panchkarmaTherapies.find((entry) => entry.id === schedule.therapyId) || null;
-  const patient = db.patients.find((entry) => entry.id === schedule.patientId) || null;
-  const therapist = getTherapists().find((entry) => entry.id === schedule.therapistId) || null;
-  const doctor = schedule.recommendedBy ? getDoctorById(schedule.recommendedBy) : null;
+async function enrichSchedule(schedule) {
+  const [therapies, therapists, doctors] = await Promise.all([
+    listTherapyRecords(),
+    listTherapists(),
+    listDoctors()
+  ]);
+  const therapy = therapies.find((entry) => entry.id === schedule.therapyId) || null;
+  const patient = schedule.patientId ? await getPatientById(schedule.patientId).catch(() => null) : null;
+  const therapist = therapists.find((entry) => entry.id === schedule.therapistId) || null;
+  const doctor = schedule.recommendedBy ? doctors.find((entry) => entry.id === schedule.recommendedBy) || null : null;
   const therapyRoom = schedule.therapyRoomId ? db.rooms.find((entry) => entry.id === schedule.therapyRoomId) || null : null;
   const recoveryBed = schedule.recoveryBedId ? db.beds.find((entry) => entry.id === schedule.recoveryBedId) || null : null;
   const recoveryRoom = recoveryBed ? db.rooms.find((entry) => entry.id === recoveryBed.roomId) || null : null;
@@ -187,11 +100,19 @@ function enrichSchedule(schedule) {
   };
 }
 
-export function getPanchkarmaTherapies() {
-  return [...db.panchkarmaTherapies].sort((left, right) => left.name.localeCompare(right.name));
+export async function getPanchkarmaTherapies() {
+  const therapies = await listTherapyRecords();
+  db.panchkarmaTherapies.splice(0, db.panchkarmaTherapies.length, ...therapies);
+  return therapies;
 }
 
-export function getPanchkarmaMasters() {
+export async function getPanchkarmaMasters() {
+  const [therapies, therapists, doctors, materialMedicines] = await Promise.all([
+    getPanchkarmaTherapies(),
+    listTherapists(),
+    listDoctors(),
+    listMaterialMedicineRecords()
+  ]);
   const therapyRooms = db.rooms.filter((entry) => entry.roomType === "therapy");
   const recoveryBeds = db.beds
     .filter((bed) => ["available", "reserved"].includes(bed.status))
@@ -201,21 +122,21 @@ export function getPanchkarmaMasters() {
     }));
 
   return {
-    therapies: getPanchkarmaTherapies(),
-    therapists: getTherapists(),
-    doctors: getDoctors(),
+    therapies,
+    therapists,
+    doctors,
     therapyRooms,
     recoveryBeds,
-    materialMedicines: getMedicineMasters().filter((entry) =>
-      ["External Therapy", "Ayurvedic Classical"].includes(entry.category)
-    ),
+    materialMedicines,
+    rateListUpdatedFrom: "SR-AIIMS Panchakarma & Therapy Rate List",
     statuses: ["scheduled", "in_progress", "completed", "cancelled"]
   };
 }
 
-export function getPanchkarmaSummary() {
+export async function getPanchkarmaSummary() {
   const today = todayDate();
-  const sessions = db.panchkarmaSchedules.map((entry) => enrichSchedule(entry));
+  const sessions = await listSessionRecords();
+  db.panchkarmaSchedules.splice(0, db.panchkarmaSchedules.length, ...sessions);
 
   return {
     totalSessions: sessions.length,
@@ -227,25 +148,11 @@ export function getPanchkarmaSummary() {
   };
 }
 
-export function listPanchkarmaSchedules(query = {}) {
+export async function listPanchkarmaSchedules(query = {}) {
   const search = String(query.search || "").trim().toLowerCase();
-  let items = db.panchkarmaSchedules.map((entry) => enrichSchedule(entry));
-
-  if (query.status) {
-    items = items.filter((entry) => entry.status === query.status);
-  }
-
-  if (query.scheduledDate) {
-    items = items.filter((entry) => entry.scheduledDate === query.scheduledDate);
-  }
-
-  if (query.therapistId) {
-    items = items.filter((entry) => entry.therapistId === query.therapistId);
-  }
-
-  if (query.patientId) {
-    items = items.filter((entry) => entry.patientId === query.patientId);
-  }
+  const sessions = await listSessionRecords(query);
+  db.panchkarmaSchedules.splice(0, db.panchkarmaSchedules.length, ...sessions);
+  let items = await Promise.all(sessions.map(enrichSchedule));
 
   if (search) {
     items = items.filter((entry) =>
@@ -268,53 +175,58 @@ export function listPanchkarmaSchedules(query = {}) {
   );
 }
 
-export function getPanchkarmaScheduleDetails(scheduleId) {
-  return enrichSchedule(getScheduleById(scheduleId));
+export async function getPanchkarmaScheduleDetails(scheduleId) {
+  return enrichSchedule(await scheduleOrThrow(scheduleId));
 }
 
-export function createPanchkarmaSchedule(payload, userId) {
+export async function createPanchkarmaSchedule(payload, userId) {
   if (!payload.patientId || !payload.therapyId || !payload.therapistId || !payload.scheduledDate || !payload.scheduledTime) {
     throw createError("Patient, therapy, therapist, date, and time are required.");
   }
 
-  const patient = getPatientById(payload.patientId);
-  const therapy = getTherapyById(payload.therapyId);
-  const therapist = getTherapistById(payload.therapistId);
-  const therapyRoom = payload.therapyRoomId ? getRoomById(payload.therapyRoomId) : null;
+  const [patient, therapy, therapist] = await Promise.all([
+    getPatientById(payload.patientId),
+    therapyOrThrow(payload.therapyId),
+    therapistById(payload.therapistId)
+  ]);
 
+  if (!therapist) {
+    throw createError("Therapist not found.", 404);
+  }
+
+  const therapyRoom = payload.therapyRoomId ? db.rooms.find((entry) => entry.id === payload.therapyRoomId) || null : null;
+  if (payload.therapyRoomId && !therapyRoom) {
+    throw createError("Room not found.", 404);
+  }
   if (therapyRoom && therapyRoom.roomType !== "therapy") {
     throw createError("Selected room is not a therapy room.");
   }
 
-  let recoveryBed = null;
-  if (payload.recoveryBedId) {
-    recoveryBed = getBedById(payload.recoveryBedId);
-
-    if (recoveryBed.status === "occupied") {
-      throw createError("Selected recovery bed is currently occupied.");
-    }
+  const recoveryBed = payload.recoveryBedId ? db.beds.find((entry) => entry.id === payload.recoveryBedId) || null : null;
+  if (payload.recoveryBedId && !recoveryBed) {
+    throw createError("Bed not found.", 404);
+  }
+  if (recoveryBed?.status === "occupied") {
+    throw createError("Selected recovery bed is currently occupied.");
   }
 
   let recommendedByName = "";
   if (payload.recommendedBy) {
-    const doctor = getDoctorById(payload.recommendedBy);
-
+    const doctor = await doctorById(payload.recommendedBy);
     if (!doctor) {
       throw createError("Recommending doctor not found.");
     }
-
     recommendedByName = doctor.fullName;
   }
 
-  const schedule = {
+  const patientName = patient.fullName || `${patient.firstName || ""} ${patient.lastName || ""}`.trim();
+  const schedule = await createSessionRecord({
     id: createId(),
-    scheduleNumber: nextPanchkarmaScheduleNumber(),
     patientId: patient.id,
-    patientName: `${patient.firstName} ${patient.lastName}`.trim(),
+    patientName,
     therapyId: therapy.id,
     therapyName: therapy.name,
     recommendedBy: payload.recommendedBy || "",
-    recommendedByName,
     linkedVisitId: payload.linkedVisitId || "",
     prescriptionId: payload.prescriptionId || "",
     therapyRoomId: therapyRoom?.id || "",
@@ -324,47 +236,88 @@ export function createPanchkarmaSchedule(payload, userId) {
     scheduledDate: payload.scheduledDate,
     scheduledTime: payload.scheduledTime,
     estimatedDurationMinutes: Number(payload.estimatedDurationMinutes || therapy.defaultDurationMinutes || 30),
-    status: "scheduled",
     complaint: payload.complaint || "",
     preparationNotes: payload.preparationNotes || "",
-    executionNotes: "",
-    followUpAdvice: "",
-    materialsUsed: [],
-    sessionStartedAt: "",
-    sessionCompletedAt: "",
-    outcome: "",
-    billId: "",
-    billedAmount: 0,
-    createdBy: userId
-  };
+    createdBy: userId,
+    metadata: {
+      recommendedByName
+    }
+  });
 
-  db.panchkarmaSchedules.unshift(schedule);
+  syncScheduleMirror(schedule);
   return enrichSchedule(schedule);
 }
 
-export function startPanchkarmaSession(scheduleId, payload, userId) {
-  const schedule = getScheduleById(scheduleId);
+export async function startPanchkarmaSession(scheduleId, payload = {}, userId) {
+  const schedule = await scheduleOrThrow(scheduleId);
 
   if (schedule.status !== "scheduled") {
     throw createError("Only scheduled sessions can be started.");
   }
 
+  let therapist = null;
   if (payload?.therapistId) {
-    const therapist = getTherapistById(payload.therapistId);
-    schedule.therapistId = therapist.id;
-    schedule.therapistName = therapist.fullName;
+    therapist = await therapistById(payload.therapistId);
+    if (!therapist) {
+      throw createError("Therapist not found.", 404);
+    }
   }
 
-  schedule.status = "in_progress";
-  schedule.sessionStartedAt = payload?.sessionStartedAt || new Date().toISOString();
-  schedule.executionNotes = payload?.executionNotes || schedule.executionNotes;
-  schedule.startedBy = userId;
+  const result = await startSessionRecord(scheduleId, {
+    therapistId: therapist?.id || "",
+    therapistName: therapist?.fullName || "",
+    sessionStartedAt: payload?.sessionStartedAt || "",
+    executionNotes: payload?.executionNotes || "",
+    startedBy: userId
+  });
 
-  return enrichSchedule(schedule);
+  if (!result) throw createError("Panchkarma session not found.", 404);
+  if (result.conflict === "invalid_status") throw createError("Only scheduled sessions can be started.");
+
+  syncScheduleMirror(result);
+  return enrichSchedule(result);
 }
 
-export function completePanchkarmaSession(scheduleId, payload, userId) {
-  const schedule = getScheduleById(scheduleId);
+function materialConflictToError(result) {
+  if (result.conflict === "medicine_missing") throw createError("Material medicine not found.", 404);
+  if (result.conflict === "invalid_quantity") throw createError(`Material quantity must be greater than zero for ${result.medicineName}.`);
+  if (result.conflict === "insufficient_stock") throw createError(`Insufficient stock for ${result.medicineName}.`);
+  if (result.conflict === "invalid_status") throw createError("Only scheduled or in-progress sessions can be completed.");
+}
+
+function billItemsForCompletion({ therapy, materialsUsed, materialMedicines, payload }) {
+  const sessionCharge = Number(payload.sessionCharge || therapy.price || 0);
+  const items = [
+    {
+      id: createId(),
+      description: `${therapy.name} Panchkarma session`,
+      category: "therapy",
+      quantity: 1,
+      unitPrice: sessionCharge,
+      amount: sessionCharge
+    }
+  ];
+
+  if (payload.addMaterialCharges) {
+    materialsUsed.forEach((item) => {
+      const medicine = materialMedicines.find((entry) => entry.id === item.medicineId);
+      const unitPrice = Number(medicine?.price || 0);
+      items.push({
+        id: createId(),
+        description: `${item.medicineName} therapy material`,
+        category: "therapy",
+        quantity: Number(item.quantity || 0),
+        unitPrice,
+        amount: Number(item.quantity || 0) * unitPrice
+      });
+    });
+  }
+
+  return items;
+}
+
+export async function completePanchkarmaSession(scheduleId, payload, userId) {
+  const schedule = await scheduleOrThrow(scheduleId);
 
   if (!["scheduled", "in_progress"].includes(schedule.status)) {
     throw createError("Only scheduled or in-progress sessions can be completed.");
@@ -374,47 +327,62 @@ export function completePanchkarmaSession(scheduleId, payload, userId) {
     throw createError("Session outcome is required.");
   }
 
-  const therapy = getTherapyById(schedule.therapyId);
-  const materialsUsed = consumeMaterials(payload.materialsUsed || [], schedule.scheduleNumber);
-  let bill = null;
+  const [therapy, materialMedicines] = await Promise.all([
+    therapyOrThrow(schedule.therapyId),
+    listMaterialMedicineRecords()
+  ]);
+  const materialInputs = payload.materialsUsed || [];
+  const materialPreview = materialInputs.map((item) => {
+    const medicine = materialMedicines.find((entry) => entry.id === item.medicineId);
+    return {
+      medicineId: item.medicineId,
+      medicineName: medicine?.name || "",
+      quantity: Number(item.quantity || 0),
+      notes: item.notes || ""
+    };
+  });
+  const billItems = payload.createBill
+    ? billItemsForCompletion({ therapy, materialsUsed: materialPreview, materialMedicines, payload })
+    : [];
+  const subtotal = billItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
-  if (payload.createBill) {
-    const items = [
-      {
-        description: `${therapy.name} Panchkarma session`,
-        category: "therapy",
-        quantity: 1,
-        unitPrice: Number(payload.sessionCharge || therapy.price || 0),
-        amount: Number(payload.sessionCharge || therapy.price || 0)
-      }
-    ];
+  const result = await completeSessionRecord(scheduleId, {
+    createId,
+    materialsUsed: materialInputs,
+    bill: payload.createBill
+      ? {
+          id: createId(),
+          patientId: schedule.patientId,
+          patientName: schedule.patientName,
+          billType: "therapy",
+          billDate: payload.billDate || todayDate(),
+          subtotal,
+          discountAmount: 0,
+          taxAmount: 0,
+          totalAmount: subtotal,
+          paymentStatus: payload.paymentStatus || "unpaid",
+          createdBy: userId,
+          notes: `Generated from Panchkarma session ${schedule.scheduleNumber}`,
+          invoiceMeta: {},
+          metadata: {
+            panchkarmaSessionId: schedule.id,
+            panchkarmaScheduleNumber: schedule.scheduleNumber
+          },
+          items: billItems
+        }
+      : null,
+    sessionCompletedAt: payload.sessionCompletedAt || "",
+    executionNotes: payload.executionNotes || "",
+    followUpAdvice: payload.followUpAdvice || "",
+    outcome: payload.outcome,
+    billedAmount: subtotal || Number(payload.sessionCharge || therapy.price || 0),
+    completedBy: userId
+  });
 
-    if (payload.addMaterialCharges) {
-      items.push(...buildMaterialBillItems(materialsUsed));
-    }
+  if (!result) throw createError("Panchkarma session not found.", 404);
+  if (result.conflict) materialConflictToError(result);
 
-    bill = createBill({
-      patientId: schedule.patientId,
-      patientName: schedule.patientName,
-      billType: "therapy",
-      billDate: payload.billDate || todayDate(),
-      paymentStatus: payload.paymentStatus || "unpaid",
-      createdBy: userId,
-      notes: `Generated from Panchkarma session ${schedule.scheduleNumber}`,
-      items
-    });
-  }
-
-  schedule.status = "completed";
-  schedule.sessionStartedAt = schedule.sessionStartedAt || new Date().toISOString();
-  schedule.sessionCompletedAt = payload.sessionCompletedAt || new Date().toISOString();
-  schedule.executionNotes = payload.executionNotes || schedule.executionNotes || "";
-  schedule.followUpAdvice = payload.followUpAdvice || "";
-  schedule.materialsUsed = materialsUsed;
-  schedule.outcome = payload.outcome;
-  schedule.billId = bill?.id || schedule.billId || "";
-  schedule.billedAmount = bill?.totalAmount || Number(payload.sessionCharge || therapy.price || 0);
-  schedule.completedBy = userId;
-
-  return enrichSchedule(schedule);
+  syncScheduleMirror(result.session);
+  syncBillMirror(result.bill);
+  return enrichSchedule(result.session);
 }
