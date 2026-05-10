@@ -3,7 +3,7 @@ import { createAppointment, getAvailableSlots } from "../backend/src/modules/app
 import { createBill, collectPayment } from "../backend/src/modules/billing/billing.service.js";
 import { admitPatient, addAdmissionNote, addAdmissionVitals, dischargeAdmission, loadIpdMirrorsFromDatabase } from "../backend/src/modules/ipd/ipd.service.js";
 import { collectLabSample, createLabBill, createLabOrder, getLabMasters, getLabOrderDetails, saveLabResults } from "../backend/src/modules/laboratory/laboratory.service.js";
-import { saveAssessment, completeVisit, createVisit, savePrescription, saveVitals } from "../backend/src/modules/opd/opd.service.js";
+import { saveAssessment, completeVisit, createVisit, saveDischargeSummary, savePrescription, saveVitals } from "../backend/src/modules/opd/opd.service.js";
 import { completePanchkarmaSession, createPanchkarmaSchedule, getPanchkarmaMasters, startPanchkarmaSession } from "../backend/src/modules/panchkarma/panchkarma.service.js";
 import { dispensePrescription } from "../backend/src/modules/pharmacy/pharmacy.service.js";
 import { createPatient, getPatientHistory } from "../backend/src/modules/patients/patients.service.js";
@@ -140,7 +140,24 @@ await run("Register patient to OPD billing flow", async () => {
     visit.id,
     {
       diagnosis: "General fatigue",
-      medicines: [{ medicineId, quantityDispensed: 1, dose: "1 tab", frequency: "BD" }]
+      dietRecommendations: "Light warm diet",
+      followUpDate: today,
+      metadata: {
+        dietPlan: { recommendedDiet: "Light warm diet", foodsToInclude: "Moong soup", foodsToAvoid: "Cold drinks" }
+      },
+      medicines: [{ medicineId, quantityDispensed: 1, dose: "1 tab", frequency: "BD", durationDays: 5 }]
+    },
+    persistedDoctorId
+  );
+  const dischargeSummary = await saveDischargeSummary(
+    visit.id,
+    {
+      status: "forwarded",
+      clinicalCourse: "OPD treatment completed and patient discharged with advice.",
+      finalDiagnosis: "General fatigue",
+      conditionOnDischarge: "stable",
+      advice: "Continue medicines and diet plan.",
+      followUpDate: today
     },
     persistedDoctorId
   );
@@ -159,8 +176,9 @@ await run("Register patient to OPD billing flow", async () => {
 
   assert(payment.bill.paymentStatus === "partial", "Expected OPD bill to become partial after payment.");
   assert(dispensation.items.length === 1, "Expected prescription dispense item to be created.");
+  assert(dischargeSummary.status === "forwarded", "Expected OPD discharge summary to be forwarded.");
 
-  return `Patient ${patient.uhid}, visit ${visit.opdNumber}, bill ${bill.billNumber}`;
+  return `Patient ${patient.uhid}, visit ${visit.opdNumber}, discharge ${dischargeSummary.summaryNumber}, bill ${bill.billNumber}`;
 });
 
 await run("Laboratory collection to reporting flow", async () => {

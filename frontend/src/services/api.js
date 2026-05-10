@@ -110,6 +110,7 @@ export const getOpdVisit = (id) => get(`/opd/visits/${id}`);
 export const saveOpdVitals = (id, payload) => put(`/opd/visits/${id}/vitals`, payload);
 export const saveAyurvedaAssessment = (id, payload) => post(`/opd/visits/${id}/ayurveda`, payload);
 export const savePrescription = (id, payload) => post(`/opd/visits/${id}/prescriptions`, payload);
+export const saveOpdDischargeSummary = (id, payload) => post(`/opd/visits/${id}/discharge-summary`, payload);
 export const createOpdLabOrder = (id, payload) => post(`/opd/visits/${id}/lab-orders`, payload);
 export const referOpdVisitToIpd = (id, payload) => post(`/opd/visits/${id}/refer-ipd`, payload);
 export const completeOpdVisit = (id) => put(`/opd/visits/${id}/complete`);

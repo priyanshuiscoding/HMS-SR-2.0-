@@ -45,7 +45,8 @@ a {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -173,25 +174,36 @@ select {
   font-weight: 600;
 }
 
-.field input {
+.field input,
+.field textarea {
   width: 100%;
+  min-width: 0;
   padding: 14px 16px;
   border: 1px solid rgba(16, 55, 92, 0.18);
   border-radius: 14px;
   background: #ffffff;
   outline: none;
+  color: var(--color-ink);
+}
+
+.field textarea {
+  min-height: 96px;
+  resize: vertical;
 }
 
 .field select {
   width: 100%;
+  min-width: 0;
   padding: 14px 16px;
   border: 1px solid rgba(16, 55, 92, 0.18);
   border-radius: 14px;
   background: #ffffff;
   outline: none;
+  color: var(--color-ink);
 }
 
 .field input:focus,
+.field textarea:focus,
 .field select:focus {
   border-color: rgba(31, 111, 178, 0.6);
   box-shadow: 0 0 0 5px rgba(120, 174, 232, 0.2);
@@ -202,6 +214,7 @@ select {
   justify-content: center;
   align-items: center;
   gap: 10px;
+  min-height: 44px;
   padding: 14px 18px;
   border: 0;
   border-radius: 14px;
@@ -217,6 +230,7 @@ select {
   justify-content: center;
   align-items: center;
   gap: 10px;
+  min-height: 42px;
   padding: 12px 16px;
   border: 1px solid rgba(16, 55, 92, 0.12);
   border-radius: 14px;
@@ -224,6 +238,13 @@ select {
   color: var(--color-ink);
   cursor: pointer;
   font-weight: 600;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+  box-shadow: none;
 }
 
 .auth-demo {
@@ -478,14 +499,16 @@ select {
 
 .section-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 18px;
+  min-width: 0;
 }
 
 .section-header h3 {
   margin: 6px 0 0;
+  overflow-wrap: anywhere;
 }
 
 .form-grid {
@@ -503,6 +526,7 @@ select {
   align-items: center;
   justify-content: flex-start;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .toolbar {
@@ -511,6 +535,16 @@ select {
   gap: 12px;
   margin-bottom: 18px;
   flex-wrap: wrap;
+}
+
+.toolbar select {
+  min-width: 220px;
+  max-width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(16, 55, 92, 0.18);
+  border-radius: 14px;
+  background: #ffffff;
+  color: var(--color-ink);
 }
 
 .search-input {
@@ -622,6 +656,7 @@ select {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  min-width: 0;
   padding: 16px;
   border: 1px solid rgba(16, 55, 92, 0.08);
   border-radius: 18px;
@@ -638,6 +673,7 @@ select {
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 .status-pill.scheduled {
@@ -697,20 +733,33 @@ select {
 
 .opd-grid {
   display: grid;
-  grid-template-columns: 0.78fr 1.22fr;
+  grid-template-columns: minmax(320px, 0.72fr) minmax(0, 1.28fr);
+  align-items: start;
   gap: 18px;
   margin-top: 18px;
+  min-width: 0;
 }
 
 .consultation-column {
   display: grid;
   gap: 18px;
+  min-width: 0;
+}
+
+.opd-queue-panel {
+  position: sticky;
+  top: 24px;
+  display: grid;
+  gap: 16px;
+  max-height: calc(100vh - 48px);
+  overflow: auto;
 }
 
 .queue-actions {
   display: grid;
   gap: 10px;
   justify-items: end;
+  flex: 0 0 auto;
 }
 
 .selectable-card {
@@ -727,6 +776,69 @@ select {
   background: linear-gradient(180deg, rgba(247, 251, 255, 0.96), rgba(255, 255, 255, 0.98));
 }
 
+.opd-hours-card {
+  margin-top: 0;
+  padding: 18px;
+}
+
+.opd-workspace-card {
+  padding-bottom: 14px;
+}
+
+.opd-summary-grid {
+  align-items: stretch;
+  margin-bottom: 0;
+}
+
+.compact-stat-grid .stat-card {
+  padding: 18px;
+}
+
+.compact-stat-grid .stat-value {
+  font-size: 34px;
+}
+
+.compact-form-card {
+  padding: 20px;
+}
+
+.compact-form-card .section-header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(16, 55, 92, 0.08);
+}
+
+.clinical-form-grid {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+}
+
+.vitals-grid {
+  grid-template-columns: repeat(4, minmax(130px, 1fr));
+}
+
+.vitals-grid .field:last-child {
+  grid-column: span 2;
+}
+
+.complaint-grid {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+
+.medicine-grid {
+  grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(110px, 1fr));
+}
+
+.therapy-grid {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.discharge-form-grid {
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+}
+
+.discharge-form-grid .field-span-2 {
+  grid-column: span 2;
+}
+
 .medicine-stack {
   display: grid;
   gap: 14px;
@@ -734,10 +846,116 @@ select {
 }
 
 .medicine-card {
-  padding: 16px;
+  padding: 14px;
   border: 1px solid rgba(16, 55, 92, 0.08);
   border-radius: 18px;
   background: rgba(248, 252, 255, 0.88);
+}
+
+.form-subsection {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 18px;
+  border-top: 1px solid rgba(16, 55, 92, 0.08);
+  border-radius: 18px;
+  background: rgba(248, 252, 255, 0.72);
+}
+
+.form-subsection h4 {
+  margin: 0;
+  color: var(--color-navy);
+}
+
+.compact-table-shell {
+  border-radius: 12px;
+}
+
+.compact-table {
+  min-width: 640px;
+}
+
+.compact-table input,
+.compact-table select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 55, 92, 0.14);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.discharge-print-sheet {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid rgba(16, 55, 92, 0.18);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #1f2933;
+  overflow: hidden;
+  line-height: 1.55;
+}
+
+.print-hospital-name {
+  color: #f35b1c;
+  font-size: 18px;
+  font-weight: 800;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.print-hospital-subtitle {
+  color: #2f69c9;
+  font-style: italic;
+  text-align: center;
+}
+
+.discharge-print-sheet h2,
+.discharge-print-sheet h3 {
+  margin: 8px 0 0;
+  color: #1f4f8f;
+}
+
+.discharge-print-sheet h2 {
+  text-align: center;
+}
+
+.discharge-print-sheet p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.print-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+}
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.print-table th,
+.print-table td {
+  padding: 8px;
+  border: 1px solid rgba(16, 55, 92, 0.18);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.print-table th {
+  background: #2f7db9;
+  color: #ffffff;
+}
+
+.signature-line {
+  margin-top: 30px;
+  text-align: right;
+  font-weight: 700;
 }
 
 .checkbox-grid {
@@ -750,11 +968,17 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   padding: 12px 14px;
   border: 1px solid rgba(16, 55, 92, 0.1);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.82);
   color: var(--color-ink);
+}
+
+.checkbox-chip span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .stack-list {
@@ -894,6 +1118,19 @@ select {
     background: #ffffff !important;
   }
 
+  .opd-grid > aside,
+  .consultation-column > .content-card:not(.print-sheet-card),
+  .print-sheet-card > .no-print {
+    display: none !important;
+  }
+
+  .discharge-print-sheet {
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
   body {
     background: #ffffff;
   }
@@ -931,6 +1168,26 @@ select {
     grid-column: auto;
   }
 
+  .opd-queue-panel {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .vitals-grid,
+  .clinical-form-grid,
+  .complaint-grid,
+  .medicine-grid,
+  .therapy-grid,
+  .discharge-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vitals-grid .field:last-child,
+  .discharge-form-grid .field-span-2 {
+    grid-column: auto;
+  }
+
   .profile-banner {
     flex-direction: column;
   }
@@ -938,6 +1195,67 @@ select {
   .checkbox-grid,
   .timeline-block {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .main-panel,
+  .auth-hero,
+  .auth-panel {
+    padding: 16px;
+  }
+
+  .navbar,
+  .section-header,
+  .profile-banner,
+  .invoice-header,
+  .queue-item {
+    flex-direction: column;
+  }
+
+  .navbar-actions,
+  .action-row,
+  .queue-actions {
+    width: 100%;
+    align-items: stretch;
+    justify-items: stretch;
+  }
+
+  .primary-button,
+  .secondary-button,
+  .toolbar select,
+  .search-input {
+    width: 100%;
+  }
+
+  .content-card,
+  .compact-form-card,
+  .hero-panel,
+  .stat-card,
+  .form-subsection {
+    border-radius: 18px;
+    padding: 16px;
+  }
+
+  .page-title,
+  .profile-banner h2 {
+    font-size: 30px;
+  }
+
+  .hero-panel h2 {
+    font-size: 28px;
+  }
+
+  .stat-value {
+    font-size: 30px;
+  }
+
+  .print-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .discharge-print-sheet {
+    padding: 16px;
   }
 }
 

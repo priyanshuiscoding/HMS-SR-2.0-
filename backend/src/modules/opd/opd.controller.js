@@ -7,6 +7,7 @@ import {
   getVisitDetails,
   referVisitToIpd,
   saveAssessment,
+  saveDischargeSummary,
   savePrescription,
   saveVitals
 } from "./opd.service.js";
@@ -59,6 +60,17 @@ export async function prescriptionSaveHandler(req, res, next) {
     res.json({
       item: await savePrescription(req.params.id, req.body, req.user.sub),
       message: "Prescription saved successfully."
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function dischargeSummarySaveHandler(req, res, next) {
+  try {
+    res.json({
+      item: await saveDischargeSummary(req.params.id, req.body, req.user.sub),
+      message: "Discharge summary saved and forwarded successfully."
     });
   } catch (error) {
     next(error);

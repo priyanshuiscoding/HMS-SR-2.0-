@@ -12,6 +12,7 @@ import {
   getOpdQueue,
   getOpdVisit,
   saveAyurvedaAssessment,
+  saveOpdDischargeSummary,
   saveOpdVitals,
   savePrescription
 } from "../../services/api.js";
@@ -61,7 +62,54 @@ const initialPrescription = {
   chikitsaSutra: "",
   dietRecommendations: "",
   followUpDate: "",
+  metadata: {
+    diagnosisRows: [
+      { diagnosis: "", icdCode: "", type: "primary" },
+      { diagnosis: "", icdCode: "", type: "secondary" },
+      { diagnosis: "", icdCode: "", type: "secondary" }
+    ],
+    complaintRows: Array.from({ length: 8 }, () => ({ complaint: "", duration: "" })),
+    therapyPlan: {
+      yoga: [{ asanas: "Surya Namaskar, Tadasana, Bhujangasana", pranayama: "Anulom-Vilom, Bhastrika", durationMinutes: "" }],
+      panchkarma: [
+        { procedure: "Abhyanga", frequency: "", duration: "" },
+        { procedure: "Shiroabhyanga", frequency: "", duration: "" },
+        { procedure: "Nasya", frequency: "", duration: "" },
+        { procedure: "Basti", frequency: "", duration: "" }
+      ],
+      specialized: [
+        { therapy: "Shirodhara", sessions: "", duration: "" },
+        { therapy: "Kizhi", sessions: "", duration: "" },
+        { therapy: "Udwarthana", sessions: "", duration: "" }
+      ]
+    },
+    dietPlan: { recommendedDiet: "", foodsToInclude: "", foodsToAvoid: "" },
+    lifestylePlan: { activityType: "", frequency: "", duration: "", bestTime: "", precautions: "", stressManagement: "" },
+    investigations: { bloodTests: false, imaging: "", specialtyTests: "" }
+  },
   medicines: [{ ...emptyMedicine }]
+};
+
+const initialDischargeSummary = {
+  summaryDate: new Date().toISOString().slice(0, 10),
+  status: "draft",
+  clinicalCourse: "",
+  finalDiagnosis: "",
+  conditionOnDischarge: "stable",
+  advice: "",
+  followUpDate: "",
+  metadata: {
+    patient: { admissionDate: "", dischargeDate: "", lengthOfStay: "", wardRoom: "" },
+    clinicalImprovement: { overallStatus: "", symptomRelief: "", functionalStatus: "" },
+    dietAdvice: { recommendedDiet: "", foodsToInclude: "", foodsToAvoid: "" },
+    lifestyleAdvice: { yogaPranayama: "", physicalActivity: "", sleepSchedule: "", stressManagement: "" },
+    investigations: { bloodTests: false, imaging: "", specialtyTests: "" },
+    medicinesAdministered: [],
+    dischargeMedicines: [],
+    yogaTherapy: [],
+    panchkarmaTherapy: [],
+    specializedTherapy: []
+  }
 };
 
 const initialLabOrder = {
@@ -74,6 +122,97 @@ const initialBilling = {
   addLabCharges: true,
   paymentStatus: "unpaid"
 };
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function mergePrescription(prescription) {
+  const base = clone(initialPrescription);
+  return {
+    ...base,
+    ...(prescription || {}),
+    metadata: {
+      ...base.metadata,
+      ...(prescription?.metadata || {}),
+      therapyPlan: {
+        ...base.metadata.therapyPlan,
+        ...(prescription?.metadata?.therapyPlan || {})
+      },
+      dietPlan: {
+        ...base.metadata.dietPlan,
+        ...(prescription?.metadata?.dietPlan || {})
+      },
+      lifestylePlan: {
+        ...base.metadata.lifestylePlan,
+        ...(prescription?.metadata?.lifestylePlan || {})
+      },
+      investigations: {
+        ...base.metadata.investigations,
+        ...(prescription?.metadata?.investigations || {})
+      }
+    },
+    medicines: prescription?.medicines?.length ? prescription.medicines : [{ ...emptyMedicine }]
+  };
+}
+
+function medicineRows(prescription) {
+  return (prescription?.medicines || []).map((medicine) => ({
+    medicineName: medicine.medicineName,
+    strengthRoute: medicine.route,
+    dosage: medicine.dose,
+    duration: medicine.durationDays ? `${medicine.durationDays} days` : "",
+    remarks: medicine.specialInstructions || medicine.timing || ""
+  }));
+}
+
+function mergeDischargeSummary(summary, prescription, visit) {
+  const base = clone(initialDischargeSummary);
+  const prescriptionRows = medicineRows(prescription);
+  const metadata = prescription?.metadata || {};
+
+  return {
+    ...base,
+    ...(summary || {}),
+    finalDiagnosis: summary?.finalDiagnosis || prescription?.diagnosis || "",
+    advice: summary?.advice || prescription?.dietRecommendations || "",
+    followUpDate: summary?.followUpDate || prescription?.followUpDate || "",
+    metadata: {
+      ...base.metadata,
+      ...(summary?.metadata || {}),
+      patient: {
+        ...base.metadata.patient,
+        ...(summary?.metadata?.patient || {})
+      },
+      clinicalImprovement: {
+        ...base.metadata.clinicalImprovement,
+        ...(summary?.metadata?.clinicalImprovement || {})
+      },
+      dietAdvice: {
+        ...base.metadata.dietAdvice,
+        ...(metadata.dietPlan || {}),
+        ...(summary?.metadata?.dietAdvice || {})
+      },
+      lifestyleAdvice: {
+        ...base.metadata.lifestyleAdvice,
+        ...(summary?.metadata?.lifestyleAdvice || {})
+      },
+      investigations: {
+        ...base.metadata.investigations,
+        ...(metadata.investigations || {}),
+        ...(summary?.metadata?.investigations || {})
+      },
+      medicinesAdministered: summary?.metadata?.medicinesAdministered?.length ? summary.metadata.medicinesAdministered : prescriptionRows,
+      dischargeMedicines: summary?.metadata?.dischargeMedicines?.length ? summary.metadata.dischargeMedicines : prescriptionRows,
+      yogaTherapy: summary?.metadata?.yogaTherapy?.length ? summary.metadata.yogaTherapy : metadata.therapyPlan?.yoga || [],
+      panchkarmaTherapy: summary?.metadata?.panchkarmaTherapy?.length ? summary.metadata.panchkarmaTherapy : metadata.therapyPlan?.panchkarma || [],
+      specializedTherapy: summary?.metadata?.specializedTherapy?.length ? summary.metadata.specializedTherapy : metadata.therapyPlan?.specialized || []
+    },
+    conditionOnDischarge: summary?.conditionOnDischarge || "stable",
+    summaryDate: summary?.summaryDate || new Date().toISOString().slice(0, 10),
+    status: summary?.status || "draft"
+  };
+}
 
 export function OpdPage() {
   const { user } = useAuth();
@@ -95,6 +234,7 @@ export function OpdPage() {
   const [vitalsForm, setVitalsForm] = useState(initialVitals);
   const [assessmentForm, setAssessmentForm] = useState(initialAssessment);
   const [prescriptionForm, setPrescriptionForm] = useState(initialPrescription);
+  const [dischargeForm, setDischargeForm] = useState(initialDischargeSummary);
   const [filterDoctorId, setFilterDoctorId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -128,14 +268,9 @@ export function OpdPage() {
         ...initialAssessment,
         ...(response.assessment || {})
       });
-      setPrescriptionForm({
-        ...initialPrescription,
-        ...(response.prescription || {}),
-        medicines:
-          response.prescription?.medicines?.length
-            ? response.prescription.medicines
-            : [{ ...emptyMedicine }]
-      });
+      const nextPrescription = mergePrescription(response.prescription);
+      setPrescriptionForm(nextPrescription);
+      setDischargeForm(mergeDischargeSummary(response.dischargeSummary, nextPrescription, response.visit));
       setLabOrderForm(initialLabOrder);
       setBillingForm(initialBilling);
     } catch (apiError) {
@@ -166,9 +301,10 @@ export function OpdPage() {
     };
   }, [queue]);
   const canStartVisit = ["admin", "reception", "doctor"].includes(user?.role);
-  const canSaveVitals = ["admin", "reception", "doctor"].includes(user?.role);
+  const canSaveVitals = ["admin", "reception", "doctor", "nursing"].includes(user?.role);
   const canClinicalDocument = ["admin", "doctor"].includes(user?.role);
   const canCreateBilling = ["admin", "doctor", "reception"].includes(user?.role);
+  const canPrintDischarge = ["admin", "doctor", "reception", "nursing"].includes(user?.role);
 
   const handleDoctorFilter = async (event) => {
     const doctorId = event.target.value;
@@ -177,7 +313,7 @@ export function OpdPage() {
   };
 
   const startConsultation = async (queueItem) => {
-    if (!canStartVisit) {
+    if (!queueItem.visitId && !canStartVisit) {
       setError("You do not have permission to start consultations.");
       return;
     }
@@ -216,6 +352,82 @@ export function OpdPage() {
     setPrescriptionForm((current) => ({
       ...current,
       [event.target.name]: event.target.value
+    }));
+  };
+
+  const handlePrescriptionMetadataChange = (section, field, value) => {
+    setPrescriptionForm((current) => ({
+      ...current,
+      metadata: {
+        ...current.metadata,
+        [section]: {
+          ...(current.metadata?.[section] || {}),
+          [field]: value
+        }
+      }
+    }));
+  };
+
+  const handlePrescriptionRowChange = (section, index, field, value) => {
+    setPrescriptionForm((current) => {
+      const rows = [...(current.metadata?.[section] || [])];
+      rows[index] = { ...rows[index], [field]: value };
+      return {
+        ...current,
+        metadata: {
+          ...current.metadata,
+          [section]: rows
+        }
+      };
+    });
+  };
+
+  const handleTherapyRowChange = (section, index, field, value) => {
+    setPrescriptionForm((current) => {
+      const therapyPlan = { ...(current.metadata?.therapyPlan || {}) };
+      const rows = [...(therapyPlan[section] || [])];
+      rows[index] = { ...rows[index], [field]: value };
+      therapyPlan[section] = rows;
+      return {
+        ...current,
+        metadata: {
+          ...current.metadata,
+          therapyPlan
+        }
+      };
+    });
+  };
+
+  const handleInvestigationChange = (field, value) => {
+    setPrescriptionForm((current) => ({
+      ...current,
+      metadata: {
+        ...current.metadata,
+        investigations: {
+          ...(current.metadata?.investigations || {}),
+          [field]: value
+        }
+      }
+    }));
+  };
+
+  const handleDischargeChange = (event) => {
+    setDischargeForm((current) => ({
+      ...current,
+      [event.target.name]: event.target.value
+    }));
+  };
+
+  const handleDischargeMetadataChange = (section, field, value) => {
+    setDischargeForm((current) => ({
+      ...current,
+      metadata: {
+        ...current.metadata,
+        [section]: {
+          ...(current.metadata?.[section] || {}),
+          [field]: value
+        }
+      }
     }));
   };
 
@@ -283,7 +495,7 @@ export function OpdPage() {
       await saveOpdVitals(visitPayload.visit.id, vitalsForm);
       await loadVisit(visitPayload.visit.id, selectedQueueItem);
       await loadQueue(filterDoctorId);
-      setMessage("Vitals saved.");
+      setMessage("Vitals saved and forwarded to doctor.");
     } catch (apiError) {
       setError(apiError.message || "Unable to save vitals.");
     }
@@ -327,6 +539,38 @@ export function OpdPage() {
     } catch (apiError) {
       setError(apiError.message || "Unable to save prescription.");
     }
+  };
+
+  const saveDischargeSummaryAction = async (status = "forwarded") => {
+    if (!visitPayload?.visit?.id) {
+      return;
+    }
+
+    if (!canClinicalDocument) {
+      setError("You do not have permission to save discharge summaries.");
+      return;
+    }
+
+    setError("");
+    try {
+      await saveOpdDischargeSummary(visitPayload.visit.id, {
+        ...dischargeForm,
+        status
+      });
+      await loadVisit(visitPayload.visit.id, selectedQueueItem);
+      setMessage(status === "forwarded" ? "Discharge summary saved and forwarded to reception and nursing." : "Discharge summary saved.");
+    } catch (apiError) {
+      setError(apiError.message || "Unable to save discharge summary.");
+    }
+  };
+
+  const printDischargeSummary = () => {
+    if (!canPrintDischarge) {
+      setError("You do not have permission to print discharge summaries.");
+      return;
+    }
+
+    window.print();
   };
 
   const completeConsultationAction = async () => {
@@ -449,7 +693,7 @@ export function OpdPage() {
         </p>
       </section>
 
-      <section className="stat-grid">
+      <section className="stat-grid compact-stat-grid">
         <article className="stat-card">
           <div className="stat-label">Queue Today</div>
           <div className="stat-value">{queueStats.total}</div>
@@ -473,7 +717,7 @@ export function OpdPage() {
       </section>
 
       <section className="opd-grid">
-        <aside className="content-card">
+        <aside className="content-card opd-queue-panel">
           <div className="section-header">
             <div>
               <div className="eyebrow">Queue Board</div>
@@ -510,7 +754,7 @@ export function OpdPage() {
                   <span className={`status-pill ${item.visitStatus || item.status}`}>
                     {item.visitStatus || item.status}
                   </span>
-                  <Button variant="secondary" onClick={() => startConsultation(item)} disabled={!canStartVisit}>
+                  <Button variant="secondary" onClick={() => startConsultation(item)} disabled={!item.visitId && !canStartVisit}>
                     {item.visitId ? "Open" : "Start"}
                   </Button>
                 </div>
@@ -520,7 +764,7 @@ export function OpdPage() {
             {!queue.length ? <div className="empty-state">No OPD queue items for the selected doctor today.</div> : null}
           </div>
 
-          <div className="content-card inset-card" style={{ marginTop: 18 }}>
+          <div className="content-card inset-card opd-hours-card">
             <h3>OPD hours and charge</h3>
             <div className="detail-list">
               <div><strong>Mon-Sat:</strong> {masters.operatingHours?.mondayToSaturday?.map((slot) => slot.label).join(", ") || "Not set"}</div>
@@ -531,7 +775,7 @@ export function OpdPage() {
         </aside>
 
         <section className="consultation-column">
-          <article className="content-card">
+          <article className="content-card opd-workspace-card">
             <div className="section-header">
               <div>
                 <div className="eyebrow">Consultation Workspace</div>
@@ -545,7 +789,7 @@ export function OpdPage() {
             {message ? <div className="success-text">{message}</div> : null}
 
             {visitPayload ? (
-              <div className="detail-grid">
+              <div className="detail-grid opd-summary-grid">
                 <article className="content-card inset-card">
                   <h3>Visit snapshot</h3>
                   <div className="detail-list">
@@ -570,7 +814,8 @@ export function OpdPage() {
                     <div className="quick-action">
                       <strong>Next step</strong>
                       <div className="timeline-copy">
-                        Save vitals first, then assessment, then prescription, and complete the visit.
+                        Reception starts the visit, nursing/JR staff save vitals, doctor completes prescription,
+                        then discharge summary goes to reception and nursing for print.
                       </div>
                     </div>
                   </div>
@@ -585,16 +830,16 @@ export function OpdPage() {
 
           {visitPayload ? (
             <>
-              <article className="content-card">
+              <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
                     <div className="eyebrow">Vitals</div>
                     <h3>Clinical vitals capture</h3>
                   </div>
-                  <Button onClick={saveVitalsAction} disabled={!canSaveVitals}>Save Vitals</Button>
+                  <Button onClick={saveVitalsAction} disabled={!canSaveVitals}>Save & Forward</Button>
                 </div>
 
-                <div className="form-grid">
+                <div className="form-grid vitals-grid">
                   <div className="field">
                     <label>BP</label>
                     <input name="vitalsBp" value={vitalsForm.vitalsBp} onChange={handleVitalsChange} />
@@ -626,7 +871,7 @@ export function OpdPage() {
                 </div>
               </article>
 
-              <article className="content-card">
+              <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
                     <div className="eyebrow">Ayurvedic Assessment</div>
@@ -635,7 +880,7 @@ export function OpdPage() {
                   <Button onClick={saveAssessmentAction} disabled={!canClinicalDocument}>Save Assessment</Button>
                 </div>
 
-                <div className="form-grid">
+                <div className="form-grid clinical-form-grid">
                   <div className="field">
                     <label>Prakriti Vata</label>
                     <input name="prakritiVata" value={assessmentForm.prakritiVata} onChange={handleAssessmentChange} />
@@ -699,7 +944,7 @@ export function OpdPage() {
                 </div>
               </article>
 
-              <article className="content-card">
+              <article className="content-card compact-form-card prescription-card">
                 <div className="section-header">
                   <div>
                     <div className="eyebrow">Prescription</div>
@@ -711,7 +956,7 @@ export function OpdPage() {
                   </div>
                 </div>
 
-                <div className="form-grid">
+                <div className="form-grid clinical-form-grid">
                   <div className="field field-span-2">
                     <label>Diagnosis</label>
                     <input name="diagnosis" value={prescriptionForm.diagnosis} onChange={handlePrescriptionChange} />
@@ -759,10 +1004,49 @@ export function OpdPage() {
                   </div>
                 </div>
 
+                <div className="form-subsection">
+                  <h4>Clinical diagnosis and complaints</h4>
+                  <div className="table-shell compact-table-shell">
+                    <table className="data-table compact-table">
+                      <thead>
+                        <tr>
+                          <th>Diagnosis</th>
+                          <th>ICD-11 code</th>
+                          <th>Type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {prescriptionForm.metadata.diagnosisRows.map((row, index) => (
+                          <tr key={`diagnosis-${index}`}>
+                            <td><input value={row.diagnosis} onChange={(event) => handlePrescriptionRowChange("diagnosisRows", index, "diagnosis", event.target.value)} /></td>
+                            <td><input value={row.icdCode} onChange={(event) => handlePrescriptionRowChange("diagnosisRows", index, "icdCode", event.target.value)} /></td>
+                            <td>
+                              <select value={row.type} onChange={(event) => handlePrescriptionRowChange("diagnosisRows", index, "type", event.target.value)}>
+                                <option value="primary">Primary</option>
+                                <option value="secondary">Secondary</option>
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="form-grid complaint-grid">
+                    {prescriptionForm.metadata.complaintRows.map((row, index) => (
+                      <div className="field" key={`complaint-${index}`}>
+                        <label>Complaint {index + 1}</label>
+                        <input value={row.complaint} onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "complaint", event.target.value)} />
+                        <input value={row.duration} placeholder="Duration" onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "duration", event.target.value)} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="medicine-stack">
                   {prescriptionForm.medicines.map((medicine, index) => (
                     <div className="medicine-card" key={`${medicine.id || "new"}-${index}`}>
-                      <div className="form-grid">
+                      <div className="form-grid medicine-grid">
                         <div className="field">
                           <label>Medicine</label>
                           <select
@@ -839,9 +1123,69 @@ export function OpdPage() {
                     </div>
                   ))}
                 </div>
+
+                <div className="form-subsection">
+                  <h4>Therapy, diet, lifestyle, and investigations</h4>
+                  <div className="form-grid therapy-grid">
+                    {prescriptionForm.metadata.therapyPlan.yoga.map((row, index) => (
+                      <div className="field field-span-2" key={`yoga-${index}`}>
+                        <label>Yoga and pranayama plan</label>
+                        <input value={row.asanas} onChange={(event) => handleTherapyRowChange("yoga", index, "asanas", event.target.value)} />
+                        <input value={row.pranayama} onChange={(event) => handleTherapyRowChange("yoga", index, "pranayama", event.target.value)} />
+                        <input value={row.durationMinutes} placeholder="Minutes daily / times per week" onChange={(event) => handleTherapyRowChange("yoga", index, "durationMinutes", event.target.value)} />
+                      </div>
+                    ))}
+                    {prescriptionForm.metadata.therapyPlan.panchkarma.map((row, index) => (
+                      <div className="field" key={`panchkarma-${index}`}>
+                        <label>{row.procedure}</label>
+                        <input value={row.frequency} placeholder="Frequency" onChange={(event) => handleTherapyRowChange("panchkarma", index, "frequency", event.target.value)} />
+                        <input value={row.duration} placeholder="Duration" onChange={(event) => handleTherapyRowChange("panchkarma", index, "duration", event.target.value)} />
+                      </div>
+                    ))}
+                    {prescriptionForm.metadata.therapyPlan.specialized.map((row, index) => (
+                      <div className="field" key={`specialized-${index}`}>
+                        <label>{row.therapy}</label>
+                        <input value={row.sessions} placeholder="Sessions" onChange={(event) => handleTherapyRowChange("specialized", index, "sessions", event.target.value)} />
+                        <input value={row.duration} placeholder="Duration" onChange={(event) => handleTherapyRowChange("specialized", index, "duration", event.target.value)} />
+                      </div>
+                    ))}
+                    <div className="field">
+                      <label>Recommended diet</label>
+                      <input value={prescriptionForm.metadata.dietPlan.recommendedDiet} onChange={(event) => handlePrescriptionMetadataChange("dietPlan", "recommendedDiet", event.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label>Foods to include</label>
+                      <input value={prescriptionForm.metadata.dietPlan.foodsToInclude} onChange={(event) => handlePrescriptionMetadataChange("dietPlan", "foodsToInclude", event.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label>Foods to avoid</label>
+                      <input value={prescriptionForm.metadata.dietPlan.foodsToAvoid} onChange={(event) => handlePrescriptionMetadataChange("dietPlan", "foodsToAvoid", event.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label>Exercise type</label>
+                      <input value={prescriptionForm.metadata.lifestylePlan.activityType} onChange={(event) => handlePrescriptionMetadataChange("lifestylePlan", "activityType", event.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label>Exercise frequency</label>
+                      <input value={prescriptionForm.metadata.lifestylePlan.frequency} onChange={(event) => handlePrescriptionMetadataChange("lifestylePlan", "frequency", event.target.value)} />
+                    </div>
+                    <label className="checkbox-chip">
+                      <input type="checkbox" checked={prescriptionForm.metadata.investigations.bloodTests} onChange={(event) => handleInvestigationChange("bloodTests", event.target.checked)} />
+                      <span>Blood tests advised</span>
+                    </label>
+                    <div className="field">
+                      <label>Imaging</label>
+                      <input value={prescriptionForm.metadata.investigations.imaging} onChange={(event) => handleInvestigationChange("imaging", event.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label>Specialty tests</label>
+                      <input value={prescriptionForm.metadata.investigations.specialtyTests} onChange={(event) => handleInvestigationChange("specialtyTests", event.target.value)} />
+                    </div>
+                  </div>
+                </div>
               </article>
 
-              <article className="content-card">
+              <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
                     <div className="eyebrow">Lab Hook</div>
@@ -891,7 +1235,7 @@ export function OpdPage() {
                 ) : null}
               </article>
 
-              <article className="content-card">
+              <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
                     <div className="eyebrow">Billing Hook</div>
@@ -940,6 +1284,110 @@ export function OpdPage() {
                     ))}
                   </div>
                 ) : null}
+              </article>
+
+              <article className="content-card print-sheet-card">
+                <div className="section-header no-print">
+                  <div>
+                    <div className="eyebrow">Discharge Summary</div>
+                    <h3>Autofilled patient copy</h3>
+                  </div>
+                  <div className="action-row">
+                    <Button variant="secondary" onClick={() => saveDischargeSummaryAction("draft")} disabled={!canClinicalDocument}>Save Draft</Button>
+                    <Button onClick={() => saveDischargeSummaryAction("forwarded")} disabled={!canClinicalDocument}>Save & Forward</Button>
+                    <Button variant="secondary" onClick={printDischargeSummary} disabled={!canPrintDischarge || !visitPayload.dischargeSummary}>Print</Button>
+                  </div>
+                </div>
+
+                <div className="form-grid discharge-form-grid no-print">
+                  <div className="field">
+                    <label>Summary date</label>
+                    <input type="date" name="summaryDate" value={dischargeForm.summaryDate} onChange={handleDischargeChange} />
+                  </div>
+                  <div className="field">
+                    <label>Condition on discharge</label>
+                    <input name="conditionOnDischarge" value={dischargeForm.conditionOnDischarge} onChange={handleDischargeChange} />
+                  </div>
+                  <div className="field field-span-2">
+                    <label>Clinical course during treatment</label>
+                    <textarea name="clinicalCourse" value={dischargeForm.clinicalCourse} onChange={handleDischargeChange} />
+                  </div>
+                  <div className="field field-span-2">
+                    <label>Final diagnosis</label>
+                    <textarea name="finalDiagnosis" value={dischargeForm.finalDiagnosis} onChange={handleDischargeChange} />
+                  </div>
+                  <div className="field field-span-2">
+                    <label>Advice at discharge</label>
+                    <textarea name="advice" value={dischargeForm.advice} onChange={handleDischargeChange} />
+                  </div>
+                  <div className="field">
+                    <label>Follow-up date</label>
+                    <input type="date" name="followUpDate" value={dischargeForm.followUpDate} onChange={handleDischargeChange} />
+                  </div>
+                  <div className="field">
+                    <label>Ward / room</label>
+                    <input value={dischargeForm.metadata.patient.wardRoom} onChange={(event) => handleDischargeMetadataChange("patient", "wardRoom", event.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>Overall status</label>
+                    <input value={dischargeForm.metadata.clinicalImprovement.overallStatus} onChange={(event) => handleDischargeMetadataChange("clinicalImprovement", "overallStatus", event.target.value)} />
+                  </div>
+                  <div className="field">
+                    <label>Symptom relief</label>
+                    <input value={dischargeForm.metadata.clinicalImprovement.symptomRelief} onChange={(event) => handleDischargeMetadataChange("clinicalImprovement", "symptomRelief", event.target.value)} />
+                  </div>
+                </div>
+
+                <div className="discharge-print-sheet">
+                  <div className="print-hospital-name">SHANTI-RATNAM AYUSH INSTITUTE OF INDIAN MEDICAL SCIENCES</div>
+                  <div className="print-hospital-subtitle">Lane No. 3, Nehanagaar, Makaronia, Sagar (M.P)</div>
+                  <h2>Discharge Summary</h2>
+                  <div className="print-grid">
+                    <div><strong>Patient Name:</strong> {visitPayload.visit.patientName}</div>
+                    <div><strong>OPD No./MRN:</strong> {visitPayload.visit.opdNumber}</div>
+                    <div><strong>Date:</strong> {dischargeForm.summaryDate}</div>
+                    <div><strong>Doctor:</strong> {visitPayload.doctorName}</div>
+                    <div><strong>Ward/Room:</strong> {dischargeForm.metadata.patient.wardRoom || "OPD"}</div>
+                    <div><strong>Follow-up:</strong> {dischargeForm.followUpDate || "As advised"}</div>
+                  </div>
+                  <h3>Reason for Treatment & Final Diagnosis</h3>
+                  <p><strong>Chief Complaint:</strong> {visitPayload.visit.chiefComplaint || "General consultation"}</p>
+                  <p>{dischargeForm.finalDiagnosis || prescriptionForm.diagnosis}</p>
+                  <h3>Clinical Course During Treatment</h3>
+                  <p>{dischargeForm.clinicalCourse || "Managed as per OPD prescription and advised therapy plan."}</p>
+                  <h3>Vital Signs at Discharge</h3>
+                  <div className="print-grid">
+                    <div><strong>BP:</strong> {vitalsForm.vitalsBp || "-"}</div>
+                    <div><strong>Pulse:</strong> {vitalsForm.vitalsPulse || "-"}</div>
+                    <div><strong>Temp/SPO2:</strong> {vitalsForm.vitalsTemp || "-"} / {vitalsForm.vitalsSpo2 || "-"}</div>
+                    <div><strong>Weight:</strong> {vitalsForm.vitalsWeight || "-"}</div>
+                  </div>
+                  <h3>Discharge Medications & Continuation</h3>
+                  <table className="print-table">
+                    <thead>
+                      <tr><th>Medicine</th><th>Route</th><th>Dosage</th><th>Duration</th><th>Remarks</th></tr>
+                    </thead>
+                    <tbody>
+                      {dischargeForm.metadata.dischargeMedicines.map((medicine, index) => (
+                        <tr key={`discharge-medicine-${index}`}>
+                          <td>{medicine.medicineName}</td>
+                          <td>{medicine.strengthRoute}</td>
+                          <td>{medicine.dosage}</td>
+                          <td>{medicine.duration}</td>
+                          <td>{medicine.remarks}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <h3>Dietary & Lifestyle Advice</h3>
+                  <p><strong>Recommended diet:</strong> {dischargeForm.metadata.dietAdvice.recommendedDiet || "-"}</p>
+                  <p><strong>Foods to include:</strong> {dischargeForm.metadata.dietAdvice.foodsToInclude || "-"}</p>
+                  <p><strong>Foods to avoid:</strong> {dischargeForm.metadata.dietAdvice.foodsToAvoid || "-"}</p>
+                  <p>{dischargeForm.advice}</p>
+                  <h3>Follow-up & Monitoring Plan</h3>
+                  <p>Follow-up with: OPD / Phone. Date: {dischargeForm.followUpDate || "as advised"}.</p>
+                  <div className="signature-line">Consulting Physician Signature</div>
+                </div>
               </article>
 
               <article className="content-card">

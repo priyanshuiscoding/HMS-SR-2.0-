@@ -13,6 +13,7 @@ import { listDoctors } from "../users/users.service.js";
 import {
   createVisitRecord,
   findAssessmentByVisitId,
+  findDischargeSummaryByVisitId,
   findPrescriptionByVisitId,
   findVisitByAppointmentId,
   findVisitById,
@@ -23,6 +24,7 @@ import {
   updateVisitStatusRecord,
   updateVisitVitalsRecord,
   upsertAssessmentRecord,
+  upsertDischargeSummaryRecord,
   upsertPrescriptionRecord
 } from "./opd.repository.js";
 
@@ -127,12 +129,14 @@ export async function getVisitDetails(visitId) {
   const doctors = await listDoctors();
   const assessment = await findAssessmentByVisitId(visitId);
   const prescription = await findPrescriptionByVisitId(visitId);
+  const dischargeSummary = await findDischargeSummaryByVisitId(visitId);
 
   return {
     visit,
     doctorName: doctors.find((doctor) => doctor.id === visit.doctorId)?.fullName || "Unassigned",
     assessment,
     prescription,
+    dischargeSummary,
     labOrders: db.labOrders.filter((entry) => entry.visitId === visitId),
     bills: db.bills.filter((entry) => entry.visitId === visitId)
   };
@@ -217,6 +221,10 @@ export async function savePrescription(visitId, payload, doctorId) {
     chikitsaSutra: payload.chikitsaSutra || "",
     dietRecommendations: payload.dietRecommendations || "",
     followUpDate: payload.followUpDate || "",
+    metadata: {
+      ...(prescription.metadata || {}),
+      ...(payload.metadata || {})
+    },
     medicines: (payload.medicines || []).map((medicine) => ({
       id: medicine.id || createId(),
       medicineId: medicine.medicineId || "",
@@ -235,6 +243,87 @@ export async function savePrescription(visitId, payload, doctorId) {
   const savedPrescription = await upsertPrescriptionRecord(prescription);
   syncPrescriptionMirror(savedPrescription);
   return savedPrescription;
+}
+
+function therapyRowsFromPrescription(prescription, key) {
+  const rows = prescription?.metadata?.therapyPlan?.[key];
+  return Array.isArray(rows) ? rows : [];
+}
+
+function medicineRowsFromPrescription(prescription) {
+  return (prescription?.medicines || []).map((medicine) => ({
+    medicineName: medicine.medicineName,
+    strengthRoute: medicine.route,
+    dosage: medicine.dose,
+    duration: medicine.durationDays ? `${medicine.durationDays} days` : "",
+    remarks: medicine.specialInstructions || medicine.timing || ""
+  }));
+}
+
+export async function saveDischargeSummary(visitId, payload, doctorId) {
+  const visit = await getVisitById(visitId);
+  const prescription = await findPrescriptionByVisitId(visitId);
+
+  if (!prescription) {
+    throw createError("Prescription must be saved before creating the discharge summary.");
+  }
+
+  let summary = await findDischargeSummaryByVisitId(visitId);
+
+  if (!summary) {
+    summary = {
+      id: createId(),
+      summaryNumber: "",
+      visitId,
+      prescriptionId: prescription.id,
+      patientId: visit.patientId,
+      patientName: visit.patientName,
+      doctorId: doctorId || visit.doctorId,
+      summaryDate: todayDate(),
+      status: "draft"
+    };
+  }
+
+  const vitalsAtDischarge = {
+    bp: visit.vitalsBp || "",
+    pulse: visit.vitalsPulse || "",
+    temp: visit.vitalsTemp || "",
+    spo2: visit.vitalsSpo2 || "",
+    weight: visit.vitalsWeight || ""
+  };
+
+  const metadata = {
+    vitalsAtDischarge,
+    patient: payload.metadata?.patient || {},
+    clinicalImprovement: payload.metadata?.clinicalImprovement || {},
+    dietAdvice: payload.metadata?.dietAdvice || prescription.metadata?.dietPlan || {},
+    lifestyleAdvice: payload.metadata?.lifestyleAdvice || prescription.metadata?.lifestylePlan || {},
+    investigations: payload.metadata?.investigations || prescription.metadata?.investigations || {},
+    medicinesAdministered: payload.metadata?.medicinesAdministered || medicineRowsFromPrescription(prescription),
+    dischargeMedicines: payload.metadata?.dischargeMedicines || medicineRowsFromPrescription(prescription),
+    yogaTherapy: payload.metadata?.yogaTherapy || therapyRowsFromPrescription(prescription, "yoga"),
+    panchkarmaTherapy: payload.metadata?.panchkarmaTherapy || therapyRowsFromPrescription(prescription, "panchkarma"),
+    specializedTherapy: payload.metadata?.specializedTherapy || therapyRowsFromPrescription(prescription, "specialized"),
+    forwardedTo: ["reception", "nursing"],
+    forwardedAt: payload.status === "forwarded" ? new Date().toISOString() : summary.metadata?.forwardedAt || ""
+  };
+
+  Object.assign(summary, {
+    prescriptionId: prescription.id,
+    patientId: visit.patientId,
+    patientName: visit.patientName,
+    doctorId: doctorId || visit.doctorId,
+    summaryDate: payload.summaryDate || summary.summaryDate || todayDate(),
+    status: payload.status || summary.status || "draft",
+    clinicalCourse: payload.clinicalCourse ?? summary.clinicalCourse ?? "",
+    finalDiagnosis: payload.finalDiagnosis ?? prescription.diagnosis ?? "",
+    conditionOnDischarge: payload.conditionOnDischarge ?? summary.conditionOnDischarge ?? "stable",
+    advice: payload.advice ?? prescription.dietRecommendations ?? "",
+    followUpDate: payload.followUpDate ?? prescription.followUpDate ?? "",
+    metadata
+  });
+
+  return upsertDischargeSummaryRecord(summary);
 }
 
 export async function completeVisit(visitId) {

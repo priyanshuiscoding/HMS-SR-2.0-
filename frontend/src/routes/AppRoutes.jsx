@@ -26,7 +26,7 @@ export function AppRoutes() {
       <Route path="/patients" element={<ProtectedRoute allowedRoles={["admin", "reception", "doctor", "hr"]}><PatientsPage /></ProtectedRoute>} />
       <Route path="/patients/:id" element={<ProtectedRoute allowedRoles={["admin", "reception", "doctor"]}><PatientProfilePage /></ProtectedRoute>} />
       <Route path="/appointments" element={<ProtectedRoute allowedRoles={["admin", "reception", "doctor"]}><AppointmentsPage /></ProtectedRoute>} />
-      <Route path="/opd" element={<ProtectedRoute allowedRoles={["admin", "reception", "doctor"]}><OpdPage /></ProtectedRoute>} />
+      <Route path="/opd" element={<ProtectedRoute allowedRoles={["admin", "reception", "doctor", "nursing"]}><OpdPage /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute allowedRoles={["admin", "accounts", "reception", "doctor"]}><BillingPage /></ProtectedRoute>} />
       <Route path="/ipd" element={<ProtectedRoute allowedRoles={["admin", "accounts", "reception", "doctor", "nursing"]}><IpdPage /></ProtectedRoute>} />
       <Route path="/panchkarma" element={<ProtectedRoute allowedRoles={["admin", "accounts", "reception", "doctor", "therapist"]}><PanchkarmaPage /></ProtectedRoute>} />

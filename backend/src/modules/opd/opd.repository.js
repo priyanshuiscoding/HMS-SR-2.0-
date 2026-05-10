@@ -78,6 +78,30 @@ function toCamelPrescription(row, medicines = []) {
   };
 }
 
+function toCamelDischargeSummary(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    summaryNumber: row.summary_number,
+    visitId: row.visit_id,
+    prescriptionId: row.prescription_id || "",
+    patientId: row.patient_id || null,
+    patientName: row.patient_name,
+    doctorId: row.doctor_id || "",
+    summaryDate: toIsoDate(row.summary_date),
+    status: row.status || "draft",
+    clinicalCourse: row.clinical_course || "",
+    finalDiagnosis: row.final_diagnosis || "",
+    conditionOnDischarge: row.condition_on_discharge || "",
+    advice: row.advice || "",
+    followUpDate: toIsoDate(row.follow_up_date),
+    metadata: row.metadata || {},
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function toCamelPrescriptionMedicine(row) {
   return {
     id: row.id,
@@ -336,6 +360,11 @@ export async function findPrescriptionByVisitId(visitId) {
   return toCamelPrescription(prescription, medicineResult.rows.map(toCamelPrescriptionMedicine));
 }
 
+export async function findDischargeSummaryByVisitId(visitId) {
+  const result = await query("SELECT * FROM opd_discharge_summaries WHERE visit_id = $1", [visitId]);
+  return toCamelDischargeSummary(result.rows[0]);
+}
+
 export async function listPrescriptionRecords() {
   const prescriptionResult = await query("SELECT * FROM prescriptions ORDER BY prescription_date DESC, created_at DESC");
   const medicineResult = await query("SELECT * FROM prescription_medicines ORDER BY id");
@@ -351,6 +380,11 @@ export async function listPrescriptionRecords() {
   return prescriptionResult.rows.map((prescription) =>
     toCamelPrescription(prescription, medicinesByPrescription[prescription.id] || [])
   );
+}
+
+export async function listDischargeSummaryRecords() {
+  const result = await query("SELECT * FROM opd_discharge_summaries ORDER BY summary_date DESC, created_at DESC");
+  return result.rows.map(toCamelDischargeSummary);
 }
 
 export async function upsertPrescriptionRecord(prescription) {
@@ -385,7 +419,7 @@ export async function upsertPrescriptionRecord(prescription) {
         diet_recommendations = EXCLUDED.diet_recommendations,
         follow_up_date = EXCLUDED.follow_up_date,
         is_dispensed = EXCLUDED.is_dispensed,
-        metadata = EXCLUDED.metadata,
+        metadata = prescriptions.metadata || EXCLUDED.metadata,
         updated_at = NOW()
       RETURNING *
       `,
@@ -444,6 +478,64 @@ export async function upsertPrescriptionRecord(prescription) {
     ]);
 
     return toCamelPrescription(savedPrescription, medicineResult.rows.map(toCamelPrescriptionMedicine));
+  });
+}
+
+export async function upsertDischargeSummaryRecord(summary) {
+  return withTransaction(async (client) => {
+    let summaryNumber = summary.summaryNumber;
+    if (!summaryNumber) {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", ["opd:discharge-summary-number"]);
+      const countResult = await client.query("SELECT COUNT(*)::int + 1 AS next_number FROM opd_discharge_summaries");
+      summaryNumber = `DS-${new Date().getFullYear()}-${String(countResult.rows[0].next_number).padStart(5, "0")}`;
+    }
+
+    const result = await client.query(
+      `
+      INSERT INTO opd_discharge_summaries (
+        id, summary_number, visit_id, prescription_id, patient_id, patient_name, doctor_id,
+        summary_date, status, clinical_course, final_diagnosis, condition_on_discharge,
+        advice, follow_up_date, metadata
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb)
+      ON CONFLICT (visit_id) DO UPDATE
+      SET
+        summary_number = opd_discharge_summaries.summary_number,
+        prescription_id = EXCLUDED.prescription_id,
+        patient_id = EXCLUDED.patient_id,
+        patient_name = EXCLUDED.patient_name,
+        doctor_id = EXCLUDED.doctor_id,
+        summary_date = EXCLUDED.summary_date,
+        status = EXCLUDED.status,
+        clinical_course = EXCLUDED.clinical_course,
+        final_diagnosis = EXCLUDED.final_diagnosis,
+        condition_on_discharge = EXCLUDED.condition_on_discharge,
+        advice = EXCLUDED.advice,
+        follow_up_date = EXCLUDED.follow_up_date,
+        metadata = EXCLUDED.metadata,
+        updated_at = NOW()
+      RETURNING *
+      `,
+      [
+        summary.id,
+        summaryNumber,
+        summary.visitId,
+        summary.prescriptionId || null,
+        summary.patientId || null,
+        summary.patientName,
+        summary.doctorId || null,
+        summary.summaryDate,
+        summary.status || "draft",
+        summary.clinicalCourse || "",
+        summary.finalDiagnosis || "",
+        summary.conditionOnDischarge || "",
+        summary.advice || "",
+        summary.followUpDate || null,
+        JSON.stringify(summary.metadata || {})
+      ]
+    );
+
+    return toCamelDischargeSummary(result.rows[0]);
   });
 }
 

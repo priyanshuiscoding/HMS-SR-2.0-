@@ -14,10 +14,23 @@ if (env.trustProxy) {
   app.set("trust proxy", 1);
 }
 
+function isAllowedLocalDevOrigin(origin) {
+  if (env.nodeEnv === "production") {
+    return false;
+  }
+
+  try {
+    const url = new URL(origin);
+    return ["localhost", "127.0.0.1"].includes(url.hostname) && ["5173", "5174", "5175"].includes(url.port);
+  } catch {
+    return false;
+  }
+}
+
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || env.frontendUrls.includes(origin)) {
+      if (!origin || env.frontendUrls.includes(origin) || isAllowedLocalDevOrigin(origin)) {
         callback(null, true);
         return;
       }
