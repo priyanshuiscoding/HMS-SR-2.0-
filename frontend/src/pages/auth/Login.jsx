@@ -77,11 +77,6 @@ export function LoginPage() {
           </Button>
         </form>
 
-        <div className="auth-demo">
-          <strong>Foundation demo credentials</strong>
-          <div>Email: admin@sraiims.in</div>
-          <div>Password: Admin@123</div>
-        </div>
       </div>
     </AuthLayout>
   );
