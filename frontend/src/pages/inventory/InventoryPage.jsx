@@ -4,47 +4,63 @@ import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import {
-  getInventoryBatches,
-  getInventoryMasters,
-  getInventoryTransactions,
-  receiveInventoryStock
+  adjustHospitalInventoryStock,
+  createHospitalInventoryItem,
+  getHospitalInventoryItems,
+  getHospitalInventoryTransactions,
+  getInventoryMasters
 } from "../../services/api.js";
 
-const initialForm = {
-  medicineId: "",
+const initialItemForm = {
+  name: "",
+  category: "General",
+  department: "Hospital Store",
+  unit: "unit",
+  openingQuantity: "",
+  reorderLevel: "",
+  location: "",
   supplierId: "",
-  batchNumber: "",
-  expiryDate: "",
-  quantityReceived: "",
   purchasePrice: "",
-  sellingPrice: "",
+  notes: ""
+};
+
+const initialStockForm = {
+  itemId: "",
+  type: "receipt",
+  quantity: "",
+  referenceNumber: "",
+  department: "Hospital Store",
   note: ""
 };
 
 export function InventoryPage() {
   const { user } = useAuth();
-  const [masters, setMasters] = useState({ medicines: [], suppliers: [] });
-  const [batches, setBatches] = useState([]);
+  const [masters, setMasters] = useState({ suppliers: [] });
+  const [items, setItems] = useState([]);
   const [transactions, setTransactions] = useState([]);
-  const [form, setForm] = useState(initialForm);
+  const [itemForm, setItemForm] = useState(initialItemForm);
+  const [stockForm, setStockForm] = useState(initialStockForm);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const canManage = ["admin", "accounts"].includes(user?.role);
+  const canMoveStock = ["admin", "accounts", "nursing"].includes(user?.role);
+
   async function loadAll(searchValue = search) {
     try {
-      const [mastersResponse, batchesResponse, transactionsResponse] = await Promise.all([
+      const [mastersResponse, itemsResponse, transactionsResponse] = await Promise.all([
         getInventoryMasters(),
-        getInventoryBatches(searchValue ? { search: searchValue } : {}),
-        getInventoryTransactions()
+        getHospitalInventoryItems(searchValue ? { search: searchValue } : {}),
+        getHospitalInventoryTransactions()
       ]);
 
       setMasters(mastersResponse);
-      setBatches(batchesResponse.items);
+      setItems(itemsResponse.items);
       setTransactions(transactionsResponse.items);
       setError("");
     } catch (apiError) {
-      setError(apiError.message || "Unable to load inventory workspace.");
+      setError(apiError.message || "Unable to load hospital inventory.");
     }
   }
 
@@ -52,242 +68,162 @@ export function InventoryPage() {
     loadAll("");
   }, []);
 
-  const stats = useMemo(() => {
-    return {
-      batches: batches.length,
-      suppliers: masters.suppliers.length,
-      importedMedicines: masters.godownImport?.medicineCount || 0,
-      receipts: transactions.filter((item) => item.type === "receipt").length,
-      issues: transactions.filter((item) => ["issue", "therapy_issue"].includes(item.type)).length
-    };
-  }, [batches, masters.suppliers.length, transactions]);
+  const stats = useMemo(() => ({
+    items: items.length,
+    lowStock: items.filter((item) => item.lowStock).length,
+    departments: new Set(items.map((item) => item.department).filter(Boolean)).size,
+    receipts: transactions.filter((item) => item.type === "receipt").length,
+    issues: transactions.filter((item) => item.type === "issue").length
+  }), [items, transactions]);
+
+  const handleItemChange = (event) => {
+    setItemForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  };
+
+  const handleStockChange = (event) => {
+    setStockForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  };
 
   const handleSearchSubmit = async (event) => {
     event.preventDefault();
     await loadAll(search);
   };
 
-  const handleChange = (event) => {
-    setForm((current) => ({
-      ...current,
-      [event.target.name]: event.target.value
-    }));
-  };
-
-  const handleSubmit = async (event) => {
+  const handleCreateItem = async (event) => {
     event.preventDefault();
-
-    if (!["admin", "pharmacy"].includes(user?.role)) {
-      setError("Only admin and pharmacy users can receive stock.");
+    if (!canManage) {
+      setError("Only admin and accounts users can create hospital inventory items.");
       return;
     }
 
     try {
-      await receiveInventoryStock(form);
-      setForm(initialForm);
-      setMessage("Stock received and inventory updated.");
-      setError("");
+      const response = await createHospitalInventoryItem(itemForm);
+      setMessage(response.message);
+      setItemForm(initialItemForm);
       await loadAll();
     } catch (apiError) {
-      setError(apiError.message || "Unable to receive stock.");
+      setError(apiError.message || "Unable to create hospital inventory item.");
+    }
+  };
+
+  const handleAdjustStock = async (event) => {
+    event.preventDefault();
+    if (!canMoveStock) {
+      setError("Only admin, accounts, and nursing users can move hospital inventory stock.");
+      return;
+    }
+
+    try {
+      const response = await adjustHospitalInventoryStock(stockForm);
+      setMessage(response.message);
+      setStockForm(initialStockForm);
+      await loadAll();
+    } catch (apiError) {
+      setError(apiError.message || "Unable to update hospital inventory stock.");
     }
   };
 
   return (
     <DashboardLayout>
       <section className="hero-panel logo-hero">
-        <div className="eyebrow">Inventory Control</div>
-        <h2>Batch receipt, supplier-linked stock intake, and movement history for the pharmacy store.</h2>
+        <div className="eyebrow">Hospital Inventory</div>
+        <h2>General hospital store for non-pharmacy items, assets, consumables, and department stock.</h2>
         <p>
-          This phase gives the HMS its first stock-control layer, so medicines can be received into inventory
-          before being dispensed through the pharmacy workflow.
+          Medicines and medicine batches now stay in Pharmacy. This inventory area is reserved for the wider hospital
+          list you will share later: linen, disposables, equipment, housekeeping, office, ward, and department items.
         </p>
       </section>
 
       <section className="stat-grid">
-        <article className="stat-card">
-          <div className="stat-label">Batches</div>
-          <div className="stat-value">{stats.batches}</div>
-          <div className="stat-note">Tracked inventory lots</div>
-        </article>
-        <article className="stat-card">
-          <div className="stat-label">Suppliers</div>
-          <div className="stat-value">{stats.suppliers}</div>
-          <div className="stat-note">Sample master list</div>
-        </article>
-        <article className="stat-card">
-          <div className="stat-label">Godown Medicines</div>
-          <div className="stat-value">{stats.importedMedicines}</div>
-          <div className="stat-note">Imported from the March 14 stock workbook</div>
-        </article>
-        <article className="stat-card">
-          <div className="stat-label">Receipts</div>
-          <div className="stat-value">{stats.receipts}</div>
-          <div className="stat-note">Inbound stock events</div>
-        </article>
-        <article className="stat-card">
-          <div className="stat-label">Issues</div>
-          <div className="stat-value">{stats.issues}</div>
-          <div className="stat-note">Dispense-linked stock outs</div>
-        </article>
+        <article className="stat-card"><div className="stat-label">Items</div><div className="stat-value">{stats.items}</div><div className="stat-note">Hospital store records</div></article>
+        <article className="stat-card"><div className="stat-label">Low Stock</div><div className="stat-value">{stats.lowStock}</div><div className="stat-note">Below reorder level</div></article>
+        <article className="stat-card"><div className="stat-label">Departments</div><div className="stat-value">{stats.departments}</div><div className="stat-note">Using stock</div></article>
+        <article className="stat-card"><div className="stat-label">Receipts</div><div className="stat-value">{stats.receipts}</div><div className="stat-note">Hospital inventory in</div></article>
+        <article className="stat-card"><div className="stat-label">Issues</div><div className="stat-value">{stats.issues}</div><div className="stat-note">Hospital inventory out</div></article>
       </section>
 
       <section className="content-grid">
         <article className="content-card">
-          <div className="section-header">
-            <div>
-              <div className="eyebrow">Receive Stock</div>
-              <h3>Add a new medicine batch</h3>
-            </div>
-          </div>
+          <div className="section-header"><div><div className="eyebrow">Create Item</div><h3>Add hospital inventory item</h3></div></div>
 
           {error ? <div className="error-text">{error}</div> : null}
           {message ? <div className="success-text">{message}</div> : null}
 
-          <form className="form-grid" onSubmit={handleSubmit}>
-            <div className="field">
-              <label>Medicine</label>
-              <select name="medicineId" value={form.medicineId} onChange={handleChange}>
-                <option value="">Select medicine</option>
-                {masters.medicines.map((item) => (
-                  <option key={item.id} value={item.id}>{item.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Supplier</label>
-              <select name="supplierId" value={form.supplierId} onChange={handleChange}>
-                <option value="">Select supplier</option>
-                {masters.suppliers.map((item) => (
-                  <option key={item.id} value={item.id}>{item.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <label>Batch number</label>
-              <input name="batchNumber" value={form.batchNumber} onChange={handleChange} />
-            </div>
-            <div className="field">
-              <label>Expiry date</label>
-              <input type="date" name="expiryDate" value={form.expiryDate} onChange={handleChange} />
-            </div>
-            <div className="field">
-              <label>Quantity received</label>
-              <input name="quantityReceived" value={form.quantityReceived} onChange={handleChange} />
-            </div>
-            <div className="field">
-              <label>Purchase price</label>
-              <input name="purchasePrice" value={form.purchasePrice} onChange={handleChange} />
-            </div>
-            <div className="field">
-              <label>Selling price</label>
-              <input name="sellingPrice" value={form.sellingPrice} onChange={handleChange} />
-            </div>
-            <div className="field field-span-2">
-              <label>Note</label>
-              <input name="note" value={form.note} onChange={handleChange} />
-            </div>
-            <div className="field field-span-2">
-              <Button type="submit" disabled={!["admin", "pharmacy"].includes(user?.role)}>Receive Batch</Button>
-            </div>
+          <form className="form-grid" onSubmit={handleCreateItem}>
+            <div className="field field-span-2"><label>Item name</label><input name="name" value={itemForm.name} onChange={handleItemChange} /></div>
+            <div className="field"><label>Category</label><input name="category" value={itemForm.category} onChange={handleItemChange} placeholder="Linen, Housekeeping, Equipment" /></div>
+            <div className="field"><label>Department</label><input name="department" value={itemForm.department} onChange={handleItemChange} /></div>
+            <div className="field"><label>Unit</label><input name="unit" value={itemForm.unit} onChange={handleItemChange} /></div>
+            <div className="field"><label>Opening quantity</label><input name="openingQuantity" value={itemForm.openingQuantity} onChange={handleItemChange} /></div>
+            <div className="field"><label>Reorder level</label><input name="reorderLevel" value={itemForm.reorderLevel} onChange={handleItemChange} /></div>
+            <div className="field"><label>Location</label><input name="location" value={itemForm.location} onChange={handleItemChange} /></div>
+            <div className="field"><label>Supplier</label><select name="supplierId" value={itemForm.supplierId} onChange={handleItemChange}><option value="">No supplier</option>{masters.suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></div>
+            <div className="field"><label>Purchase price</label><input name="purchasePrice" value={itemForm.purchasePrice} onChange={handleItemChange} /></div>
+            <div className="field field-span-2"><label>Notes</label><input name="notes" value={itemForm.notes} onChange={handleItemChange} /></div>
+            <div className="field field-span-2"><Button type="submit" disabled={!canManage}>Create Item</Button></div>
           </form>
         </article>
 
-        <aside className="content-card">
-          <div className="section-header">
-            <div>
-              <div className="eyebrow">Store Notes</div>
-              <h3>What this phase gives us</h3>
-            </div>
-          </div>
+        <article className="content-card">
+          <div className="section-header"><div><div className="eyebrow">Stock Movement</div><h3>Receive, issue, or adjust</h3></div></div>
+          <form className="form-grid" onSubmit={handleAdjustStock}>
+            <div className="field field-span-2"><label>Item</label><select name="itemId" value={stockForm.itemId} onChange={handleStockChange}><option value="">Select item</option>{items.map((item) => <option key={item.id} value={item.id}>{item.itemCode} - {item.name}</option>)}</select></div>
+            <div className="field"><label>Type</label><select name="type" value={stockForm.type} onChange={handleStockChange}><option value="receipt">Receipt</option><option value="issue">Issue</option><option value="adjustment">Adjustment +</option></select></div>
+            <div className="field"><label>Quantity</label><input name="quantity" value={stockForm.quantity} onChange={handleStockChange} /></div>
+            <div className="field"><label>Department</label><input name="department" value={stockForm.department} onChange={handleStockChange} /></div>
+            <div className="field"><label>Reference</label><input name="referenceNumber" value={stockForm.referenceNumber} onChange={handleStockChange} /></div>
+            <div className="field field-span-2"><label>Note</label><input name="note" value={stockForm.note} onChange={handleStockChange} /></div>
+            <div className="field field-span-2"><Button type="submit" disabled={!canMoveStock}>Update Stock</Button></div>
+          </form>
 
-          <div className="quick-actions">
-            <div className="quick-action">
-              <strong>Batch-level tracking</strong>
-              <div className="timeline-copy">Each medicine lot can now be received with expiry, supplier, and pricing.</div>
-            </div>
-            <div className="quick-action">
-              <strong>Issue visibility</strong>
-              <div className="timeline-copy">Dispensing from pharmacy writes stock movement history automatically.</div>
-            </div>
-            <div className="quick-action">
-              <strong>Godown import loaded</strong>
-              <div className="timeline-copy">{masters.godownImport?.batchCount || 0} opening stock lines from {masters.godownImport?.sourceFile || "the workbook"} are now part of HMS inventory.</div>
-            </div>
+          <div className="empty-state" style={{ marginTop: 16 }}>
+            Pharmacy medicines are intentionally not shown here. Use Pharmacy for medicine stock and dispensing.
           </div>
-        </aside>
+        </article>
       </section>
 
       <section className="content-grid">
         <article className="content-card">
-          <div className="section-header">
-            <div>
-              <div className="eyebrow">Inventory Batches</div>
-              <h3>Current medicine lots</h3>
-            </div>
-          </div>
-
+          <div className="section-header"><div><div className="eyebrow">Hospital Store</div><h3>Current inventory items</h3></div></div>
           <form className="toolbar" onSubmit={handleSearchSubmit}>
-            <input
-              className="search-input"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by medicine, company, location, raw quantity, or batch"
-            />
+            <input className="search-input" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search item, category, department, location" />
             <Button type="submit">Search</Button>
           </form>
 
           <div className="table-shell">
             <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Medicine</th>
-                  <th>Company</th>
-                  <th>Location</th>
-                  <th>Batch</th>
-                  <th>Raw Qty</th>
-                  <th>Available</th>
-                  <th>Expiry</th>
-                  <th>Prices</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Code</th><th>Item</th><th>Category</th><th>Department</th><th>Available</th><th>Reorder</th><th>Location</th><th>Flag</th></tr></thead>
               <tbody>
-                {batches.map((item) => (
+                {items.map((item) => (
                   <tr key={item.id}>
-                    <td>{item.medicineName}</td>
-                    <td>{item.company || "-"}</td>
-                    <td>{item.locationMap || "-"}</td>
-                    <td>{item.batchNumber}</td>
-                    <td>{item.rawQuantity || item.quantityReceived}</td>
-                    <td>{item.quantityAvailable}</td>
-                    <td>{item.expiryDate || "-"}</td>
-                    <td>Rs. {item.purchasePrice} / Rs. {item.sellingPrice}</td>
+                    <td>{item.itemCode}</td>
+                    <td><strong>{item.name}</strong><div className="muted-text">{item.notes || "-"}</div></td>
+                    <td>{item.category}</td>
+                    <td>{item.department}</td>
+                    <td>{item.quantityAvailable} {item.unit}</td>
+                    <td>{item.reorderLevel}</td>
+                    <td>{item.location || "-"}</td>
+                    <td>{item.lowStock ? <span className="alert-badge warning">Low</span> : <span className="alert-badge">OK</span>}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            {!items.length ? <div className="empty-state">No hospital inventory items added yet.</div> : null}
           </div>
         </article>
 
         <article className="content-card">
-          <div className="section-header">
-            <div>
-              <div className="eyebrow">Stock Movement</div>
-              <h3>Receipts and issues</h3>
-            </div>
-          </div>
-
+          <div className="section-header"><div><div className="eyebrow">Movement History</div><h3>Hospital inventory ledger</h3></div></div>
           <div className="stack-list">
             {transactions.map((item) => (
               <div key={item.id} className="quick-action">
-                <strong>{item.referenceNumber}</strong>
-                <div className="timeline-copy">{item.medicineName}</div>
-                <div className="timeline-copy">
-                  {item.type} - {item.quantity > 0 ? `+${item.quantity}` : item.quantity}
-                </div>
+                <strong>{item.itemName}</strong>
+                <div className="timeline-copy">{item.type} - {item.quantity > 0 ? `+${item.quantity}` : item.quantity}</div>
+                <div className="timeline-copy">{item.department || "No department"} | {item.referenceNumber || "No reference"}</div>
                 <div className="timeline-copy">{item.transactionDate}</div>
               </div>
             ))}
+            {!transactions.length ? <div className="empty-state">No hospital inventory movements yet.</div> : null}
           </div>
         </article>
       </section>

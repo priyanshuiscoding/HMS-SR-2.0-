@@ -62,6 +62,14 @@ async function parseResponse(response) {
   }
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== "undefined") {
+      window.localStorage.removeItem("hms-auth");
+
+      if (!window.location.pathname.includes("/login")) {
+        window.location.assign("/login");
+      }
+    }
+
     throw new Error(data.message || "Request failed.");
   }
 
@@ -84,6 +92,20 @@ const post = (path, body = {}) => apiRequest(path, { method: "POST", body });
 const put = (path, body = {}) => apiRequest(path, { method: "PUT", body });
 const del = (path) => apiRequest(path, { method: "DELETE" });
 
+async function downloadRequest(path) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "GET",
+    headers: createHeaders(),
+    credentials: "include"
+  });
+
+  if (!response.ok) {
+    await parseResponse(response);
+  }
+
+  return response.blob();
+}
+
 export const loginRequest = (payload) => post("/auth/login", payload);
 export const getSystemOverview = () => get("/system/overview");
 
@@ -91,6 +113,10 @@ export const getPatients = (search = "") => get("/patients", search ? { search }
 export const createPatient = (payload) => post("/patients", payload);
 export const getPatient = (id) => get(`/patients/${id}`);
 export const getPatientHistory = (id) => get(`/patients/${id}/history`);
+export const getPatientDocuments = (id) => get(`/patients/${id}/documents`);
+export const uploadPatientDocument = (id, payload) => post(`/patients/${id}/documents`, payload);
+export const deletePatientDocument = (id, documentId) => del(`/patients/${id}/documents/${documentId}`);
+export const downloadPatientDocument = (id, documentId) => downloadRequest(`/patients/${id}/documents/${documentId}/download`);
 
 export const getAppointmentMasters = () => get("/appointments/masters");
 export const getAppointments = (params = {}) => get("/appointments", params);
@@ -99,6 +125,11 @@ export const getTodayAppointments = () => get("/appointments/today");
 export const getAvailableSlots = (date, doctorId) => get("/appointments/available-slots", { date, doctorId });
 export const cancelAppointment = (id) => del(`/appointments/${id}`);
 export const updateAppointmentStatus = (id, payload) => put(`/appointments/${id}/status`, payload);
+
+export const getCalendarEvents = (params = {}) => get("/calendar/events", params);
+export const createCalendarEvent = (payload) => post("/calendar/events", payload);
+export const updateCalendarEvent = (id, payload) => put(`/calendar/events/${id}`, payload);
+export const deleteCalendarEvent = (id) => del(`/calendar/events/${id}`);
 
 export const getUsers = () => get("/users");
 export const getUsersSummary = () => get("/users/summary");
@@ -154,6 +185,10 @@ export const getDispensations = (params = {}) => get("/pharmacy/dispensations", 
 export const dispensePrescription = (prescriptionId, payload) => post(`/pharmacy/prescriptions/${prescriptionId}/dispense`, payload);
 
 export const getInventoryMasters = () => get("/inventory/masters");
+export const getHospitalInventoryItems = (params = {}) => get("/inventory/hospital-items", params);
+export const createHospitalInventoryItem = (payload) => post("/inventory/hospital-items", payload);
+export const adjustHospitalInventoryStock = (payload) => post("/inventory/hospital-items/stock", payload);
+export const getHospitalInventoryTransactions = (params = {}) => get("/inventory/hospital-transactions", params);
 export const getInventoryBatches = (params = {}) => get("/inventory/batches", params);
 export const getInventoryTransactions = (params = {}) => get("/inventory/transactions", params);
 export const getInventorySuppliers = (params = {}) => get("/inventory/suppliers", params);
@@ -173,6 +208,7 @@ export const createIpdAdmission = (payload) => post("/ipd/admissions", payload);
 export const updateIpdAdmission = (id, payload) => put(`/ipd/admissions/${id}`, payload);
 export const addIpdNote = (id, payload) => post(`/ipd/admissions/${id}/notes`, payload);
 export const addIpdVitals = (id, payload) => post(`/ipd/admissions/${id}/vitals`, payload);
+export const scheduleIpdTherapy = (id, payload) => post(`/ipd/admissions/${id}/therapies`, payload);
 export const dischargeIpdAdmission = (id, payload) => post(`/ipd/admissions/${id}/discharge`, payload);
 
 export const getRoomMasters = () => get("/rooms/masters");

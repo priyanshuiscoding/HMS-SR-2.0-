@@ -34,11 +34,41 @@ This phase moves the HMS from in-memory demo data toward a durable, multi-user P
   - request validation middleware on auth and user-management writes.
   - authenticated write audit logging into `audit_logs`.
   - database backup/restore scripts and deployment readiness checks.
+- Patient document upload is in place for the Puru Software migration:
+  - Basic patient demographics can be migrated from Excel into the normalized `patients` table.
+  - Old prescriptions, lab reports, discharge summaries, case sheets, and extra patient details can be uploaded as patient-linked PDFs.
+  - PDFs are stored in PostgreSQL via `patient_documents`, so they remain durable on Vercel/serverless deployments.
+  - Patient profile now lists uploaded documents, supports opening PDFs, and allows admin/reception removal.
+- Shared hospital calendar is in place:
+  - Calendar shows manual events plus system-generated appointments, Panchkarma sessions, and lab orders.
+  - Staff can schedule, update, and remove manual events with patient links, staff assignment, location, status, and reminder timing.
+  - Month, week, and day views are available in the frontend calendar page.
+- IPD therapy scheduling is in place:
+  - Doctors/nursing/therapists can schedule Panchkarma/therapy sessions directly from an active IPD admission.
+  - IPD package presets are available from the Shanti Ratnam packages page as clinical planning templates.
+  - Scheduled IPD therapies are linked back to the admission and appear in admission details.
+  - Completed linked therapies that do not already have their own therapy bill are added to the IPD discharge bill.
+- Inventory and pharmacy stock are now separated:
+  - Pharmacy owns medicine stock, medicine batch receiving, stock alerts, expiry visibility, and prescription dispensing.
+  - Inventory is now hospital-wide non-pharmacy stock for linen, equipment, ward supplies, housekeeping, office, and department items.
+  - Hospital inventory has its own item master and receipt/issue/adjustment ledger.
 
 - `backend/src/database/migrations/001_core_schema.sql`
   - Core normalized schema for users, patients, appointments, OPD, Ayurveda assessment, prescriptions, rooms/beds, IPD, Panchkarma, pharmacy/inventory, lab, billing, payments, refunds, settings, and audit logs.
   - Indexes and foreign keys for multi-user hospital operations.
   - `metadata JSONB` columns for future fields without urgent schema churn.
+
+- `backend/src/database/migrations/006_patient_documents.sql`
+  - Patient-linked PDF archive for legacy Puru Software records and optional new-patient supporting documents.
+  - Stores document metadata and PDF bytes in PostgreSQL instead of relying on ephemeral app server storage.
+
+- `backend/src/database/migrations/007_calendar_events.sql`
+  - Manual calendar events/reminders with optional patient and staff assignment links.
+  - System schedule items are read from their source modules so appointments and therapy/lab work stay consistent.
+
+- `backend/src/database/migrations/008_hospital_inventory.sql`
+  - Hospital-wide inventory item master and movement ledger, separate from pharmacy medicine batches.
+  - Supports non-medicine stock by category, department, location, supplier, reorder level, and unit.
 
 - `backend/src/database/migrate.js`
   - Applies SQL migrations once.
@@ -148,6 +178,8 @@ Critical workflows must use PostgreSQL transactions:
 
 ## Manual Data Still Needed
 
+- Puru Software Excel export with stable old patient identifier, name, phone, gender, DOB/age, address, registration date, and any old OPD/IPD number.
+- Folder of old patient PDFs named or mapped with the same stable old patient identifier from the Excel export.
 - Final room/bed list with exact numbers and capacity.
 - Full lab test catalogue, prices, units, and normal ranges.
 - Final medicine master review with GST/HSN.
@@ -158,8 +190,25 @@ Critical workflows must use PostgreSQL transactions:
 
 ## Next Implementation Phases
 
-1. Go-live readiness
+1. Puru Software data migration
+   - Finalize the Excel column mapping to HMS patient fields.
+   - Add an import script or admin import screen for patient demographics.
+   - Use the patient profile PDF upload for old prescriptions/history after each imported patient is matched.
+   - Keep the old Puru patient ID in patient `metadata` for traceability.
+2. Go-live readiness
    - Replace default JWT secrets in production `.env`.
    - Set `COOKIE_SECURE=true` and `TRUST_PROXY=true` when running behind HTTPS/proxy.
    - Run `npm run check:deployment` and require zero failures before go-live.
    - Schedule `npm run db:backup` and periodically test `npm run db:restore -- <backup-file.dump>` on a non-production database.
+3. Calendar follow-up phase
+   - Add SMS/WhatsApp reminder dispatch after provider credentials are finalized.
+   - Add real-time push updates with WebSockets/SSE if the hospital wants multi-desk live calendar refresh without manual navigation.
+   - Add drag-and-drop rescheduling after appointment conflict rules are finalized.
+4. IPD therapy follow-up phase
+   - Confirm final IPD package pricing and package-wise default therapy plans with the hospital.
+   - Add one-click package plan generation once doctors approve which therapies belong to each package day-by-day.
+   - Add therapy conflict checks for therapist/room overlap if required for go-live.
+5. Hospital inventory follow-up phase
+   - Import the final hospital inventory item list when provided.
+   - Add approval rules for high-value issues or asset write-offs if required.
+   - Add department-wise reports after real stock categories are finalized.

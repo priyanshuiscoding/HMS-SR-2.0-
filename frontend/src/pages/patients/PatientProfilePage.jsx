@@ -1,28 +1,152 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
-import { getPatientHistory } from "../../services/api.js";
+import { useAuth } from "../../hooks/useAuth.js";
+import {
+  deletePatientDocument,
+  downloadPatientDocument,
+  getPatientHistory,
+  uploadPatientDocument
+} from "../../services/api.js";
+
+const documentInitialForm = {
+  title: "",
+  documentType: "old_prescription",
+  notes: "",
+  file: null
+};
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      resolve(result.includes(",") ? result.split(",").pop() : result);
+    };
+    reader.onerror = () => reject(new Error("Unable to read selected PDF."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatFileSize(size) {
+  if (!size) {
+    return "0 KB";
+  }
+
+  if (size < 1024 * 1024) {
+    return `${Math.ceil(size / 1024)} KB`;
+  }
+
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export function PatientProfilePage() {
   const { id } = useParams();
+  const { user } = useAuth();
   const [payload, setPayload] = useState(null);
   const [error, setError] = useState("");
+  const [documentForm, setDocumentForm] = useState(documentInitialForm);
+  const [documentStatus, setDocumentStatus] = useState("");
+  const [documentError, setDocumentError] = useState("");
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+
+  const canUploadDocuments = ["admin", "reception", "doctor"].includes(user?.role);
+  const canDeleteDocuments = ["admin", "reception"].includes(user?.role);
+
+  async function loadPatientProfile() {
+    try {
+      const response = await getPatientHistory(id);
+      setPayload(response);
+    } catch (apiError) {
+      setError(apiError.message || "Unable to load patient profile.");
+    }
+  }
 
   useEffect(() => {
-    async function load() {
-      try {
-        const response = await getPatientHistory(id);
-        setPayload(response);
-      } catch (apiError) {
-        setError(apiError.message || "Unable to load patient profile.");
-      }
-    }
-
-    load();
+    loadPatientProfile();
   }, [id]);
 
   const patient = payload?.patient;
+
+  const handleDocumentInputChange = (event) => {
+    const { name, value, files } = event.target;
+    setDocumentForm((current) => ({
+      ...current,
+      [name]: files ? files[0] : value
+    }));
+  };
+
+  const handleDocumentUpload = async (event) => {
+    event.preventDefault();
+
+    if (!canUploadDocuments) {
+      setDocumentError("You do not have permission to upload patient documents.");
+      return;
+    }
+
+    if (!documentForm.file) {
+      setDocumentError("Select a PDF document to upload.");
+      return;
+    }
+
+    setUploadingDocument(true);
+    setDocumentError("");
+    setDocumentStatus("");
+
+    try {
+      const fileBase64 = await fileToBase64(documentForm.file);
+      const response = await uploadPatientDocument(id, {
+        title: documentForm.title || documentForm.file.name.replace(/\.pdf$/i, ""),
+        documentType: documentForm.documentType,
+        notes: documentForm.notes,
+        fileName: documentForm.file.name,
+        mimeType: documentForm.file.type || "application/pdf",
+        fileBase64
+      });
+
+      setDocumentStatus(response.message);
+      setDocumentForm(documentInitialForm);
+      event.target.reset();
+      await loadPatientProfile();
+    } catch (apiError) {
+      setDocumentError(apiError.message || "Unable to upload patient document.");
+    } finally {
+      setUploadingDocument(false);
+    }
+  };
+
+  const handleDocumentDownload = async (document) => {
+    setDocumentError("");
+
+    try {
+      const blob = await downloadPatientDocument(id, document.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (apiError) {
+      setDocumentError(apiError.message || "Unable to open patient document.");
+    }
+  };
+
+  const handleDocumentDelete = async (documentId) => {
+    if (!canDeleteDocuments) {
+      setDocumentError("Only admin and reception users can remove uploaded documents.");
+      return;
+    }
+
+    setDocumentError("");
+    setDocumentStatus("");
+
+    try {
+      const response = await deletePatientDocument(id, documentId);
+      setDocumentStatus(response.message);
+      await loadPatientProfile();
+    } catch (apiError) {
+      setDocumentError(apiError.message || "Unable to remove patient document.");
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -51,6 +175,7 @@ export function PatientProfilePage() {
               <div className="detail-list">
                 <div><strong>UHID:</strong> {patient.uhid}</div>
                 <div><strong>OPD / IPD No.:</strong> {patient.opdIpdNumber || "Not assigned"}</div>
+                <div><strong>Father's name:</strong> {patient.fatherName || "Not recorded"}</div>
                 <div><strong>Gender:</strong> {patient.gender}</div>
                 <div><strong>Date of birth:</strong> {patient.dateOfBirth}</div>
                 <div><strong>Age:</strong> {patient.ageYears || "Not recorded"} years</div>
@@ -95,6 +220,80 @@ export function PatientProfilePage() {
                 <div><strong>Created by user:</strong> {patient.createdBy || "System"}</div>
               </div>
             </article>
+          </section>
+
+          <section className="content-card">
+            <div className="section-header">
+              <div>
+                <div className="eyebrow">Documents</div>
+                <h3>Old records and additional PDFs</h3>
+              </div>
+            </div>
+
+            <form className="form-grid" onSubmit={handleDocumentUpload}>
+              <div className="field">
+                <label>Document title</label>
+                <input name="title" value={documentForm.title} onChange={handleDocumentInputChange} placeholder="Old prescription, lab report, discharge summary" />
+              </div>
+              <div className="field">
+                <label>Document type</label>
+                <select name="documentType" value={documentForm.documentType} onChange={handleDocumentInputChange}>
+                  <option value="old_prescription">Old prescription</option>
+                  <option value="old_lab_report">Old lab report</option>
+                  <option value="old_discharge_summary">Old discharge summary</option>
+                  <option value="old_case_sheet">Old case sheet</option>
+                  <option value="additional_detail">Additional detail</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>PDF file</label>
+                <input name="file" type="file" accept="application/pdf,.pdf" onChange={handleDocumentInputChange} />
+              </div>
+              <div className="field">
+                <label>Notes</label>
+                <input name="notes" value={documentForm.notes} onChange={handleDocumentInputChange} placeholder="Optional context for doctors or reception" />
+              </div>
+
+              {documentError ? <div className="error-text field-span-2">{documentError}</div> : null}
+              {documentStatus ? <div className="success-text field-span-2">{documentStatus}</div> : null}
+
+              <div className="field-span-2 action-row">
+                <Button type="submit" disabled={uploadingDocument || !canUploadDocuments}>
+                  {uploadingDocument ? "Uploading..." : "Upload PDF"}
+                </Button>
+              </div>
+              {!canUploadDocuments ? (
+                <div className="empty-state field-span-2">Document upload is available to admin, reception, and doctor roles.</div>
+              ) : null}
+            </form>
+
+            {payload.documents?.length ? (
+              <div className="stack-list">
+                {payload.documents.map((document) => (
+                  <div key={document.id} className="quick-action document-row">
+                    <div>
+                      <strong>{document.title}</strong>
+                      <div className="timeline-copy">
+                        {document.documentType.replaceAll("_", " ")} - {document.fileName} - {formatFileSize(document.fileSize)}
+                      </div>
+                      <div className="timeline-copy">{document.notes || "No notes added."}</div>
+                    </div>
+                    <div className="action-row">
+                      <button className="button-link" type="button" onClick={() => handleDocumentDownload(document)}>
+                        Open PDF
+                      </button>
+                      {canDeleteDocuments ? (
+                        <button className="button-link danger-link" type="button" onClick={() => handleDocumentDelete(document.id)}>
+                          Remove
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="empty-state" style={{ marginTop: 16 }}>No old PDFs or additional patient documents have been uploaded yet.</div>
+            )}
           </section>
 
           <section className="content-card">

@@ -18,6 +18,7 @@ export function toCamelPatient(row) {
     firstName: row.first_name,
     lastName: row.last_name || "",
     fullName: row.full_name,
+    fatherName: row.father_name || "",
     dateOfBirth: toIsoDate(row.date_of_birth),
     ageYears: row.age_years || "",
     gender: row.gender || "",
@@ -62,6 +63,7 @@ function rowParams(patient) {
     patient.firstName,
     patient.lastName || "",
     patient.fullName || `${patient.firstName || ""} ${patient.lastName || ""}`.trim(),
+    patient.fatherName || "",
     patient.dateOfBirth || null,
     patient.ageYears || null,
     patient.gender || "",
@@ -105,6 +107,7 @@ export async function findPatients(queryParams = {}) {
         OR LOWER(COALESCE(registration_number, '')) LIKE $${params.length}
         OR LOWER(COALESCE(opd_ipd_number, '')) LIKE $${params.length}
         OR LOWER(full_name) LIKE $${params.length}
+        OR LOWER(COALESCE(father_name, '')) LIKE $${params.length}
         OR LOWER(phone) LIKE $${params.length}
         OR LOWER(COALESCE(metadata->>'idNumber', '')) LIKE $${params.length}
       )
@@ -146,18 +149,18 @@ export async function insertPatient(patient) {
   const result = await query(
     `
     INSERT INTO patients (
-      id, uhid, registration_number, opd_ipd_number, patient_type, title, first_name, last_name, full_name,
+      id, uhid, registration_number, opd_ipd_number, patient_type, title, first_name, last_name, full_name, father_name,
       date_of_birth, age_years, gender, blood_group, marital_status, occupation, phone, alt_phone, email,
       address, house_street, area_village, city, state, pincode, id_type, emergency_contact_name,
       emergency_contact_phone, registration_date, registration_time, referred_by, photo_url, source_document,
       clinical_notes, created_by, metadata
     )
     VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9,
-      $10, $11, $12, $13, $14, $15, $16, $17, $18,
-      $19, $20, $21, $22, $23, $24, $25, $26,
-      $27, $28, $29, $30, $31, $32,
-      $33::jsonb, $34, $35::jsonb
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+      $11, $12, $13, $14, $15, $16, $17, $18, $19,
+      $20, $21, $22, $23, $24, $25, $26, $27,
+      $28, $29, $30, $31, $32, $33,
+      $34::jsonb, $35, $36::jsonb
     )
     RETURNING *
     `,
@@ -171,18 +174,18 @@ export async function upsertSeedPatient(client, patient) {
   await client.query(
     `
     INSERT INTO patients (
-      id, uhid, registration_number, opd_ipd_number, patient_type, title, first_name, last_name, full_name,
+      id, uhid, registration_number, opd_ipd_number, patient_type, title, first_name, last_name, full_name, father_name,
       date_of_birth, age_years, gender, blood_group, marital_status, occupation, phone, alt_phone, email,
       address, house_street, area_village, city, state, pincode, id_type, emergency_contact_name,
       emergency_contact_phone, registration_date, registration_time, referred_by, photo_url, source_document,
       clinical_notes, created_by, metadata
     )
     VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9,
-      $10, $11, $12, $13, $14, $15, $16, $17, $18,
-      $19, $20, $21, $22, $23, $24, $25, $26,
-      $27, $28, $29, $30, $31, $32,
-      $33::jsonb, $34, $35::jsonb
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
+      $11, $12, $13, $14, $15, $16, $17, $18, $19,
+      $20, $21, $22, $23, $24, $25, $26, $27,
+      $28, $29, $30, $31, $32, $33,
+      $34::jsonb, $35, $36::jsonb
     )
     ON CONFLICT (uhid) DO UPDATE
     SET
@@ -193,14 +196,29 @@ export async function upsertSeedPatient(client, patient) {
       first_name = EXCLUDED.first_name,
       last_name = EXCLUDED.last_name,
       full_name = EXCLUDED.full_name,
+      father_name = EXCLUDED.father_name,
       date_of_birth = EXCLUDED.date_of_birth,
       age_years = EXCLUDED.age_years,
       gender = EXCLUDED.gender,
+      blood_group = EXCLUDED.blood_group,
+      marital_status = EXCLUDED.marital_status,
+      occupation = EXCLUDED.occupation,
       phone = EXCLUDED.phone,
+      alt_phone = EXCLUDED.alt_phone,
+      email = EXCLUDED.email,
       address = EXCLUDED.address,
+      house_street = EXCLUDED.house_street,
+      area_village = EXCLUDED.area_village,
       city = EXCLUDED.city,
       state = EXCLUDED.state,
+      pincode = EXCLUDED.pincode,
+      id_type = EXCLUDED.id_type,
+      emergency_contact_name = EXCLUDED.emergency_contact_name,
+      emergency_contact_phone = EXCLUDED.emergency_contact_phone,
+      registration_date = EXCLUDED.registration_date,
+      registration_time = EXCLUDED.registration_time,
       referred_by = EXCLUDED.referred_by,
+      photo_url = EXCLUDED.photo_url,
       source_document = EXCLUDED.source_document,
       clinical_notes = EXCLUDED.clinical_notes,
       metadata = EXCLUDED.metadata,
@@ -222,26 +240,27 @@ export async function updatePatientRecord(id, patient) {
       first_name = $6,
       last_name = $7,
       full_name = $8,
-      date_of_birth = $9,
-      age_years = $10,
-      gender = $11,
-      blood_group = $12,
-      marital_status = $13,
-      occupation = $14,
-      phone = $15,
-      alt_phone = $16,
-      email = $17,
-      address = $18,
-      house_street = $19,
-      area_village = $20,
-      city = $21,
-      state = $22,
-      pincode = $23,
-      id_type = $24,
-      emergency_contact_name = $25,
-      emergency_contact_phone = $26,
-      referred_by = $27,
-      metadata = $28::jsonb,
+      father_name = $9,
+      date_of_birth = $10,
+      age_years = $11,
+      gender = $12,
+      blood_group = $13,
+      marital_status = $14,
+      occupation = $15,
+      phone = $16,
+      alt_phone = $17,
+      email = $18,
+      address = $19,
+      house_street = $20,
+      area_village = $21,
+      city = $22,
+      state = $23,
+      pincode = $24,
+      id_type = $25,
+      emergency_contact_name = $26,
+      emergency_contact_phone = $27,
+      referred_by = $28,
+      metadata = $29::jsonb,
       updated_at = NOW()
     WHERE id = $1 AND deleted_at IS NULL
     RETURNING *
@@ -255,6 +274,7 @@ export async function updatePatientRecord(id, patient) {
       patient.firstName,
       patient.lastName || "",
       patient.fullName || `${patient.firstName || ""} ${patient.lastName || ""}`.trim(),
+      patient.fatherName || "",
       patient.dateOfBirth || null,
       patient.ageYears || null,
       patient.gender || "",

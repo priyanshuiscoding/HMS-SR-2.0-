@@ -4,6 +4,7 @@ const primaryLinks = [
   { label: "Dashboard", to: "/" },
   { label: "Patients", to: "/patients" },
   { label: "Appointments", to: "/appointments" },
+  { label: "Calendar", to: "/calendar" },
   { label: "OPD", to: "/opd" },
   { label: "Billing", to: "/billing" },
   { label: "IPD", to: "/ipd" },

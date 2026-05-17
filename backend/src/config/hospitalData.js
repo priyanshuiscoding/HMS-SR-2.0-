@@ -35,6 +35,65 @@ export const ipdWardCharges = [
   }
 ];
 
+export const ipdTreatmentPackages = [
+  {
+    id: "ipd-joint-spine",
+    name: "Joint And Spine Package",
+    goal: "To Avoid The Possible Spine And Joint Complications",
+    durationDays: 28,
+    overview: "Assessment, internal medication, postural correction, physical therapies, daily follow-ups, Panchakarma therapies, and diet/lifestyle modification.",
+    suggestedFor: ["Knee pain", "Disc prolapse", "Poor posture", "Sciatica", "Cervical spondylosis", "Back pain", "Osteo-arthritis", "Sports injury"]
+  },
+  {
+    id: "ipd-diabetes",
+    name: "Diabetes Package",
+    goal: "Monitor Blood Sugar Level",
+    durationDays: 21,
+    overview: "Mud therapies, obesity seminars, naturopathy diet, yoga and meditation, daily follow-ups, hydrotherapy, Ayurvedic treatment, and cooking class.",
+    suggestedFor: ["Pre-diabetes", "Type 2 diabetes support", "Sedentary lifestyle", "Family history of diabetes"]
+  },
+  {
+    id: "ipd-detox",
+    name: "Detox Package",
+    goal: "Cleansing De-Addiction",
+    durationDays: 21,
+    overview: "Initial and final consultation, preparation phase, pre-cleansing, master cleansing, post detox phase, and regeneration phase.",
+    suggestedFor: ["Obesity", "Weak immunity", "Alcohol or smoking addiction", "Fatty liver", "Sleep disturbance", "Digestive disorders"]
+  },
+  {
+    id: "ipd-stress-management",
+    name: "Stress Management Package",
+    goal: "Let Body And Soul Come To Rest",
+    durationDays: 14,
+    overview: "Yoga and meditation, mindfulness, naturopathy diet, stress workshops, daily follow-ups, deep relaxation, Ayurvedic treatment, and Vichy shower.",
+    suggestedFor: ["Stress", "Burnout", "Insomnia", "Muscular tension", "Anxiety", "Neck and shoulder problems"]
+  },
+  {
+    id: "ipd-weight-management",
+    name: "Weight Management",
+    goal: "Weight Loss/Weight Gain",
+    durationDays: 28,
+    overview: "Colon therapy, cooking class, yoga and meditation, naturopathy diet, obesity seminars, daily follow-ups, hydrotherapy, Ayurvedic treatment, and mud therapies.",
+    suggestedFor: ["Overweight", "Digestive problems", "High cholesterol", "Type II diabetes", "Hypertension", "Joint pain during movement"]
+  },
+  {
+    id: "ipd-womens-health",
+    name: "Women's Health Care Package",
+    goal: "Balancing The Aggravated Dosha",
+    durationDays: 21,
+    overview: "Internal medication, local therapies, hydrotherapies, daily follow-ups, external therapies, diet/lifestyle modification, yogasan, pranayama, and meditation.",
+    suggestedFor: ["Irregular periods", "Insomnia", "Anxiety", "UTI", "Hot flashes", "Mood swings", "Support healthy conception"]
+  },
+  {
+    id: "ipd-rejuvenation",
+    name: "Rejuvenation Package",
+    goal: "Recovery, Vitalization",
+    durationDays: 14,
+    overview: "Panchakarma treatment, metabolic therapy, daily follow-ups, yoga and meditation, doctor's consultation, and naturopathic diet.",
+    suggestedFor: ["Listlessness", "Powerlessness", "Cervical pain", "Exhaustion", "Muscular tension"]
+  }
+];
+
 export const invoiceProfiles = {
   pharmacy: {
     sellerName: "SU-RA MEDICAL STORES",

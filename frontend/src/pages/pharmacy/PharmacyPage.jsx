@@ -6,16 +6,31 @@ import { useAuth } from "../../hooks/useAuth.js";
 import {
   dispensePrescription,
   getDispensations,
+  getInventoryMasters,
   getPharmacyMasters,
   getPharmacyPrescriptions,
-  getPharmacyStock
+  getPharmacyStock,
+  receiveInventoryStock
 } from "../../services/api.js";
+
+const initialReceiveForm = {
+  medicineId: "",
+  supplierId: "",
+  batchNumber: "",
+  expiryDate: "",
+  quantityReceived: "",
+  purchasePrice: "",
+  sellingPrice: "",
+  note: ""
+};
 
 export function PharmacyPage() {
   const { user } = useAuth();
   const [stockPayload, setStockPayload] = useState({ items: [], alerts: { lowStock: [], expiringSoon: [], outOfStock: [] } });
   const [prescriptions, setPrescriptions] = useState([]);
   const [dispensations, setDispensations] = useState([]);
+  const [inventoryMasters, setInventoryMasters] = useState({ medicines: [], suppliers: [] });
+  const [receiveForm, setReceiveForm] = useState(initialReceiveForm);
   const [selectedPrescription, setSelectedPrescription] = useState(null);
   const [statusFilter, setStatusFilter] = useState("pending");
   const [message, setMessage] = useState("");
@@ -23,13 +38,15 @@ export function PharmacyPage() {
 
   async function loadAll(filter = statusFilter) {
     try {
-      const [masters, stock, queue, dispensed] = await Promise.all([
+      const [masters, inventoryMastersResponse, stock, queue, dispensed] = await Promise.all([
         getPharmacyMasters(),
+        getInventoryMasters(),
         getPharmacyStock(),
         getPharmacyPrescriptions({ status: filter }),
         getDispensations()
       ]);
 
+      setInventoryMasters(inventoryMastersResponse);
       setStockPayload(stock);
       setPrescriptions(queue.items);
       setDispensations(dispensed.items);
@@ -80,6 +97,29 @@ export function PharmacyPage() {
       setError("");
     } catch (apiError) {
       setError(apiError.message || "Unable to dispense prescription.");
+    }
+  };
+
+  const handleReceiveChange = (event) => {
+    setReceiveForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  };
+
+  const handleReceiveStock = async (event) => {
+    event.preventDefault();
+
+    if (!["admin", "pharmacy"].includes(user?.role)) {
+      setError("Only admin and pharmacy users can receive pharmacy stock.");
+      return;
+    }
+
+    try {
+      const response = await receiveInventoryStock(receiveForm);
+      setReceiveForm(initialReceiveForm);
+      setMessage(response.message || "Pharmacy stock received.");
+      setError("");
+      await loadAll(statusFilter);
+    } catch (apiError) {
+      setError(apiError.message || "Unable to receive pharmacy stock.");
     }
   };
 
@@ -227,7 +267,7 @@ export function PharmacyPage() {
             <div className="section-header">
               <div>
                 <div className="eyebrow">Stock Alerts</div>
-                <h3>Live sample medicine availability</h3>
+                <h3>Pharmacy medicine availability</h3>
               </div>
             </div>
 
@@ -264,6 +304,39 @@ export function PharmacyPage() {
                 </tbody>
               </table>
             </div>
+          </article>
+
+          <article className="content-card">
+            <div className="section-header">
+              <div>
+                <div className="eyebrow">Receive Stock</div>
+                <h3>Add medicine batch to pharmacy</h3>
+              </div>
+            </div>
+
+            <form className="form-grid" onSubmit={handleReceiveStock}>
+              <div className="field field-span-2">
+                <label>Medicine</label>
+                <select name="medicineId" value={receiveForm.medicineId} onChange={handleReceiveChange}>
+                  <option value="">Select medicine</option>
+                  {inventoryMasters.medicines.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label>Supplier</label>
+                <select name="supplierId" value={receiveForm.supplierId} onChange={handleReceiveChange}>
+                  <option value="">Select supplier</option>
+                  {inventoryMasters.suppliers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                </select>
+              </div>
+              <div className="field"><label>Batch number</label><input name="batchNumber" value={receiveForm.batchNumber} onChange={handleReceiveChange} /></div>
+              <div className="field"><label>Expiry date</label><input type="date" name="expiryDate" value={receiveForm.expiryDate} onChange={handleReceiveChange} /></div>
+              <div className="field"><label>Quantity</label><input name="quantityReceived" value={receiveForm.quantityReceived} onChange={handleReceiveChange} /></div>
+              <div className="field"><label>Purchase price</label><input name="purchasePrice" value={receiveForm.purchasePrice} onChange={handleReceiveChange} /></div>
+              <div className="field"><label>Selling price</label><input name="sellingPrice" value={receiveForm.sellingPrice} onChange={handleReceiveChange} /></div>
+              <div className="field field-span-2"><label>Note</label><input name="note" value={receiveForm.note} onChange={handleReceiveChange} /></div>
+              <div className="field field-span-2"><Button type="submit" disabled={!["admin", "pharmacy"].includes(user?.role)}>Receive Pharmacy Stock</Button></div>
+            </form>
           </article>
 
           <article className="content-card">

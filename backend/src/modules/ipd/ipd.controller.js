@@ -10,6 +10,7 @@ import {
   getIpdMasters,
   getIpdSummary,
   listAdmissions,
+  scheduleAdmissionTherapy,
   updateAdmission
 } from "./ipd.service.js";
 
@@ -80,6 +81,14 @@ export async function addAdmissionNoteHandler(req, res, next) {
 export async function addAdmissionVitalsHandler(req, res, next) {
   try {
     res.status(201).json({ item: await addAdmissionVitals(req.params.id, req.body, req.user.sub), message: "Vitals recorded successfully." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function scheduleAdmissionTherapyHandler(req, res, next) {
+  try {
+    res.status(201).json({ item: await scheduleAdmissionTherapy(req.params.id, req.body, req.user.sub), message: "IPD therapy scheduled successfully." });
   } catch (error) {
     next(error);
   }

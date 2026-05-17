@@ -240,6 +240,7 @@ export async function createPanchkarmaSchedule(payload, userId) {
     preparationNotes: payload.preparationNotes || "",
     createdBy: userId,
     metadata: {
+      ...(payload.metadata || {}),
       recommendedByName
     }
   });

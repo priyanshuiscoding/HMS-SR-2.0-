@@ -4,6 +4,7 @@ backend/node_modules/
 frontend/dist/
 backend/dist/
 data/raw/
+data/Patient_PhoneNumberSRAIIMS.txt
 .env
 .env.local
 .env.production

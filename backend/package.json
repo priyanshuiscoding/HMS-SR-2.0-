@@ -8,7 +8,8 @@
     "start": "node server.js",
     "db:migrate": "node src/database/migrate.js",
     "db:seed": "node src/database/seed.js",
-    "db:setup": "npm run db:migrate && npm run db:seed"
+    "db:setup": "npm run db:migrate && npm run db:seed",
+    "db:import-old-patients": "node src/database/importOldPatients.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

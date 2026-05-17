@@ -8,6 +8,15 @@ import {
   patientPhoneExists,
   updatePatientRecord
 } from "./patients.repository.js";
+import {
+  findPatientDocumentById,
+  findPatientDocuments,
+  insertPatientDocument,
+  softDeletePatientDocument
+} from "./patientDocuments.repository.js";
+
+const MAX_PATIENT_DOCUMENT_BYTES = 8 * 1024 * 1024;
+const ALLOWED_PATIENT_DOCUMENT_TYPES = new Set(["application/pdf"]);
 
 function calculateAge(dateOfBirth) {
   if (!dateOfBirth) {
@@ -66,6 +75,11 @@ function syncPatientMirror(patient) {
   db.patients.unshift(patient);
 }
 
+function toDateLabel(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? new Date().toISOString().slice(0, 10) : date.toISOString().slice(0, 10);
+}
+
 export async function listPatients(query = {}) {
   return findPatients(query);
 }
@@ -82,6 +96,7 @@ export async function getPatientById(id) {
 
 export async function getPatientHistory(id) {
   const patient = await getPatientById(id);
+  const documents = await findPatientDocuments(id);
 
   const appointmentHistory = db.appointments
     .filter((appointment) => appointment.patientId === id)
@@ -203,6 +218,14 @@ export async function getPatientHistory(id) {
       title: payment.receiptNumber,
       summary: `Payment received via ${payment.paymentMode}`,
       detail: `Rs. ${payment.amount}`
+    })),
+    ...documents.map((document) => ({
+      id: `doc-${document.id}`,
+      type: "document",
+      date: toDateLabel(document.createdAt),
+      title: document.title,
+      summary: `${document.documentType.replaceAll("_", " ")} PDF uploaded`,
+      detail: document.notes || document.fileName
     }))
   ].sort((a, b) => b.date.localeCompare(a.date));
 
@@ -218,8 +241,81 @@ export async function getPatientHistory(id) {
     bills,
     dispensations,
     payments,
+    documents,
     timeline
   };
+}
+
+export async function listPatientDocuments(patientId) {
+  await getPatientById(patientId);
+  return findPatientDocuments(patientId);
+}
+
+export async function uploadPatientDocument(patientId, payload, uploadedBy) {
+  await getPatientById(patientId);
+
+  const title = String(payload.title || "").trim();
+  const fileName = String(payload.fileName || "").trim();
+  const mimeType = String(payload.mimeType || "").trim().toLowerCase();
+  const base64Data = String(payload.fileBase64 || "").trim();
+
+  if (!title || !fileName || !mimeType || !base64Data) {
+    throw createError("Document title, file name, file type, and file data are required.");
+  }
+
+  if (!ALLOWED_PATIENT_DOCUMENT_TYPES.has(mimeType) || !fileName.toLowerCase().endsWith(".pdf")) {
+    throw createError("Only PDF documents can be uploaded.");
+  }
+
+  let fileData;
+  try {
+    fileData = Buffer.from(base64Data, "base64");
+  } catch {
+    throw createError("Uploaded document data is invalid.");
+  }
+
+  if (!fileData.length || fileData.length > MAX_PATIENT_DOCUMENT_BYTES) {
+    throw createError("PDF must be larger than 0 bytes and not more than 8 MB.");
+  }
+
+  const document = await insertPatientDocument({
+    patientId,
+    title,
+    documentType: payload.documentType || "old_prescription",
+    fileName,
+    mimeType,
+    fileSize: fileData.length,
+    fileData,
+    notes: payload.notes || "",
+    uploadedBy,
+    metadata: {
+      source: payload.source || "patient_profile_upload"
+    }
+  });
+
+  return document;
+}
+
+export async function getPatientDocumentFile(patientId, documentId) {
+  await getPatientById(patientId);
+  const document = await findPatientDocumentById(patientId, documentId);
+
+  if (!document) {
+    throw createError("Patient document not found.", 404);
+  }
+
+  return document;
+}
+
+export async function deletePatientDocument(patientId, documentId) {
+  await getPatientById(patientId);
+  const deleted = await softDeletePatientDocument(patientId, documentId);
+
+  if (!deleted) {
+    throw createError("Patient document not found.", 404);
+  }
+
+  return { id: documentId };
 }
 
 export async function createPatient(payload, createdBy) {
@@ -254,6 +350,7 @@ export async function createPatient(payload, createdBy) {
     firstName: payload.firstName.trim(),
     lastName: payload.lastName.trim(),
     fullName: `${payload.firstName.trim()} ${payload.lastName.trim()}`,
+    fatherName: payload.fatherName?.trim() || "",
     gender: payload.gender,
     dateOfBirth: payload.dateOfBirth,
     ageYears: calculateAge(payload.dateOfBirth),
@@ -296,6 +393,7 @@ export async function updatePatient(id, payload) {
     firstName: payload.firstName ?? patient.firstName,
     lastName: payload.lastName ?? patient.lastName,
     fullName: `${payload.firstName ?? patient.firstName} ${payload.lastName ?? patient.lastName}`,
+    fatherName: payload.fatherName ?? patient.fatherName,
     dateOfBirth: nextDateOfBirth,
     ageYears: calculateAge(nextDateOfBirth),
     gender: payload.gender ?? patient.gender,

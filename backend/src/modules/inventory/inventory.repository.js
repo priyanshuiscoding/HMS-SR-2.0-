@@ -76,6 +76,46 @@ export function toCamelStockTransaction(row) {
   };
 }
 
+function toCamelHospitalInventoryItem(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    itemCode: row.item_code,
+    name: row.name,
+    category: row.category || "General",
+    department: row.department || "Hospital Store",
+    unit: row.unit || "unit",
+    quantityAvailable: toNumber(row.quantity_available),
+    reorderLevel: toNumber(row.reorder_level),
+    location: row.location || "",
+    supplierId: row.supplier_id || "",
+    supplierName: row.supplier_name || "",
+    purchasePrice: toNumber(row.purchase_price),
+    notes: row.notes || "",
+    lowStock: toNumber(row.quantity_available) <= toNumber(row.reorder_level),
+    metadata: row.metadata || {},
+    createdAt: toIsoDateTime(row.created_at),
+    updatedAt: toIsoDateTime(row.updated_at)
+  };
+}
+
+function toCamelHospitalInventoryTransaction(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    itemId: row.item_id,
+    itemName: row.item_name || "",
+    transactionDate: toIsoDateTime(row.transaction_date),
+    type: row.type,
+    quantity: toNumber(row.quantity),
+    referenceNumber: row.reference_number || "",
+    department: row.department || "",
+    note: row.note || "",
+    createdBy: row.created_by || "",
+    metadata: row.metadata || {}
+  };
+}
+
 function toCamelPurchaseOrder(row, items = []) {
   if (!row) return null;
   return {
@@ -196,6 +236,153 @@ export async function listStockTransactionRecords(filters = {}) {
   }
   const result = await query(`SELECT * FROM stock_transactions WHERE ${conditions.join(" AND ")} ORDER BY transaction_date DESC`, params);
   return result.rows.map(toCamelStockTransaction);
+}
+
+export async function listHospitalInventoryItemRecords(filters = {}) {
+  const params = [];
+  const conditions = ["i.deleted_at IS NULL", "i.is_active = true"];
+
+  if (filters.search) {
+    params.push(`%${String(filters.search).trim().toLowerCase()}%`);
+    conditions.push(`(LOWER(i.item_code) LIKE $${params.length} OR LOWER(i.name) LIKE $${params.length} OR LOWER(i.category) LIKE $${params.length} OR LOWER(i.department) LIKE $${params.length} OR LOWER(i.location) LIKE $${params.length})`);
+  }
+
+  if (filters.category) {
+    params.push(String(filters.category).trim().toLowerCase());
+    conditions.push(`LOWER(i.category) = $${params.length}`);
+  }
+
+  const result = await query(
+    `
+    SELECT i.*, s.name AS supplier_name
+    FROM hospital_inventory_items i
+    LEFT JOIN suppliers s ON s.id = i.supplier_id
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY i.category ASC, i.name ASC
+    `,
+    params
+  );
+
+  return result.rows.map(toCamelHospitalInventoryItem);
+}
+
+export async function createHospitalInventoryItemRecord(payload) {
+  return withTransaction(async (client) => {
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", ["hospital-inventory:item-code"]);
+    const numberResult = await client.query("SELECT COUNT(*)::int + 1 AS next_number FROM hospital_inventory_items");
+    const itemCode = payload.itemCode || `HINV-${String(numberResult.rows[0].next_number).padStart(5, "0")}`;
+
+    const itemResult = await client.query(
+      `
+      INSERT INTO hospital_inventory_items (
+        id, item_code, name, category, department, unit, quantity_available, reorder_level,
+        location, supplier_id, purchase_price, notes, metadata
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb)
+      RETURNING *
+      `,
+      [
+        payload.id,
+        itemCode,
+        payload.name,
+        payload.category || "General",
+        payload.department || "Hospital Store",
+        payload.unit || "unit",
+        payload.openingQuantity || 0,
+        payload.reorderLevel || 0,
+        payload.location || "",
+        payload.supplierId || null,
+        payload.purchasePrice || 0,
+        payload.notes || "",
+        JSON.stringify(payload.metadata || {})
+      ]
+    );
+
+    if (Number(payload.openingQuantity || 0) !== 0) {
+      await client.query(
+        `
+        INSERT INTO hospital_inventory_transactions (
+          id, item_id, type, quantity, reference_number, department, note, created_by, metadata
+        )
+        VALUES ($1, $2, 'receipt', $3, $4, $5, $6, $7, $8::jsonb)
+        `,
+        [
+          payload.transactionId,
+          itemResult.rows[0].id,
+          payload.openingQuantity,
+          "OPENING",
+          payload.department || "Hospital Store",
+          "Opening hospital inventory quantity",
+          payload.createdBy || null,
+          JSON.stringify({})
+        ]
+      );
+    }
+
+    return toCamelHospitalInventoryItem(itemResult.rows[0]);
+  });
+}
+
+export async function adjustHospitalInventoryStockRecord(payload) {
+  return withTransaction(async (client) => {
+    const itemResult = await client.query("SELECT * FROM hospital_inventory_items WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", [payload.itemId]);
+    const item = itemResult.rows[0];
+    if (!item) return { conflict: "item_missing" };
+
+    const quantity = Number(payload.quantity || 0);
+    if (!Number.isFinite(quantity) || quantity <= 0) return { conflict: "invalid_quantity" };
+
+    const signedQuantity = payload.type === "issue" ? -quantity : quantity;
+    const nextQuantity = Number(item.quantity_available || 0) + signedQuantity;
+    if (nextQuantity < 0) return { conflict: "insufficient_stock", itemName: item.name };
+
+    await client.query("UPDATE hospital_inventory_items SET quantity_available = $2, updated_at = NOW() WHERE id = $1", [item.id, nextQuantity]);
+    const txResult = await client.query(
+      `
+      INSERT INTO hospital_inventory_transactions (
+        id, item_id, type, quantity, reference_number, department, note, created_by, metadata
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+      RETURNING *
+      `,
+      [
+        payload.id,
+        item.id,
+        payload.type,
+        signedQuantity,
+        payload.referenceNumber || "",
+        payload.department || item.department || "",
+        payload.note || "",
+        payload.createdBy || null,
+        JSON.stringify({})
+      ]
+    );
+
+    return { transaction: toCamelHospitalInventoryTransaction({ ...txResult.rows[0], item_name: item.name }) };
+  });
+}
+
+export async function listHospitalInventoryTransactionRecords(filters = {}) {
+  const params = [];
+  const conditions = ["1 = 1"];
+
+  if (filters.itemId) {
+    params.push(filters.itemId);
+    conditions.push(`t.item_id = $${params.length}`);
+  }
+
+  const result = await query(
+    `
+    SELECT t.*, i.name AS item_name
+    FROM hospital_inventory_transactions t
+    JOIN hospital_inventory_items i ON i.id = t.item_id
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY t.transaction_date DESC
+    `,
+    params
+  );
+
+  return result.rows.map(toCamelHospitalInventoryTransaction);
 }
 
 export async function receiveStockRecord(payload) {

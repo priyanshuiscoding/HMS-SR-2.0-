@@ -1,8 +1,12 @@
 import {
   createPatient,
+  deletePatientDocument,
+  getPatientDocumentFile,
   getPatientById,
   getPatientHistory,
+  listPatientDocuments,
   listPatients,
+  uploadPatientDocument,
   updatePatient
 } from "./patients.service.js";
 
@@ -50,6 +54,44 @@ export async function updatePatientHandler(req, res, next) {
 export async function patientHistoryHandler(req, res, next) {
   try {
     res.json(await getPatientHistory(req.params.id));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function listPatientDocumentsHandler(req, res, next) {
+  try {
+    res.json({ items: await listPatientDocuments(req.params.id) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function uploadPatientDocumentHandler(req, res, next) {
+  try {
+    const document = await uploadPatientDocument(req.params.id, req.body, req.user.sub);
+    res.status(201).json({ item: document, message: "Patient document uploaded successfully." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function downloadPatientDocumentHandler(req, res, next) {
+  try {
+    const document = await getPatientDocumentFile(req.params.id, req.params.documentId);
+    const safeFileName = document.fileName.replace(/[^\w.\- ]/g, "").trim() || "patient-document.pdf";
+    res.setHeader("Content-Type", document.mimeType);
+    res.setHeader("Content-Length", document.fileSize);
+    res.setHeader("Content-Disposition", `inline; filename="${safeFileName}"`);
+    res.send(document.fileData);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deletePatientDocumentHandler(req, res, next) {
+  try {
+    res.json({ item: await deletePatientDocument(req.params.id, req.params.documentId), message: "Patient document removed successfully." });
   } catch (error) {
     next(error);
   }

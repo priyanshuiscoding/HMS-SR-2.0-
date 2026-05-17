@@ -539,14 +539,13 @@ async function run() {
     await seedHospitalSettings(client);
     await seedUsers(client);
     await seedStaffSchedules(client);
-    await seedPatients(client);
-    await seedAppointments(client);
-    await seedOpdData(client);
+    // Patient-linked demo rows are intentionally not seeded in production data.
+    // Use `npm run db:import-old-patients` to load the legacy patient register.
     await seedPanchkarmaTherapies(client);
     await seedRoomsAndBeds(client);
     await seedLabTests(client);
     await seedMedicineAndInventoryMasters(client);
-    await seedBillingData(client);
+    // Billing seed data is patient-linked demo history, so it stays out with the demo patients.
     await client.query("COMMIT");
     console.log("Database seed complete.");
   } catch (error) {

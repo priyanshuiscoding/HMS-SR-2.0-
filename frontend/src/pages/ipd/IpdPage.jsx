@@ -11,7 +11,8 @@ import {
   getIpdAdmissions,
   getIpdMasters,
   getIpdSummary,
-  getPatients
+  getPatients,
+  scheduleIpdTherapy
 } from "../../services/api.js";
 
 const initialAdmissionForm = {
@@ -59,6 +60,18 @@ const initialDischargeForm = {
   bedNote: ""
 };
 
+const initialTherapyForm = {
+  packageId: "",
+  therapyId: "",
+  therapistId: "",
+  therapyRoomId: "",
+  scheduledDate: "",
+  scheduledTime: "",
+  estimatedDurationMinutes: "",
+  complaint: "",
+  preparationNotes: ""
+};
+
 function currency(value) {
   return Number(value || 0).toFixed(2);
 }
@@ -67,13 +80,14 @@ export function IpdPage() {
   const [summary, setSummary] = useState(null);
   const [admissions, setAdmissions] = useState([]);
   const [patients, setPatients] = useState([]);
-  const [masters, setMasters] = useState({ doctors: [], admissionSources: [], noteCategories: [], dischargeStatuses: [], wardCharges: [], rooms: [] });
+  const [masters, setMasters] = useState({ doctors: [], admissionSources: [], noteCategories: [], dischargeStatuses: [], wardCharges: [], rooms: [], treatmentPackages: [], therapies: [], therapists: [], therapyRooms: [] });
   const [selectedAdmission, setSelectedAdmission] = useState(null);
   const [filters, setFilters] = useState({ status: "active", search: "" });
   const [admissionForm, setAdmissionForm] = useState(initialAdmissionForm);
   const [noteForm, setNoteForm] = useState(initialNoteForm);
   const [vitalsForm, setVitalsForm] = useState(initialVitalsForm);
   const [dischargeForm, setDischargeForm] = useState(initialDischargeForm);
+  const [therapyForm, setTherapyForm] = useState(initialTherapyForm);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -134,6 +148,25 @@ export function IpdPage() {
     setDischargeForm((current) => ({ ...current, [name]: type === "checkbox" ? checked : value }));
   };
 
+  const handleTherapyFormChange = (event) => {
+    const { name, value } = event.target;
+    setTherapyForm((current) => {
+      const next = { ...current, [name]: value };
+
+      if (name === "therapyId") {
+        const therapy = masters.therapies?.find((item) => item.id === value);
+        next.estimatedDurationMinutes = therapy?.defaultDurationMinutes || "";
+      }
+
+      if (name === "packageId") {
+        const selectedPackage = masters.treatmentPackages?.find((item) => item.id === value);
+        next.preparationNotes = selectedPackage ? `${selectedPackage.name}: ${selectedPackage.overview}` : current.preparationNotes;
+      }
+
+      return next;
+    });
+  };
+
   const handleFilterChange = async (event) => {
     const nextFilters = { ...filters, [event.target.name]: event.target.value };
     setFilters(nextFilters);
@@ -147,6 +180,7 @@ export function IpdPage() {
       setNoteForm(initialNoteForm);
       setVitalsForm(initialVitalsForm);
       setDischargeForm(initialDischargeForm);
+      setTherapyForm(initialTherapyForm);
       setError("");
     } catch (apiError) {
       setError(apiError.message || "Unable to load admission details.");
@@ -221,6 +255,23 @@ export function IpdPage() {
     }
   };
 
+  const handleScheduleTherapy = async (event) => {
+    event.preventDefault();
+    if (!selectedAdmission?.id) {
+      return;
+    }
+
+    try {
+      const response = await scheduleIpdTherapy(selectedAdmission.id, therapyForm);
+      setMessage(response.message);
+      setSelectedAdmission(response.item);
+      setTherapyForm(initialTherapyForm);
+      await loadData(filters, selectedAdmission.id);
+    } catch (apiError) {
+      setError(apiError.message || "Unable to schedule IPD therapy.");
+    }
+  };
+
   const stats = summary || {
     totalAdmissions: 0,
     activeAdmissions: 0,
@@ -229,6 +280,8 @@ export function IpdPage() {
     pendingDischarges: 0,
     activeRooms: 0
   };
+  const selectedTherapy = masters.therapies?.find((item) => item.id === therapyForm.therapyId);
+  const selectedPackage = masters.treatmentPackages?.find((item) => item.id === therapyForm.packageId);
 
   return (
     <DashboardLayout>
@@ -352,6 +405,22 @@ export function IpdPage() {
                 ) : <div className="empty-state">No vitals recorded yet.</div>}
               </div>
 
+              <div className="content-card inset-card" style={{ marginTop: 18 }}>
+                <h3>Scheduled IPD Therapies</h3>
+                {selectedAdmission.therapySessions?.length ? (
+                  <div className="stack-list">
+                    {selectedAdmission.therapySessions.map((session) => (
+                      <div key={session.id} className="quick-action">
+                        <strong>{session.therapyName}</strong>
+                        <div className="timeline-copy">{session.scheduleNumber} | {session.scheduledDate} at {session.scheduledTime}</div>
+                        <div className="timeline-copy">Therapist: {session.therapistName} | Status: {session.status}</div>
+                        <div className="timeline-copy">Bill: {session.billId ? "Created separately" : session.status === "completed" ? "Will be added to IPD discharge bill" : "Pending completion"}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="empty-state">No therapies scheduled for this admission yet.</div>}
+              </div>
+
               {selectedAdmission.dischargeSummary ? (
                 <div className="content-card inset-card" style={{ marginTop: 18 }}>
                   <h3>Discharge Summary</h3>
@@ -384,6 +453,67 @@ export function IpdPage() {
                 </div>
               ))}
             </div>
+          </article>
+
+          <article className="content-card">
+            <div className="section-header"><div><div className="eyebrow">Therapy Plan</div><h3>Schedule IPD therapy</h3></div></div>
+            {!selectedAdmission ? <div className="empty-state">Select an active admission to schedule therapy.</div> : selectedAdmission.status !== "active" ? <div className="empty-state">This admission is discharged. Therapy scheduling is closed.</div> : (
+              <>
+                <form className="form-grid" onSubmit={handleScheduleTherapy}>
+                  <div className="field field-span-2">
+                    <label>IPD package preset</label>
+                    <select name="packageId" value={therapyForm.packageId} onChange={handleTherapyFormChange}>
+                      <option value="">No package preset</option>
+                      {masters.treatmentPackages.map((item) => (
+                        <option key={item.id} value={item.id}>{item.name} ({item.durationDays} days)</option>
+                      ))}
+                    </select>
+                  </div>
+                  {selectedPackage ? (
+                    <div className="empty-state field-span-2">
+                      {selectedPackage.goal}. {selectedPackage.overview}
+                    </div>
+                  ) : null}
+                  <div className="field field-span-2">
+                    <label>Therapy</label>
+                    <select name="therapyId" value={therapyForm.therapyId} onChange={handleTherapyFormChange}>
+                      <option value="">Select therapy</option>
+                      {masters.therapies.map((therapy) => (
+                        <option key={therapy.id} value={therapy.id}>{therapy.name} - Rs. {currency(therapy.price)}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Therapist</label>
+                    <select name="therapistId" value={therapyForm.therapistId} onChange={handleTherapyFormChange}>
+                      <option value="">Select therapist</option>
+                      {masters.therapists.map((therapist) => (
+                        <option key={therapist.id} value={therapist.id}>{therapist.fullName}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field">
+                    <label>Therapy room</label>
+                    <select name="therapyRoomId" value={therapyForm.therapyRoomId} onChange={handleTherapyFormChange}>
+                      <option value="">Use available therapy room</option>
+                      {masters.therapyRooms.map((room) => (
+                        <option key={room.id} value={room.id}>{room.roomNumber} - {room.ward}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field"><label>Date</label><input type="date" name="scheduledDate" value={therapyForm.scheduledDate} onChange={handleTherapyFormChange} /></div>
+                  <div className="field"><label>Time</label><input type="time" name="scheduledTime" value={therapyForm.scheduledTime} onChange={handleTherapyFormChange} /></div>
+                  <div className="field"><label>Duration minutes</label><input name="estimatedDurationMinutes" value={therapyForm.estimatedDurationMinutes} onChange={handleTherapyFormChange} /></div>
+                  <div className="field"><label>Estimated charge</label><input value={selectedTherapy ? `Rs. ${currency(selectedTherapy.price)}` : ""} disabled readOnly /></div>
+                  <div className="field field-span-2"><label>Indication / complaint</label><input name="complaint" value={therapyForm.complaint} onChange={handleTherapyFormChange} placeholder={selectedAdmission.reasonForAdmission} /></div>
+                  <div className="field field-span-2"><label>Preparation notes</label><input name="preparationNotes" value={therapyForm.preparationNotes} onChange={handleTherapyFormChange} /></div>
+                  <div className="field field-span-2"><Button type="submit">Schedule Therapy</Button></div>
+                </form>
+                <div className="empty-state" style={{ marginTop: 14 }}>
+                  Therapy completion and material usage are handled in Panchkarma. Completed unbilled IPD therapies are added to the discharge bill automatically.
+                </div>
+              </>
+            )}
           </article>
 
           <article className="content-card">

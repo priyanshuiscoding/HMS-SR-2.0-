@@ -35,6 +35,8 @@ export function AppointmentsPage() {
   const [appointments, setAppointments] = useState([]);
   const [todayQueue, setTodayQueue] = useState([]);
   const [patients, setPatients] = useState([]);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [isPatientPickerOpen, setIsPatientPickerOpen] = useState(false);
   const [masters, setMasters] = useState({
     doctors: [],
     departments: [],
@@ -129,6 +131,41 @@ export function AppointmentsPage() {
   }, [appointments, todayQueue]);
 
   const canManageAppointments = ["admin", "reception"].includes(user?.role);
+  const selectedPatient = patients.find((patient) => patient.id === formState.patientId);
+  const patientSearchTerm = patientSearch.trim().toLowerCase();
+  const filteredPatients = useMemo(() => {
+    if (!patientSearchTerm) {
+      return patients.slice(0, 30);
+    }
+
+    return patients
+      .filter((patient) => {
+        const searchableText = [
+          patient.uhid,
+          patient.registrationNumber,
+          patient.firstName,
+          patient.lastName,
+          patient.fatherName,
+          patient.phone,
+          patient.cityDistrict,
+          patient.city
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return searchableText.includes(patientSearchTerm);
+      })
+      .slice(0, 30);
+  }, [patientSearchTerm, patients]);
+
+  const patientLabel = (patient) => {
+    if (!patient) {
+      return "";
+    }
+
+    return `${patient.uhid || patient.registrationNumber || "UHID"} - ${patient.firstName || ""} ${patient.lastName || ""}`.trim();
+  };
 
   const handleFilterChange = (event) => {
     const nextFilters = {
@@ -176,6 +213,29 @@ export function AppointmentsPage() {
     }));
   };
 
+  const handlePatientSearchChange = (event) => {
+    const { value } = event.target;
+    setPatientSearch(value);
+    setIsPatientPickerOpen(true);
+    setFormState((current) => ({
+      ...current,
+      patientId: ""
+    }));
+  };
+
+  const handlePatientSelect = (patient) => {
+    setPatientSearch(patientLabel(patient));
+    setIsPatientPickerOpen(false);
+    setFormState((current) => ({
+      ...current,
+      patientId: patient.id,
+      patientName: "",
+      patientAge: "",
+      patientGender: "",
+      patientMobile: ""
+    }));
+  };
+
   const handleBookAppointment = async (event) => {
     event.preventDefault();
     if (!canManageAppointments) {
@@ -189,6 +249,7 @@ export function AppointmentsPage() {
     try {
       const response = await createAppointment(formState);
       setSuccess(response.message);
+      setPatientSearch("");
       setFormState((current) => ({
         ...initialForm,
         appointmentDate: current.appointmentDate,
@@ -297,14 +358,37 @@ export function AppointmentsPage() {
           <form className="form-grid" onSubmit={handleBookAppointment}>
             <div className="field field-span-2">
               <label>Existing patient</label>
-              <select name="patientId" value={formState.patientId} onChange={handleFormChange}>
-                <option value="">Select patient or leave blank for a new patient</option>
-                {patients.map((patient) => (
-                  <option key={patient.id} value={patient.id}>
-                    {patient.uhid || patient.registrationNumber || "UHID"} - {patient.firstName} {patient.lastName}
-                  </option>
-                ))}
-              </select>
+              <div className="patient-combobox">
+                <input
+                  value={selectedPatient ? patientLabel(selectedPatient) : patientSearch}
+                  onChange={handlePatientSearchChange}
+                  onFocus={() => setIsPatientPickerOpen(true)}
+                  onBlur={() => window.setTimeout(() => setIsPatientPickerOpen(false), 140)}
+                  placeholder="Click and type patient name, UHID, phone, father name, or city"
+                  autoComplete="off"
+                />
+                {isPatientPickerOpen ? (
+                  <div className="patient-combobox-menu">
+                    {filteredPatients.map((patient) => (
+                      <button
+                        key={patient.id}
+                        className="patient-combobox-option"
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => handlePatientSelect(patient)}
+                      >
+                        <strong>{patientLabel(patient)}</strong>
+                        <span>
+                          {[patient.phone, patient.fatherName, patient.cityDistrict || patient.city].filter(Boolean).join(" | ") || "No extra details"}
+                        </span>
+                      </button>
+                    ))}
+                    {!filteredPatients.length ? (
+                      <div className="patient-combobox-empty">No matching patient. Leave blank to enter a new patient below.</div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {!formState.patientId ? (

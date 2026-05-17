@@ -2,8 +2,12 @@ import { createId, db, getGodownImportSummary } from "../../data/store.js";
 import { todayDate } from "../../utils/dateTime.js";
 import { createError } from "../../utils/errors.js";
 import {
+  adjustHospitalInventoryStockRecord,
   createPurchaseOrderRecord,
+  createHospitalInventoryItemRecord,
   createSupplierRecord,
+  listHospitalInventoryItemRecords,
+  listHospitalInventoryTransactionRecords,
   listBatchRecords,
   listMedicineRecords,
   listPurchaseOrderRecords,
@@ -39,6 +43,68 @@ export async function getInventoryMasters() {
     godownImport: getGodownImportSummary(),
     purchaseOrderStatuses: ["draft", "sent", "approved", "received", "cancelled"]
   };
+}
+
+export async function listHospitalInventoryItems(query = {}) {
+  return listHospitalInventoryItemRecords(query);
+}
+
+export async function createHospitalInventoryItem(payload = {}, userId = "") {
+  if (!payload.name || !String(payload.name).trim()) {
+    throw createError("Inventory item name is required.");
+  }
+
+  const openingQuantity = Number(payload.openingQuantity || 0);
+  if (!Number.isFinite(openingQuantity) || openingQuantity < 0) {
+    throw createError("Opening quantity must be zero or greater.");
+  }
+
+  return createHospitalInventoryItemRecord({
+    id: createId(),
+    transactionId: createId(),
+    name: String(payload.name).trim(),
+    category: String(payload.category || "General").trim(),
+    department: String(payload.department || "Hospital Store").trim(),
+    unit: String(payload.unit || "unit").trim(),
+    openingQuantity,
+    reorderLevel: Number(payload.reorderLevel || 0),
+    location: String(payload.location || "").trim(),
+    supplierId: payload.supplierId || "",
+    purchasePrice: Number(payload.purchasePrice || 0),
+    notes: String(payload.notes || "").trim(),
+    createdBy: userId
+  });
+}
+
+export async function adjustHospitalInventoryStock(payload = {}, userId = "") {
+  if (!payload.itemId || !payload.type || !payload.quantity) {
+    throw createError("Item, transaction type, and quantity are required.");
+  }
+
+  if (!["receipt", "issue", "adjustment"].includes(payload.type)) {
+    throw createError("Invalid hospital inventory transaction type.");
+  }
+
+  const result = await adjustHospitalInventoryStockRecord({
+    id: createId(),
+    itemId: payload.itemId,
+    type: payload.type,
+    quantity: Number(payload.quantity || 0),
+    referenceNumber: String(payload.referenceNumber || "").trim(),
+    department: String(payload.department || "").trim(),
+    note: String(payload.note || "").trim(),
+    createdBy: userId
+  });
+
+  if (result.conflict === "item_missing") throw createError("Hospital inventory item not found.", 404);
+  if (result.conflict === "invalid_quantity") throw createError("Quantity must be greater than zero.");
+  if (result.conflict === "insufficient_stock") throw createError(`Insufficient stock for ${result.itemName}.`);
+
+  return result.transaction;
+}
+
+export async function listHospitalInventoryTransactions(query = {}) {
+  return listHospitalInventoryTransactionRecords(query);
 }
 
 export async function listInventoryBatches(query = {}) {

@@ -1,8 +1,10 @@
-import { ipdWardCharges } from "../../config/hospitalData.js";
+import { ipdTreatmentPackages, ipdWardCharges } from "../../config/hospitalData.js";
 import { createId, db } from "../../data/store.js";
 import { currentTime, nowIso, todayDate } from "../../utils/dateTime.js";
 import { createError } from "../../utils/errors.js";
 import { createBill } from "../billing/billing.service.js";
+import { createPanchkarmaSchedule, getPanchkarmaMasters } from "../panchkarma/panchkarma.service.js";
+import { listSessionRecords } from "../panchkarma/panchkarma.repository.js";
 import { getPatientById } from "../patients/patients.service.js";
 import { listDoctors } from "../users/users.service.js";
 import {
@@ -90,7 +92,10 @@ async function enrichAdmission(admission) {
   const room = db.rooms.find((entry) => entry.id === admission.roomId) || null;
   const bed = db.beds.find((entry) => entry.id === admission.bedId) || null;
   const doctor = doctors.get(admission.attendingDoctorId) || null;
-  const bill = admission.billId ? db.bills.find((entry) => entry.id === admission.billId) || null : null;
+  const [bill, therapySessions] = await Promise.all([
+    Promise.resolve(admission.billId ? db.bills.find((entry) => entry.id === admission.billId) || null : null),
+    getAdmissionTherapySessions(admission.id).catch(() => [])
+  ]);
 
   return {
     ...admission,
@@ -99,6 +104,7 @@ async function enrichAdmission(admission) {
     bed,
     doctor,
     bill,
+    therapySessions,
     notes: [...(admission.notes || [])].sort((a, b) => b.noteDate.localeCompare(a.noteDate)),
     vitals: [...(admission.vitals || [])].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))
   };
@@ -118,6 +124,7 @@ async function getAdmissionById(admissionId) {
 export async function getIpdMasters() {
   const [doctors, snapshot] = await Promise.all([listDoctors(), getRoomAndBedSnapshot()]);
   syncRoomAndBedMirrors(snapshot);
+  const panchkarmaMasters = await getPanchkarmaMasters();
 
   const bedsByRoom = snapshot.rooms.map((room) => ({
     roomId: room.id,
@@ -136,8 +143,19 @@ export async function getIpdMasters() {
     noteCategories: ["admission", "progress", "doctor_round", "nursing", "diet", "discharge_plan"],
     dischargeStatuses: ["recovered", "referred", "discharged_on_request", "absconded"],
     wardCharges: ipdWardCharges,
+    treatmentPackages: ipdTreatmentPackages,
+    therapies: panchkarmaMasters.therapies,
+    therapists: panchkarmaMasters.therapists,
+    therapyRooms: panchkarmaMasters.therapyRooms,
     rooms: bedsByRoom
   };
+}
+
+export async function getAdmissionTherapySessions(admissionId) {
+  const sessions = await listSessionRecords();
+  return sessions
+    .filter((session) => session.metadata?.admissionId === admissionId)
+    .sort((left, right) => `${right.scheduledDate} ${right.scheduledTime}`.localeCompare(`${left.scheduledDate} ${left.scheduledTime}`));
 }
 
 export async function getIpdSummary() {
@@ -351,6 +369,64 @@ export async function addAdmissionVitals(admissionId, payload, userId) {
   return enrichAdmission(result);
 }
 
+export async function scheduleAdmissionTherapy(admissionId, payload, userId) {
+  const admission = await getAdmissionById(admissionId);
+
+  if (admission.status !== "active") {
+    throw createError("Therapies can only be scheduled for active IPD admissions.");
+  }
+
+  if (!payload.therapyId || !payload.therapistId || !payload.scheduledDate || !payload.scheduledTime) {
+    throw createError("Therapy, therapist, date, and time are required.");
+  }
+
+  const schedule = await createPanchkarmaSchedule(
+    {
+      patientId: admission.patientId,
+      therapyId: payload.therapyId,
+      therapistId: payload.therapistId,
+      recommendedBy: payload.recommendedBy || admission.attendingDoctorId,
+      therapyRoomId: payload.therapyRoomId || "",
+      scheduledDate: payload.scheduledDate,
+      scheduledTime: payload.scheduledTime,
+      estimatedDurationMinutes: payload.estimatedDurationMinutes,
+      complaint: payload.complaint || admission.reasonForAdmission,
+      preparationNotes: payload.preparationNotes || "",
+      metadata: {
+        admissionId,
+        admissionNumber: admission.admissionNumber,
+        packageId: payload.packageId || "",
+        packageName: ipdTreatmentPackages.find((item) => item.id === payload.packageId)?.name || "",
+        source: "ipd_therapy_order"
+      }
+    },
+    userId
+  );
+
+  await addNoteRecord(admissionId, {
+    id: createId(),
+    noteDate: nowIso(),
+    category: "doctor_round",
+    note: `Therapy scheduled: ${schedule.therapyName} on ${schedule.scheduledDate} at ${schedule.scheduledTime}.`,
+    authorId: userId
+  });
+
+  const refreshed = await getAdmissionById(admissionId);
+  syncAdmissionMirror(refreshed);
+  syncScheduleMirrorIfAvailable(schedule);
+  return enrichAdmission(refreshed);
+}
+
+function syncScheduleMirrorIfAvailable(schedule) {
+  if (!schedule?.id) return;
+  const index = db.panchkarmaSchedules.findIndex((entry) => entry.id === schedule.id);
+  if (index >= 0) {
+    db.panchkarmaSchedules[index] = schedule;
+  } else {
+    db.panchkarmaSchedules.unshift(schedule);
+  }
+}
+
 export async function updateAdmission(admissionId, payload, userId) {
   const admission = await getAdmissionById(admissionId);
 
@@ -407,6 +483,8 @@ export async function dischargeAdmission(admissionId, payload, userId) {
   let bill = null;
 
   if (payload.createBill && patient) {
+    const linkedTherapies = await getAdmissionTherapySessions(admissionId);
+    const unbilledCompletedTherapies = linkedTherapies.filter((session) => session.status === "completed" && !session.billId);
     const billItems = [
       {
         description: `IPD Room Charges (${room?.roomNumber || admission.roomId})`,
@@ -424,6 +502,15 @@ export async function dischargeAdmission(admissionId, payload, userId) {
         unitPrice: extraCharge
       });
     }
+
+    unbilledCompletedTherapies.forEach((session) => {
+      billItems.push({
+        description: `${session.therapyName} IPD therapy (${session.scheduleNumber})`,
+        category: "therapy",
+        quantity: 1,
+        unitPrice: Number(session.billedAmount || 0)
+      });
+    });
 
     bill = await createBill({
       patientId: patient.id,

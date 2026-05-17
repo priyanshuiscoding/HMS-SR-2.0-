@@ -1,13 +1,51 @@
 import {
+  adjustHospitalInventoryStock,
+  createHospitalInventoryItem,
   createPurchaseOrder,
   createSupplier,
   getInventoryMasters,
+  listHospitalInventoryItems,
+  listHospitalInventoryTransactions,
   listInventoryBatches,
   listPurchaseOrders,
   listSuppliers,
   listStockTransactions,
   receiveStock
 } from "./inventory.service.js";
+
+export async function hospitalInventoryItemsHandler(req, res, next) {
+  try {
+    res.json({ items: await listHospitalInventoryItems(req.query) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function createHospitalInventoryItemHandler(req, res, next) {
+  try {
+    const item = await createHospitalInventoryItem(req.body, req.user.sub);
+    res.status(201).json({ item, message: "Hospital inventory item created successfully." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function adjustHospitalInventoryStockHandler(req, res, next) {
+  try {
+    const item = await adjustHospitalInventoryStock(req.body, req.user.sub);
+    res.status(201).json({ item, message: "Hospital inventory stock updated successfully." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function hospitalInventoryTransactionsHandler(req, res, next) {
+  try {
+    res.json({ items: await listHospitalInventoryTransactions(req.query) });
+  } catch (error) {
+    next(error);
+  }
+}
 
 export async function inventoryMastersHandler(_req, res, next) {
   try {
