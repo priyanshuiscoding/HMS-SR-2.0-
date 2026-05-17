@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/common/Button.jsx";
+import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import { formatCurrency } from "../../utils/format.js";
@@ -311,6 +312,10 @@ export function BillingPage() {
     setCreateBillForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
 
+  const handleCreateBillPatientChange = (patientId) => {
+    setCreateBillForm((current) => ({ ...current, patientId }));
+  };
+
   const handleInvoiceMetaChange = (event) => {
     const { name, value } = event.target;
     setCreateBillForm((current) => ({
@@ -393,6 +398,7 @@ export function BillingPage() {
   const pharmacyProfile = masters.invoiceProfiles?.pharmacy;
   const canCreateBill = ["admin", "accounts", "doctor", "reception"].includes(user?.role);
   const canCollectPayment = ["admin", "accounts", "reception"].includes(user?.role);
+  const patientLabel = (patient) => `${patient.uhid || patient.registrationNumber || "UHID"} - ${patient.firstName || ""} ${patient.lastName || ""}`.trim();
 
   return (
     <DashboardLayout>
@@ -416,7 +422,28 @@ export function BillingPage() {
         <article className="content-card">
           <div className="section-header"><div><div className="eyebrow">Create Bill</div><h3>Manual invoice entry</h3></div><Button variant="secondary" onClick={addBillItem} disabled={!canCreateBill}>Add Item</Button></div>
           <form className="form-grid" onSubmit={handleCreateBill}>
-            <div className="field field-span-2"><label>Patient</label><select name="patientId" value={createBillForm.patientId} onChange={handleCreateBillChange}><option value="">Select patient</option>{patients.map((patient) => (<option key={patient.id} value={patient.id}>{patient.uhid} - {patient.firstName} {patient.lastName}</option>))}</select></div>
+            <div className="field field-span-2">
+              <label>Patient</label>
+              <SearchableSelect
+                value={createBillForm.patientId}
+                options={patients}
+                onChange={handleCreateBillPatientChange}
+                placeholder="Search patient by name, UHID, phone, father name, or city"
+                emptyLabel="No matching patient"
+                getOptionLabel={patientLabel}
+                getOptionMeta={(patient) => [patient.phone, patient.fatherName, patient.cityDistrict || patient.city].filter(Boolean).join(" | ")}
+                getSearchText={(patient) => [
+                  patient.uhid,
+                  patient.registrationNumber,
+                  patient.firstName,
+                  patient.lastName,
+                  patient.fatherName,
+                  patient.phone,
+                  patient.cityDistrict,
+                  patient.city
+                ].filter(Boolean).join(" ")}
+              />
+            </div>
             <div className="field"><label>Bill type</label><select name="billType" value={createBillForm.billType} onChange={handleCreateBillChange}>{masters.billTypes.map((type) => (<option key={type} value={type}>{type}</option>))}</select></div>
             <div className="field"><label>Discount</label><input name="discountAmount" value={createBillForm.discountAmount} onChange={handleCreateBillChange} /></div>
             <div className="field"><label>Tax</label><input name="taxAmount" value={createBillForm.taxAmount} onChange={handleCreateBillChange} /></div>

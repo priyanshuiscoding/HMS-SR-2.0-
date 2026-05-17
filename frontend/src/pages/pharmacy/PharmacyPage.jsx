@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/common/Button.jsx";
+import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import {
@@ -102,6 +103,10 @@ export function PharmacyPage() {
 
   const handleReceiveChange = (event) => {
     setReceiveForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  };
+
+  const updateReceiveField = (name, value) => {
+    setReceiveForm((current) => ({ ...current, [name]: value }));
   };
 
   const handleReceiveStock = async (event) => {
@@ -317,17 +322,27 @@ export function PharmacyPage() {
             <form className="form-grid" onSubmit={handleReceiveStock}>
               <div className="field field-span-2">
                 <label>Medicine</label>
-                <select name="medicineId" value={receiveForm.medicineId} onChange={handleReceiveChange}>
-                  <option value="">Select medicine</option>
-                  {inventoryMasters.medicines.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </select>
+                <SearchableSelect
+                  value={receiveForm.medicineId}
+                  options={inventoryMasters.medicines}
+                  onChange={(value) => updateReceiveField("medicineId", value)}
+                  placeholder="Search medicine"
+                  emptyLabel="No matching medicine"
+                  getOptionLabel={(item) => item.name}
+                  getOptionMeta={(item) => `${item.formulation || ""} ${item.category || ""}`.trim()}
+                  getSearchText={(item) => [item.name, item.formulation, item.category, item.unit].filter(Boolean).join(" ")}
+                />
               </div>
               <div className="field">
                 <label>Supplier</label>
-                <select name="supplierId" value={receiveForm.supplierId} onChange={handleReceiveChange}>
-                  <option value="">Select supplier</option>
-                  {inventoryMasters.suppliers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                </select>
+                <SearchableSelect
+                  value={receiveForm.supplierId}
+                  options={inventoryMasters.suppliers}
+                  onChange={(value) => updateReceiveField("supplierId", value)}
+                  placeholder="Search supplier"
+                  emptyLabel="No matching supplier"
+                  getOptionLabel={(item) => item.name}
+                />
               </div>
               <div className="field"><label>Batch number</label><input name="batchNumber" value={receiveForm.batchNumber} onChange={handleReceiveChange} /></div>
               <div className="field"><label>Expiry date</label><input type="date" name="expiryDate" value={receiveForm.expiryDate} onChange={handleReceiveChange} /></div>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/common/Button.jsx";
+import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import {
@@ -1049,17 +1050,16 @@ export function OpdPage() {
                       <div className="form-grid medicine-grid">
                         <div className="field">
                           <label>Medicine</label>
-                          <select
+                          <SearchableSelect
                             value={medicine.medicineId}
-                            onChange={(event) => handleMedicineChange(index, "medicineId", event.target.value)}
-                          >
-                            <option value="">Select medicine</option>
-                            {masters.medicines.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
+                            options={masters.medicines}
+                            onChange={(value) => handleMedicineChange(index, "medicineId", value)}
+                            placeholder="Search medicine"
+                            emptyLabel="No matching medicine"
+                            getOptionLabel={(item) => item.name}
+                            getOptionMeta={(item) => `${item.formulation || ""} ${item.category || ""}`.trim()}
+                            getSearchText={(item) => [item.name, item.formulation, item.category, item.unit].filter(Boolean).join(" ")}
+                          />
                         </div>
                         <div className="field">
                           <label>Dose</label>

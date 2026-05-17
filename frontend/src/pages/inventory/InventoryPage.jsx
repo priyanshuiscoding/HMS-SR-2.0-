@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/common/Button.jsx";
+import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import {
@@ -84,6 +85,14 @@ export function InventoryPage() {
     setStockForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
 
+  const updateItemField = (name, value) => {
+    setItemForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const updateStockField = (name, value) => {
+    setStockForm((current) => ({ ...current, [name]: value }));
+  };
+
   const handleSearchSubmit = async (event) => {
     event.preventDefault();
     await loadAll(search);
@@ -157,7 +166,17 @@ export function InventoryPage() {
             <div className="field"><label>Opening quantity</label><input name="openingQuantity" value={itemForm.openingQuantity} onChange={handleItemChange} /></div>
             <div className="field"><label>Reorder level</label><input name="reorderLevel" value={itemForm.reorderLevel} onChange={handleItemChange} /></div>
             <div className="field"><label>Location</label><input name="location" value={itemForm.location} onChange={handleItemChange} /></div>
-            <div className="field"><label>Supplier</label><select name="supplierId" value={itemForm.supplierId} onChange={handleItemChange}><option value="">No supplier</option>{masters.suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></div>
+            <div className="field">
+              <label>Supplier</label>
+              <SearchableSelect
+                value={itemForm.supplierId}
+                options={masters.suppliers}
+                onChange={(value) => updateItemField("supplierId", value)}
+                placeholder="Search supplier"
+                emptyLabel="No matching supplier"
+                getOptionLabel={(supplier) => supplier.name}
+              />
+            </div>
             <div className="field"><label>Purchase price</label><input name="purchasePrice" value={itemForm.purchasePrice} onChange={handleItemChange} /></div>
             <div className="field field-span-2"><label>Notes</label><input name="notes" value={itemForm.notes} onChange={handleItemChange} /></div>
             <div className="field field-span-2"><Button type="submit" disabled={!canManage}>Create Item</Button></div>
@@ -167,7 +186,19 @@ export function InventoryPage() {
         <article className="content-card">
           <div className="section-header"><div><div className="eyebrow">Stock Movement</div><h3>Receive, issue, or adjust</h3></div></div>
           <form className="form-grid" onSubmit={handleAdjustStock}>
-            <div className="field field-span-2"><label>Item</label><select name="itemId" value={stockForm.itemId} onChange={handleStockChange}><option value="">Select item</option>{items.map((item) => <option key={item.id} value={item.id}>{item.itemCode} - {item.name}</option>)}</select></div>
+            <div className="field field-span-2">
+              <label>Item</label>
+              <SearchableSelect
+                value={stockForm.itemId}
+                options={items}
+                onChange={(value) => updateStockField("itemId", value)}
+                placeholder="Search item"
+                emptyLabel="No matching item"
+                getOptionLabel={(item) => `${item.itemCode} - ${item.name}`}
+                getOptionMeta={(item) => `${item.category || ""} ${item.department || ""}`.trim()}
+                getSearchText={(item) => [item.itemCode, item.name, item.category, item.department, item.location].filter(Boolean).join(" ")}
+              />
+            </div>
             <div className="field"><label>Type</label><select name="type" value={stockForm.type} onChange={handleStockChange}><option value="receipt">Receipt</option><option value="issue">Issue</option><option value="adjustment">Adjustment +</option></select></div>
             <div className="field"><label>Quantity</label><input name="quantity" value={stockForm.quantity} onChange={handleStockChange} /></div>
             <div className="field"><label>Department</label><input name="department" value={stockForm.department} onChange={handleStockChange} /></div>

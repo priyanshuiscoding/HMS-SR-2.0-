@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/common/Button.jsx";
+import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import { formatCurrency } from "../../utils/format.js";
@@ -47,6 +48,10 @@ const initialCompletionForm = {
   addMaterialCharges: true,
   materialsUsed: [{ ...emptyMaterial }]
 };
+
+function patientLabel(patient) {
+  return `${patient.uhid || patient.registrationNumber || "UHID"} - ${patient.fullName || `${patient.firstName || ""} ${patient.lastName || ""}`.trim()}`.trim();
+}
 
 export function PanchkarmaPage() {
   const { user } = useAuth();
@@ -136,6 +141,10 @@ export function PanchkarmaPage() {
   const handleScheduleChange = (event) => {
     const { name, value } = event.target;
 
+    updateScheduleField(name, value);
+  };
+
+  const updateScheduleField = (name, value) => {
     setScheduleForm((current) => {
       const next = { ...current, [name]: value };
 
@@ -282,14 +291,26 @@ export function PanchkarmaPage() {
           <form className="form-grid" onSubmit={handleCreateSchedule}>
             <div className="field field-span-2">
               <label>Patient</label>
-              <select name="patientId" value={scheduleForm.patientId} onChange={handleScheduleChange}>
-                <option value="">Select patient</option>
-                {patients.map((patient) => (
-                  <option key={patient.id} value={patient.id}>
-                    {patient.uhid} - {patient.firstName} {patient.lastName}
-                  </option>
-                ))}
-              </select>
+              <SearchableSelect
+                value={scheduleForm.patientId}
+                options={patients}
+                onChange={(value) => updateScheduleField("patientId", value)}
+                placeholder="Search patient"
+                emptyLabel="No matching patient"
+                getOptionLabel={patientLabel}
+                getOptionMeta={(patient) => patient.phone || patient.cityDistrict || patient.city || ""}
+                getSearchText={(patient) => [
+                  patient.uhid,
+                  patient.registrationNumber,
+                  patient.fullName,
+                  patient.firstName,
+                  patient.lastName,
+                  patient.fatherName,
+                  patient.phone,
+                  patient.cityDistrict,
+                  patient.city
+                ].filter(Boolean).join(" ")}
+              />
             </div>
             <div className="field">
               <label>Therapy</label>
@@ -558,14 +579,16 @@ export function PanchkarmaPage() {
                         <div className="form-grid">
                           <div className="field">
                             <label>Material</label>
-                            <select value={item.medicineId} onChange={(event) => handleMaterialChange(index, "medicineId", event.target.value)}>
-                              <option value="">Select material</option>
-                              {masters.materialMedicines.map((medicine) => (
-                                <option key={medicine.id} value={medicine.id}>
-                                  {medicine.name}
-                                </option>
-                              ))}
-                            </select>
+                            <SearchableSelect
+                              value={item.medicineId}
+                              options={masters.materialMedicines}
+                              onChange={(value) => handleMaterialChange(index, "medicineId", value)}
+                              placeholder="Search material"
+                              emptyLabel="No matching material"
+                              getOptionLabel={(medicine) => medicine.name}
+                              getOptionMeta={(medicine) => `${medicine.formulation || ""} ${medicine.category || ""}`.trim()}
+                              getSearchText={(medicine) => [medicine.name, medicine.formulation, medicine.category, medicine.unit].filter(Boolean).join(" ")}
+                            />
                           </div>
                           <div className="field">
                             <label>Quantity</label>

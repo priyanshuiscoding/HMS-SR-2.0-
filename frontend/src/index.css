@@ -733,15 +733,18 @@ textarea {
   padding: 12px 14px;
 }
 
+.searchable-select,
 .patient-combobox {
   position: relative;
   min-width: 0;
 }
 
+.searchable-select input,
 .patient-combobox input {
   width: 100%;
 }
 
+.searchable-select-menu,
 .patient-combobox-menu {
   position: absolute;
   z-index: 30;
@@ -756,6 +759,7 @@ textarea {
   box-shadow: 0 18px 40px rgba(16, 55, 92, 0.16);
 }
 
+.searchable-select-option,
 .patient-combobox-option {
   display: grid;
   width: 100%;
@@ -769,24 +773,31 @@ textarea {
   text-align: left;
 }
 
+.searchable-select-option:hover,
+.searchable-select-option:focus,
 .patient-combobox-option:hover,
 .patient-combobox-option:focus {
   background: rgba(237, 245, 255, 0.9);
   outline: none;
 }
 
+.searchable-select-option strong,
+.searchable-select-option span,
 .patient-combobox-option strong,
 .patient-combobox-option span {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
+.searchable-select-option span,
+.searchable-select-empty,
 .patient-combobox-option span,
 .patient-combobox-empty {
   color: var(--color-muted);
   font-size: 13px;
 }
 
+.searchable-select-empty,
 .patient-combobox-empty {
   padding: 14px;
 }

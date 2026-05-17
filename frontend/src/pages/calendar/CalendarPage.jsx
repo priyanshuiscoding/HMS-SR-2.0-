@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { Button } from "../../components/common/Button.jsx";
+import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import {
@@ -109,6 +110,10 @@ function defaultStartForDate(date) {
   const next = new Date(date);
   next.setHours(10, 0, 0, 0);
   return toLocalDateTimeInput(next);
+}
+
+function patientLabel(patient) {
+  return `${patient.uhid || patient.registrationNumber || "UHID"} - ${patient.fullName || `${patient.firstName || ""} ${patient.lastName || ""}`.trim()}`.trim();
 }
 
 export function CalendarPage() {
@@ -229,6 +234,10 @@ export function CalendarPage() {
   const handleInputChange = (event) => {
     const { name, value, type, checked } = event.target;
     setFormState((current) => ({ ...current, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const updateFormField = (name, value) => {
+    setFormState((current) => ({ ...current, [name]: value }));
   };
 
   const handleSubmit = async (event) => {
@@ -420,10 +429,26 @@ export function CalendarPage() {
             </label>
             <div className="field">
               <label>Patient</label>
-              <select name="patientId" value={formState.patientId} onChange={handleInputChange}>
-                <option value="">No patient</option>
-                {patients.map((patient) => <option key={patient.id} value={patient.id}>{patient.uhid} - {patient.fullName}</option>)}
-              </select>
+              <SearchableSelect
+                value={formState.patientId}
+                options={patients}
+                onChange={(value) => updateFormField("patientId", value)}
+                placeholder="Search patient"
+                emptyLabel="No matching patient"
+                getOptionLabel={patientLabel}
+                getOptionMeta={(patient) => patient.phone || patient.cityDistrict || patient.city || ""}
+                getSearchText={(patient) => [
+                  patient.uhid,
+                  patient.registrationNumber,
+                  patient.fullName,
+                  patient.firstName,
+                  patient.lastName,
+                  patient.fatherName,
+                  patient.phone,
+                  patient.cityDistrict,
+                  patient.city
+                ].filter(Boolean).join(" ")}
+              />
             </div>
             <div className="field">
               <label>Assign to</label>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/common/Button.jsx";
+import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import {
   assignRoomBed,
@@ -99,6 +100,10 @@ export function RoomsPage() {
     setAssignForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
 
+  const handleAssignPatientChange = (patientId) => {
+    setAssignForm((current) => ({ ...current, patientId }));
+  };
+
   const handleDischargeFormChange = (event) => {
     setDischargeForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
@@ -174,6 +179,8 @@ export function RoomsPage() {
       setError(apiError.message || "Unable to discharge bed.");
     }
   };
+
+  const patientLabel = (patient) => `${patient.uhid || patient.registrationNumber || "UHID"} - ${patient.firstName || ""} ${patient.lastName || ""}`.trim();
 
   return (
     <DashboardLayout>
@@ -266,7 +273,28 @@ export function RoomsPage() {
             </form>
           ) : (
             <form className="form-grid" onSubmit={handleAssignBed}>
-              <div className="field field-span-2"><label>Patient</label><select name="patientId" value={assignForm.patientId} onChange={handleAssignFormChange}><option value="">Select patient</option>{patients.map((patient) => (<option key={patient.id} value={patient.id}>{patient.uhid} - {patient.firstName} {patient.lastName}</option>))}</select></div>
+              <div className="field field-span-2">
+                <label>Patient</label>
+                <SearchableSelect
+                  value={assignForm.patientId}
+                  options={patients}
+                  onChange={handleAssignPatientChange}
+                  placeholder="Search patient by name, UHID, phone, father name, or city"
+                  emptyLabel="No matching patient"
+                  getOptionLabel={patientLabel}
+                  getOptionMeta={(patient) => [patient.phone, patient.fatherName, patient.cityDistrict || patient.city].filter(Boolean).join(" | ")}
+                  getSearchText={(patient) => [
+                    patient.uhid,
+                    patient.registrationNumber,
+                    patient.firstName,
+                    patient.lastName,
+                    patient.fatherName,
+                    patient.phone,
+                    patient.cityDistrict,
+                    patient.city
+                  ].filter(Boolean).join(" ")}
+                />
+              </div>
               <div className="field"><label>Admission type</label><select name="admissionType" value={assignForm.admissionType} onChange={handleAssignFormChange}><option value="observation">observation</option><option value="ipd">ipd</option><option value="therapy_recovery">therapy recovery</option></select></div>
               <div className="field"><label>Expected discharge</label><input name="expectedDischargeDate" type="date" value={assignForm.expectedDischargeDate} onChange={handleAssignFormChange} /></div>
               <div className="field field-span-2"><label>Assignment note</label><input name="note" value={assignForm.note} onChange={handleAssignFormChange} /></div>

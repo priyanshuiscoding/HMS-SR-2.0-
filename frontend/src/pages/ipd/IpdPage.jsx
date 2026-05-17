@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/common/Button.jsx";
+import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import {
   addIpdNote,
@@ -128,6 +129,14 @@ export function IpdPage() {
 
   const handleAdmissionFormChange = (event) => {
     const { name, value } = event.target;
+    setAdmissionForm((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === "roomId" ? { bedId: "" } : {})
+    }));
+  };
+
+  const updateAdmissionField = (name, value) => {
     setAdmissionForm((current) => ({
       ...current,
       [name]: value,
@@ -282,6 +291,7 @@ export function IpdPage() {
   };
   const selectedTherapy = masters.therapies?.find((item) => item.id === therapyForm.therapyId);
   const selectedPackage = masters.treatmentPackages?.find((item) => item.id === therapyForm.packageId);
+  const patientLabel = (patient) => `${patient.uhid || patient.registrationNumber || "UHID"} - ${patient.firstName || ""} ${patient.lastName || ""}`.trim();
 
   return (
     <DashboardLayout>
@@ -305,10 +315,66 @@ export function IpdPage() {
         <article className="content-card">
           <div className="section-header"><div><div className="eyebrow">Admit Patient</div><h3>New IPD admission</h3></div></div>
           <form className="form-grid" onSubmit={handleCreateAdmission}>
-            <div className="field field-span-2"><label>Patient</label><select name="patientId" value={admissionForm.patientId} onChange={handleAdmissionFormChange}><option value="">Select patient</option>{patients.map((patient) => (<option key={patient.id} value={patient.id}>{patient.uhid} - {patient.firstName} {patient.lastName}</option>))}</select></div>
-            <div className="field"><label>Room</label><select name="roomId" value={admissionForm.roomId} onChange={handleAdmissionFormChange}><option value="">Select room</option>{roomOptions.map((room) => (<option key={room.roomId} value={room.roomId}>{room.roomNumber} - {room.ward}</option>))}</select></div>
-            <div className="field"><label>Bed</label><select name="bedId" value={admissionForm.bedId} onChange={handleAdmissionFormChange}><option value="">Select bed</option>{availableBeds.map((bed) => (<option key={bed.id} value={bed.id}>{bed.bedNumber} - {bed.bedLabel}</option>))}</select></div>
-            <div className="field"><label>Attending doctor</label><select name="attendingDoctorId" value={admissionForm.attendingDoctorId} onChange={handleAdmissionFormChange}><option value="">Select doctor</option>{masters.doctors.map((doctor) => (<option key={doctor.id} value={doctor.id}>{doctor.fullName}</option>))}</select></div>
+            <div className="field field-span-2">
+              <label>Patient</label>
+              <SearchableSelect
+                value={admissionForm.patientId}
+                options={patients}
+                onChange={(value) => updateAdmissionField("patientId", value)}
+                placeholder="Search patient by name, UHID, phone, father name, or city"
+                emptyLabel="No matching patient"
+                getOptionLabel={patientLabel}
+                getOptionMeta={(patient) => [patient.phone, patient.fatherName, patient.cityDistrict || patient.city].filter(Boolean).join(" | ")}
+                getSearchText={(patient) => [
+                  patient.uhid,
+                  patient.registrationNumber,
+                  patient.firstName,
+                  patient.lastName,
+                  patient.fatherName,
+                  patient.phone,
+                  patient.cityDistrict,
+                  patient.city
+                ].filter(Boolean).join(" ")}
+              />
+            </div>
+            <div className="field">
+              <label>Room</label>
+              <SearchableSelect
+                value={admissionForm.roomId}
+                options={roomOptions}
+                onChange={(value) => updateAdmissionField("roomId", value)}
+                placeholder="Search room or ward"
+                emptyLabel="No matching room"
+                getOptionValue={(room) => room.roomId}
+                getOptionLabel={(room) => `${room.roomNumber} - ${room.ward}`}
+                getOptionMeta={(room) => room.roomType || ""}
+              />
+            </div>
+            <div className="field">
+              <label>Bed</label>
+              <SearchableSelect
+                value={admissionForm.bedId}
+                options={availableBeds}
+                onChange={(value) => updateAdmissionField("bedId", value)}
+                placeholder="Search bed"
+                emptyLabel={admissionForm.roomId ? "No matching bed" : "Select a room first"}
+                getOptionLabel={(bed) => `${bed.bedNumber} - ${bed.bedLabel}`}
+                getOptionMeta={(bed) => bed.status || ""}
+                disabled={!admissionForm.roomId}
+              />
+            </div>
+            <div className="field">
+              <label>Attending doctor</label>
+              <SearchableSelect
+                value={admissionForm.attendingDoctorId}
+                options={masters.doctors}
+                onChange={(value) => updateAdmissionField("attendingDoctorId", value)}
+                placeholder="Search doctor"
+                emptyLabel="No matching doctor"
+                getOptionLabel={(doctor) => doctor.fullName}
+                getOptionMeta={(doctor) => doctor.department || ""}
+              />
+            </div>
             <div className="field"><label>Source</label><select name="admissionSource" value={admissionForm.admissionSource} onChange={handleAdmissionFormChange}>{masters.admissionSources.map((source) => (<option key={source} value={source}>{source}</option>))}</select></div>
             <div className="field"><label>Admission date</label><input type="date" name="admissionDate" value={admissionForm.admissionDate} onChange={handleAdmissionFormChange} /></div>
             <div className="field"><label>Admission time</label><input type="time" name="admissionTime" value={admissionForm.admissionTime} onChange={handleAdmissionFormChange} /></div>
