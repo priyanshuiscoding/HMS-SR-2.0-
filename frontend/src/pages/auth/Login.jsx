@@ -8,8 +8,8 @@ import { loginRequest } from "../../services/api.js";
 export function LoginPage() {
   const { login } = useAuth();
   const [formState, setFormState] = useState({
-    email: "admin@sraiims.in",
-    password: "Admin@123"
+    email: "",
+    password: ""
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -54,7 +54,7 @@ export function LoginPage() {
               type="email"
               value={formState.email}
               onChange={handleChange}
-              placeholder="admin@sraiims.in"
+              placeholder="Enter your email"
             />
           </div>
 
