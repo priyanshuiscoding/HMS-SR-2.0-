@@ -28,6 +28,24 @@ This repository currently implements the first platform phase:
 3. Start Docker services for PostgreSQL and Redis.
 4. Run backend and frontend in development mode.
 
+## Environment Files
+
+- `.env.example` is the local development template.
+- `.env.production.server.example` is the production server template.
+- `.env` and `.env.production` are real machine-specific files and are intentionally ignored by Git.
+
+Backend commands now load env values in this order: explicit `ENV_FILE`, `backend/.env`, project `.env`, then project `.env.production`. This means a server that only has `.env.production` can run:
+
+```powershell
+npm --workspace backend run db:migrate
+```
+
+Production Docker reads `.env.production` for the backend. To rebuild the server containers:
+
+```powershell
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
 ## Demo Login
 
 - Email: `admin@sraiims.in`

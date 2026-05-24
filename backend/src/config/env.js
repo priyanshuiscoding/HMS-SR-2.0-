@@ -4,9 +4,17 @@ import dotenv from "dotenv";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const backendDir = path.resolve(__dirname, "../..");
+const projectRoot = path.resolve(__dirname, "../../..");
 
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
-dotenv.config({ override: false });
+[
+  process.env.ENV_FILE,
+  path.resolve(backendDir, ".env"),
+  path.resolve(projectRoot, ".env"),
+  path.resolve(projectRoot, ".env.production")
+]
+  .filter(Boolean)
+  .forEach((envFile) => dotenv.config({ path: envFile, override: false }));
 
 export const env = {
   nodeEnv: process.env.NODE_ENV || "development",

@@ -5,25 +5,8 @@ services:
       dockerfile: backend/Dockerfile
     container_name: hms_backend
     restart: unless-stopped
-    environment:
-      NODE_ENV: ${NODE_ENV}
-      PORT: ${PORT}
-      FRONTEND_URL: ${FRONTEND_URL}
-      PERSISTENCE_ENABLED: ${PERSISTENCE_ENABLED}
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      DB_SSL: ${DB_SSL}
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES}
-      JWT_REFRESH_EXPIRES: ${JWT_REFRESH_EXPIRES}
-      COOKIE_SECURE: ${COOKIE_SECURE}
-      TRUST_PROXY: ${TRUST_PROXY}
-      DEMO_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL}
-      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD}
+    env_file:
+      - .env.production
     ports:
       - "5000:5000"
 
@@ -32,7 +15,7 @@ services:
       context: .
       dockerfile: frontend/Dockerfile
       args:
-        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     container_name: hms_frontend
     restart: unless-stopped
     depends_on:
