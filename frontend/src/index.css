@@ -1606,6 +1606,65 @@ textarea {
   margin-top: 8px;
 }
 
+.hr-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding: 6px;
+  overflow-x: auto;
+  border: 1px solid rgba(16, 55, 92, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.hr-tabs button {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.hr-tabs button.active {
+  background: var(--color-blue);
+  color: #ffffff;
+}
+
+.hr-message {
+  margin-top: 14px;
+}
+
+.hr-wide-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+}
+
+.hr-attendance-actions,
+.hr-save-row {
+  margin: 0 0 16px;
+}
+
+.hr-save-row {
+  margin-top: 16px;
+}
+
+.hr-attendance-table input,
+.hr-attendance-table select {
+  width: 100%;
+  min-width: 92px;
+  padding: 9px 10px;
+  border: 1px solid rgba(16, 55, 92, 0.14);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.hr-report-table {
+  margin-top: 18px;
+}
+
 .room-bed-card {
   gap: 12px;
 }

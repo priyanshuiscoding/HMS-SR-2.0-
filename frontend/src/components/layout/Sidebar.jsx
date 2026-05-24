@@ -12,7 +12,8 @@ const primaryLinks = [
   { label: "Rooms", to: "/rooms" },
   { label: "Laboratory", to: "/laboratory" },
   { label: "Pharmacy", to: "/pharmacy" },
-  { label: "Inventory", to: "/inventory" }
+  { label: "Inventory", to: "/inventory" },
+  { label: "HR", to: "/hr" }
 ];
 
 const adminLinks = [

@@ -8,6 +8,7 @@ import { authRouter } from "../modules/auth/auth.routes.js";
 import { billingRouter } from "../modules/billing/billing.routes.js";
 import { calendarRouter } from "../modules/calendar/calendar.routes.js";
 import { inventoryRouter } from "../modules/inventory/inventory.routes.js";
+import { hrRouter } from "../modules/hr/hr.routes.js";
 import { ipdRouter } from "../modules/ipd/ipd.routes.js";
 import { laboratoryRouter } from "../modules/laboratory/laboratory.routes.js";
 import { opdRouter } from "../modules/opd/opd.routes.js";
@@ -33,6 +34,7 @@ apiRouter.use("/panchkarma", panchkarmaRouter);
 apiRouter.use("/pharmacy", pharmacyRouter);
 apiRouter.use("/reports", reportsRouter);
 apiRouter.use("/inventory", inventoryRouter);
+apiRouter.use("/hr", hrRouter);
 apiRouter.use("/ipd", ipdRouter);
 apiRouter.use("/rooms", roomsRouter);
 apiRouter.use("/users", usersRouter);
@@ -41,7 +43,7 @@ apiRouter.get("/system/overview", authorize(["admin", "doctor", "reception", "ph
   res.json({
     hospital: "Shanti-Ratnam Healing With Happiness",
     phase: "Phase 10",
-    modulesReady: ["auth", "rbac", "patients", "appointments", "calendar", "opd", "ipd", "lab", "billing", "panchkarma", "pharmacy", "inventory", "rooms", "reports"],
+    modulesReady: ["auth", "rbac", "patients", "appointments", "calendar", "opd", "ipd", "lab", "billing", "panchkarma", "pharmacy", "inventory", "hr", "rooms", "reports"],
     status: "active"
   });
 });

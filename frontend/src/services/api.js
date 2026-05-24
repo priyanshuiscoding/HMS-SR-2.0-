@@ -134,6 +134,23 @@ export const deleteCalendarEvent = (id) => del(`/calendar/events/${id}`);
 export const getUsers = () => get("/users");
 export const getUsersSummary = () => get("/users/summary");
 
+export const getHrOverview = (params = {}) => get("/hr/overview", params);
+export const getHrEmployees = (params = {}) => get("/hr/employees", params);
+export const saveHrEmployeeProfile = (payload) => post("/hr/employees/profile", payload);
+export const getHrAttendance = (params = {}) => get("/hr/attendance", params);
+export const saveHrAttendance = (payload) => post("/hr/attendance", payload);
+export const saveHrAttendanceBulk = (payload) => post("/hr/attendance/bulk", payload);
+export const getHrShifts = () => get("/hr/shifts");
+export const createHrShift = (payload) => post("/hr/shifts", payload);
+export const assignHrShift = (payload) => post("/hr/shifts/assign", payload);
+export const getHrLeaves = (params = {}) => get("/hr/leaves", params);
+export const createHrLeave = (payload) => post("/hr/leaves", payload);
+export const updateHrLeaveStatus = (id, payload) => put(`/hr/leaves/${id}/status`, payload);
+export const getHrPayroll = (params = {}) => get("/hr/payroll", params);
+export const saveHrPayroll = (payload) => post("/hr/payroll", payload);
+export const getHrDocuments = (params = {}) => get("/hr/documents", params);
+export const createHrDocument = (payload) => post("/hr/documents", payload);
+
 export const getOpdQueue = (params = {}) => get("/opd/queue", params);
 export const getOpdMasters = () => get("/opd/masters");
 export const createOpdVisit = (payload) => post("/opd/visits", payload);

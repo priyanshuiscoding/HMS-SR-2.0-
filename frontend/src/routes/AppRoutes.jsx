@@ -6,6 +6,7 @@ import { BillingPage } from "../pages/billing/BillingPage.jsx";
 import { CalendarPage } from "../pages/calendar/CalendarPage.jsx";
 import { DashboardPage } from "../pages/dashboard/Dashboard.jsx";
 import { InventoryPage } from "../pages/inventory/InventoryPage.jsx";
+import { HrPage } from "../pages/hr/HrPage.jsx";
 import { IpdPage } from "../pages/ipd/IpdPage.jsx";
 import { LaboratoryPage } from "../pages/laboratory/LaboratoryPage.jsx";
 import { OpdPage } from "../pages/opd/OpdPage.jsx";
@@ -38,6 +39,7 @@ export function AppRoutes() {
       <Route path="/laboratory" element={<ProtectedRoute allowedRoles={["admin", "doctor", "reception", "lab", "accounts"]}><LaboratoryPage /></ProtectedRoute>} />
       <Route path="/pharmacy" element={<ProtectedRoute allowedRoles={["admin", "pharmacy", "doctor", "accounts"]}><PharmacyPage /></ProtectedRoute>} />
       <Route path="/inventory" element={<ProtectedRoute allowedRoles={["admin", "accounts", "nursing", "hr", "housekeeping"]}><InventoryPage /></ProtectedRoute>} />
+      <Route path="/hr" element={<ProtectedRoute allowedRoles={["admin", "hr"]}><HrPage /></ProtectedRoute>} />
       <Route path="/users" element={<ProtectedRoute allowedRoles={["admin", "hr"]}><UsersPage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "doctor", "accounts", "lab", "therapist", "reception", "nursing", "pharmacy"]}><ReportsPage /></ProtectedRoute>} />
       <Route
