@@ -3,7 +3,7 @@ import { createError } from "../../utils/errors.js";
 import {
   findPatientById,
   findPatients,
-  getNextPatientSequence,
+  generateNextUhid,
   insertPatient,
   patientPhoneExists,
   updatePatientRecord
@@ -51,17 +51,8 @@ function nextRegistrationNumber() {
   return `REG-${new Date().getFullYear()}-${String(db.patients.length + 1).padStart(5, "0")}`;
 }
 
-function createPatientNumber(number) {
-  return String(number).padStart(4, "0");
-}
-
-function currentYear() {
-  return new Date().getFullYear();
-}
-
-async function nextDatabaseUhid() {
-  const nextNumber = await getNextPatientSequence();
-  return `SRAIIMS-${currentYear()}-${createPatientNumber(nextNumber)}`;
+async function nextDatabaseUhid(registrationDate) {
+  return generateNextUhid(registrationDate);
 }
 
 function syncPatientMirror(patient) {
@@ -340,7 +331,7 @@ export async function createPatient(payload, createdBy) {
 
   const patient = {
     id: createId(),
-    uhid: await nextDatabaseUhid(),
+    uhid: await nextDatabaseUhid(registrationDate),
     registrationNumber: nextRegistrationNumber(),
     opdIpdNumber: payload.opdIpdNumber?.trim() || "",
     registrationDate,

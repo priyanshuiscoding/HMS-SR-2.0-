@@ -12,8 +12,12 @@ export function toCamelPatient(row) {
     id: row.id,
     uhid: row.uhid,
     registrationNumber: row.registration_number || "",
+    regNo: row.registration_number || "",
+    reg_no: row.registration_number || "",
+    ppin: row.registration_number || "",
     opdIpdNumber: row.opd_ipd_number || "",
     patientType: row.patient_type || "new",
+    type: row.patient_type || "new",
     title: row.title || "",
     firstName: row.first_name,
     lastName: row.last_name || "",
@@ -26,12 +30,14 @@ export function toCamelPatient(row) {
     maritalStatus: row.marital_status || "",
     occupation: row.occupation || "",
     phone: row.phone || "",
+    mobile: row.phone || "",
     altPhone: row.alt_phone || "",
     email: row.email || "",
     address: row.address || "",
     houseStreet: row.house_street || "",
     areaVillage: row.area_village || "",
     cityDistrict: row.city || "",
+    cityOrDistrict: row.city || "",
     city: row.city || "",
     state: row.state || "",
     pincode: row.pincode || "",
@@ -40,6 +46,7 @@ export function toCamelPatient(row) {
     emergencyContactName: row.emergency_contact_name || "",
     emergencyContactPhone: row.emergency_contact_phone || "",
     registrationDate: toIsoDate(row.registration_date),
+    registeredDate: toIsoDate(row.registration_date),
     registrationTime: toTime(row.registration_time),
     referredBy: row.referred_by || "",
     photoUrl: row.photo_url || "",
@@ -301,9 +308,22 @@ export async function updatePatientRecord(id, patient) {
   return toCamelPatient(result.rows[0]);
 }
 
-export async function getNextPatientSequence() {
+export async function generateNextUhid(registrationDate = new Date()) {
+  const identityDate = new Date(registrationDate);
+  const safeDate = Number.isNaN(identityDate.getTime()) ? new Date() : identityDate;
+  const yearSuffix = String(safeDate.getFullYear()).slice(-2);
+  const prefix = `SRH${yearSuffix}`;
+
   return withTransaction(async (client) => {
-    const result = await client.query("SELECT COUNT(*)::int + 1 AS next_number FROM patients");
-    return result.rows[0].next_number;
+    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`patients-uhid-${yearSuffix}`]);
+    const result = await client.query(
+      `
+      SELECT COALESCE(MAX(SUBSTRING(uhid FROM 6 FOR 6)::int), 0) + 1 AS next_number
+      FROM patients
+      WHERE uhid ~ $1
+      `,
+      [`^${prefix}[0-9]{6}$`]
+    );
+    return `${prefix}${String(result.rows[0].next_number).padStart(6, "0")}`;
   });
 }

@@ -217,7 +217,8 @@ export function PatientsPage() {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Reg No.</th>
+                    <th>UHID</th>
+                    <th>Reg No. / PPIN</th>
                     <th>Name</th>
                     <th>Type</th>
                     <th>Mobile</th>
@@ -229,7 +230,8 @@ export function PatientsPage() {
                 <tbody>
                   {patients.map((patient) => (
                     <tr key={patient.id}>
-                      <td>{patient.registrationNumber || patient.uhid}</td>
+                      <td>{patient.uhid}</td>
+                      <td>{patient.registrationNumber || patient.ppin || "Not assigned"}</td>
                       <td>{patient.title ? `${patient.title} ` : ""}{patient.firstName} {patient.lastName}</td>
                       <td>{patient.patientType || "new"}</td>
                       <td>{patient.phone}</td>

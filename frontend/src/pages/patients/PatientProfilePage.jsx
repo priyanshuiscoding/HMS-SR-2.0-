@@ -160,7 +160,7 @@ export function PatientProfilePage() {
               <div className="eyebrow">Patient Profile</div>
               <h2>{patient.title ? `${patient.title} ` : ""}{patient.firstName} {patient.lastName}</h2>
               <p>
-                Reg. No. {patient.registrationNumber || patient.uhid} - {patient.patientType || "new"} - Registered on {patient.registrationDate}
+                UHID {patient.uhid} - Reg. No. / PPIN {patient.registrationNumber || patient.ppin || "Not assigned"} - {patient.patientType || "new"} - Registered on {patient.registrationDate}
                 {patient.registrationTime ? ` at ${patient.registrationTime}` : ""}
               </p>
             </div>
@@ -174,6 +174,7 @@ export function PatientProfilePage() {
               <h3>Registration and demographics</h3>
               <div className="detail-list">
                 <div><strong>UHID:</strong> {patient.uhid}</div>
+                <div><strong>Reg No. / PPIN:</strong> {patient.registrationNumber || patient.ppin || "Not assigned"}</div>
                 <div><strong>OPD / IPD No.:</strong> {patient.opdIpdNumber || "Not assigned"}</div>
                 <div><strong>Father's name:</strong> {patient.fatherName || "Not recorded"}</div>
                 <div><strong>Gender:</strong> {patient.gender}</div>

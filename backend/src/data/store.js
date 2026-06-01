@@ -5,11 +5,15 @@ import { consultationCharge, ipdWardCharges, panchkarmaTherapyRates } from "../c
 import { godownInventoryImport } from "./generated/godownInventory.generated.js";
 
 function createPatientNumber(number) {
-  return String(number).padStart(4, "0");
+  return String(number).padStart(6, "0");
 }
 
 function currentYear() {
   return new Date().getFullYear();
+}
+
+function currentYearSuffix() {
+  return String(currentYear()).slice(-2);
 }
 
 export function createId() {
@@ -51,7 +55,7 @@ export const db = {
   patients: [
     {
       id: meeraPatientId,
-      uhid: `SRAIIMS-${currentYear()}-${createPatientNumber(1)}`,
+      uhid: `SRH${currentYearSuffix()}${createPatientNumber(1)}`,
       firstName: "Meera",
       lastName: "Sharma",
       dateOfBirth: "1991-07-16",
@@ -72,7 +76,7 @@ export const db = {
     },
     {
       id: rajeshPatientId,
-      uhid: `SRAIIMS-${currentYear()}-${createPatientNumber(2)}`,
+      uhid: `SRH${currentYearSuffix()}${createPatientNumber(2)}`,
       firstName: "Rajesh",
       lastName: "Patel",
       dateOfBirth: "1985-02-21",
@@ -93,7 +97,7 @@ export const db = {
     },
     {
       id: sambhaviPatientId,
-      uhid: `SRAIIMS-${currentYear()}-${createPatientNumber(3)}`,
+      uhid: `SRH${currentYearSuffix()}${createPatientNumber(3)}`,
       registrationNumber: "5594",
       opdIpdNumber: "5594",
       patientType: "follow_up",
@@ -844,7 +848,7 @@ export function getDepartments() {
 }
 
 export function nextUhid() {
-  return `SRAIIMS-${currentYear()}-${createPatientNumber(db.patients.length + 1)}`;
+  return `SRH${currentYearSuffix()}${createPatientNumber(db.patients.length + 1)}`;
 }
 
 export function nextAppointmentNumber() {
