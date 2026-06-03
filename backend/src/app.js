@@ -21,7 +21,13 @@ function isAllowedLocalDevOrigin(origin) {
 
   try {
     const url = new URL(origin);
-    return ["localhost", "127.0.0.1"].includes(url.hostname) && ["5173", "5174", "5175"].includes(url.port);
+    const isLoopbackHost = ["localhost", "127.0.0.1"].includes(url.hostname);
+    const isPrivateLanHost =
+      /^192\.168\.\d{1,3}\.\d{1,3}$/.test(url.hostname) ||
+      /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(url.hostname) ||
+      /^172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}$/.test(url.hostname);
+
+    return (isLoopbackHost || isPrivateLanHost) && ["5173", "5174", "5175"].includes(url.port);
   } catch {
     return false;
   }
