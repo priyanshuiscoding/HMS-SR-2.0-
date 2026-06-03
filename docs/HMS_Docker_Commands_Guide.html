@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>HMS Docker Commands Guide</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm;
+    }
+
+    :root {
+      --ink: #172033;
+      --muted: #5f6b7a;
+      --line: #d8dde6;
+      --panel: #f6f8fb;
+      --accent: #0f766e;
+      --accent-2: #b45309;
+      --danger: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      line-height: 1.45;
+      background: white;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    h1 {
+      font-size: 28pt;
+      color: #0b3b75;
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      font-size: 16pt;
+      color: #0b3b75;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 6px;
+      margin-top: 24px;
+      margin-bottom: 10px;
+    }
+
+    h3 {
+      font-size: 12.5pt;
+      margin-top: 16px;
+      margin-bottom: 6px;
+    }
+
+    p {
+      margin: 6px 0 10px;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: 12pt;
+      margin-bottom: 18px;
+    }
+
+    .meta {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 12px 14px;
+      margin: 14px 0 20px;
+    }
+
+    .meta strong {
+      color: var(--ink);
+    }
+
+    .note {
+      border-left: 4px solid var(--accent);
+      background: #eefaf7;
+      padding: 9px 12px;
+      margin: 12px 0;
+    }
+
+    .warning {
+      border-left: 4px solid var(--danger);
+      background: #fff4f2;
+      padding: 9px 12px;
+      margin: 12px 0;
+    }
+
+    .command {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 10px 12px;
+      margin: 8px 0 12px;
+      page-break-inside: avoid;
+    }
+
+    .command .label {
+      color: var(--accent-2);
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    pre {
+      margin: 0;
+      padding: 9px 10px;
+      color: #f8fafc;
+      background: #182033;
+      border-radius: 4px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 9.5pt;
+      line-height: 1.35;
+    }
+
+    code {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 10pt;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 14px;
+      page-break-inside: avoid;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 7px 8px;
+      vertical-align: top;
+    }
+
+    th {
+      background: #eaf1fb;
+      color: #0b3b75;
+      text-align: left;
+    }
+
+    ul {
+      padding-left: 19px;
+      margin: 6px 0 12px;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 9.5pt;
+    }
+  </style>
+</head>
+<body>
+  <h1>HMS Docker Commands Guide</h1>
+  <p class="subtitle">Docker command reference for the SR-AIIMS Hospital Management System project.</p>
+
+  <div class="meta">
+    <p><strong>Project folder:</strong> <code>D:\PROJECTS\HMS_SR</code></p>
+    <p><strong>Main Compose file:</strong> <code>docker-compose.yml</code></p>
+    <p><strong>Production Compose file:</strong> <code>docker-compose.prod.yml</code></p>
+    <p><strong>Generated on:</strong> June 3, 2026</p>
+  </div>
+
+  <h2>1. What Docker Runs In This HMS</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Mode</th>
+        <th>Services</th>
+        <th>Ports</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Main Docker stack</td>
+        <td><code>postgres</code>, <code>redis</code>, <code>backend</code>, <code>frontend</code></td>
+        <td><code>5432</code>, <code>6379</code>, <code>5000</code>, <code>5173</code></td>
+        <td>Runs the database, cache, Express backend, and nginx-served React frontend together.</td>
+      </tr>
+      <tr>
+        <td>Production Docker</td>
+        <td><code>backend</code>, <code>frontend</code></td>
+        <td><code>5000</code>, <code>5173</code></td>
+        <td>Builds the Express backend container and nginx frontend container. Frontend proxies <code>/api/v1/</code> to backend.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    Run all commands from the project root: <code>D:\PROJECTS\HMS_SR</code>.
+  </div>
+
+  <h2>2. Daily HMS Docker Commands</h2>
+
+  <div class="command">
+    <div class="label">Start the full HMS Docker stack</div>
+    <pre>docker compose up -d</pre>
+    <p>Starts PostgreSQL, Redis, backend, and frontend from <code>docker-compose.yml</code>. Use this when images already exist and no code rebuild is needed.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Rebuild and start the full HMS Docker stack</div>
+    <pre>docker compose up -d --build</pre>
+    <p>Builds the backend and frontend images, then starts all four services. Use this after backend/frontend code changes, Dockerfile changes, package changes, or Compose changes.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Check running containers</div>
+    <pre>docker compose ps</pre>
+    <p>Shows whether <code>postgres</code>, <code>redis</code>, <code>backend</code>, and <code>frontend</code> are running, along with their container names and published ports.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">View logs for all development services</div>
+    <pre>docker compose logs</pre>
+    <p>Shows recent logs for all HMS containers. Useful when checking startup, backend errors, frontend serving, or database/cache connections.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Follow live logs</div>
+    <pre>docker compose logs -f</pre>
+    <p>Streams logs continuously. Press <code>Ctrl+C</code> to stop watching logs; this does not stop the containers.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">View only PostgreSQL logs</div>
+    <pre>docker compose logs -f postgres</pre>
+    <p>Use this when checking database startup, connection failures, migrations, or SQL errors.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">View only Redis logs</div>
+    <pre>docker compose logs -f redis</pre>
+    <p>Use this when checking cache availability or Redis startup issues.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">View only backend logs</div>
+    <pre>docker compose logs -f backend</pre>
+    <p>Use this for Express API errors, database connection issues, login problems, and migration-related problems.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">View only frontend logs</div>
+    <pre>docker compose logs -f frontend</pre>
+    <p>Use this for nginx startup or proxy errors. Normal <code>200</code> responses for <code>/login</code>, <code>/patients</code>, and <code>/assets/...</code> mean the React app is being served.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Stop development containers but keep data</div>
+    <pre>docker compose down</pre>
+    <p>Stops and removes the HMS containers and network. The named volumes <code>postgres_data</code> and <code>redis_data</code> remain, so database data is kept.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Remove old orphan containers, then rebuild</div>
+    <pre>docker compose down --remove-orphans
+docker compose up -d --build</pre>
+    <p>Use this after Compose service names changed or when old containers such as stale <code>hms_backend</code> or <code>hms_frontend</code> are running outside the current Compose definition.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Stop services without removing containers</div>
+    <pre>docker compose stop</pre>
+    <p>Stops containers while keeping them available for a quick restart.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Restart stopped development containers</div>
+    <pre>docker compose start</pre>
+    <p>Starts previously stopped containers without recreating them.</p>
+  </div>
+
+  <h2>3. Database And Cache Checks</h2>
+
+  <div class="command">
+    <div class="label">Open PostgreSQL shell inside Docker</div>
+    <pre>docker exec -it hms_postgres psql -U hms_user -d hms_db</pre>
+    <p>Opens the <code>psql</code> prompt inside the running database container. Use this to inspect tables, run simple SQL checks, or confirm migration results.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">List database tables</div>
+    <pre>docker exec -it hms_postgres psql -U hms_user -d hms_db -c "\dt"</pre>
+    <p>Shows tables in the HMS database without entering the interactive <code>psql</code> shell.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Check PostgreSQL readiness</div>
+    <pre>docker exec hms_postgres pg_isready -U hms_user -d hms_db</pre>
+    <p>Confirms whether PostgreSQL is ready to accept connections.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Check Redis response</div>
+    <pre>docker exec hms_redis redis-cli ping</pre>
+    <p>Returns <code>PONG</code> when Redis is running correctly.</p>
+  </div>
+
+  <h2>4. Backup And Restore Commands</h2>
+
+  <div class="command">
+    <div class="label">Create a PostgreSQL dump from the Docker container</div>
+    <pre>docker exec hms_postgres pg_dump -U hms_user -d hms_db &gt; backups\hms_db_backup.sql</pre>
+    <p>Exports the HMS database to a SQL file in the <code>backups</code> folder. Use this before major migrations, imports, or risky cleanup.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Restore a SQL backup into PostgreSQL</div>
+    <pre>Get-Content backups\hms_db_backup.sql | docker exec -i hms_postgres psql -U hms_user -d hms_db</pre>
+    <p>Restores a SQL dump into the running database container. Use the correct backup filename before running.</p>
+  </div>
+
+  <div class="note">
+    The project also includes npm backup helpers: <code>npm run db:backup</code> and <code>npm run db:restore</code>. Those are not Docker commands, but they are useful for normal HMS database operations.
+  </div>
+
+  <h2>5. Production Docker Commands</h2>
+
+  <div class="warning">
+    Production Docker uses <code>.env.production</code> for the backend. Confirm that file exists on the server before rebuilding containers.
+  </div>
+
+  <div class="command">
+    <div class="label">Build and start production containers</div>
+    <pre>docker compose -f docker-compose.prod.yml up -d --build</pre>
+    <p>Builds <code>hms_backend</code> from <code>backend/Dockerfile</code>, builds <code>hms_frontend</code> from <code>frontend/Dockerfile</code>, and starts both containers in the background.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Start production containers without rebuilding</div>
+    <pre>docker compose -f docker-compose.prod.yml up -d</pre>
+    <p>Starts containers using existing images. Use this when no code or Dockerfile changes were made.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Check production container status</div>
+    <pre>docker compose -f docker-compose.prod.yml ps</pre>
+    <p>Shows the backend and frontend production containers, including whether they are running and which ports are exposed.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">View production logs</div>
+    <pre>docker compose -f docker-compose.prod.yml logs -f</pre>
+    <p>Streams logs from both backend and frontend containers. Use this after deployment to catch startup errors.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">View backend production logs only</div>
+    <pre>docker compose -f docker-compose.prod.yml logs -f backend</pre>
+    <p>Use this for Express API errors, database connection issues, authentication failures, and migration-related problems.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">View frontend production logs only</div>
+    <pre>docker compose -f docker-compose.prod.yml logs -f frontend</pre>
+    <p>Use this for nginx startup or proxy errors. The frontend serves on host port <code>5173</code> and proxies <code>/api/v1/</code> to <code>backend:5000</code>.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Restart production containers</div>
+    <pre>docker compose -f docker-compose.prod.yml restart</pre>
+    <p>Restarts both production containers. Use after changing server-level settings or when containers are stuck but images do not need rebuilding.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Restart only the backend</div>
+    <pre>docker compose -f docker-compose.prod.yml restart backend</pre>
+    <p>Use after backend-only configuration changes or when the API is unhealthy.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Restart only the frontend</div>
+    <pre>docker compose -f docker-compose.prod.yml restart frontend</pre>
+    <p>Use when nginx or frontend serving needs a restart without touching the backend container.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Stop production containers but keep images</div>
+    <pre>docker compose -f docker-compose.prod.yml down</pre>
+    <p>Stops and removes production containers and their Compose network. Built images remain available for the next <code>up</code>.</p>
+  </div>
+
+  <h2>6. Build And Image Maintenance</h2>
+
+  <div class="command">
+    <div class="label">Rebuild only backend image</div>
+    <pre>docker compose -f docker-compose.prod.yml build backend</pre>
+    <p>Builds the backend image after backend code, backend package, or backend Dockerfile changes.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Rebuild only frontend image</div>
+    <pre>docker compose -f docker-compose.prod.yml build frontend</pre>
+    <p>Builds the frontend image after React code, nginx config, frontend package, or frontend Dockerfile changes.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Rebuild frontend with an API base URL</div>
+    <pre>$env:VITE_API_BASE_URL="https://your-domain.example/api/v1"
+docker compose -f docker-compose.prod.yml up -d --build frontend</pre>
+    <p>Sets the frontend build-time API base URL for the current PowerShell session, then rebuilds the frontend container. Replace the URL with the real HMS server URL when needed.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">List Docker images</div>
+    <pre>docker images</pre>
+    <p>Shows locally available images, including images built for the HMS backend and frontend.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Remove unused Docker images</div>
+    <pre>docker image prune</pre>
+    <p>Removes dangling images that are no longer used. Docker asks for confirmation before deleting.</p>
+  </div>
+
+  <h2>7. Volumes And Data Safety</h2>
+
+  <div class="command">
+    <div class="label">List Docker volumes</div>
+    <pre>docker volume ls</pre>
+    <p>Shows named volumes. For local development, watch for <code>hms_sr_postgres_data</code> and <code>hms_sr_redis_data</code>, or similarly named project volumes.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Inspect PostgreSQL data volume</div>
+    <pre>docker volume inspect hms_sr_postgres_data</pre>
+    <p>Shows metadata and mount details for the database volume. The exact volume name can vary depending on the Compose project name.</p>
+  </div>
+
+  <div class="warning">
+    <strong>Danger command:</strong> <code>docker compose down -v</code> stops containers and deletes named volumes. For this HMS project, that can delete local PostgreSQL and Redis data. Run a backup first.
+  </div>
+
+  <div class="command">
+    <div class="label">Reset local Docker data only when intentional</div>
+    <pre>docker compose down -v</pre>
+    <p>Use only when you want a fresh local database/cache and you are sure existing local data is not needed.</p>
+  </div>
+
+  <h2>8. Troubleshooting Commands</h2>
+
+  <div class="command">
+    <div class="label">Show all containers, including stopped ones</div>
+    <pre>docker ps -a</pre>
+    <p>Useful when a container exited immediately and no longer appears in normal status output.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Inspect a container</div>
+    <pre>docker inspect hms_backend</pre>
+    <p>Shows full container configuration, network details, environment, mounts, and health information.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Open a shell in the backend container</div>
+    <pre>docker exec -it hms_backend sh</pre>
+    <p>Use to inspect files or environment inside the backend container.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Open a shell in the frontend container</div>
+    <pre>docker exec -it hms_frontend sh</pre>
+    <p>Use to inspect nginx files or built frontend assets inside the frontend container.</p>
+  </div>
+
+  <div class="command">
+    <div class="label">Validate resolved production Compose config</div>
+    <pre>docker compose -f docker-compose.prod.yml config</pre>
+    <p>Prints the final Compose configuration after variables are resolved. Use this before deployment if environment variables or build args changed.</p>
+  </div>
+
+  <h2>9. Recommended HMS Workflows</h2>
+
+  <h3>Main Docker startup</h3>
+  <div class="command">
+    <div class="label">Rebuild after changes and verify services</div>
+    <pre>docker compose down --remove-orphans
+docker compose up -d --build
+docker compose config --services
+docker compose ps</pre>
+    <p>Removes stale orphan containers, rebuilds backend/frontend, verifies the Compose service list, and checks that containers are running.</p>
+  </div>
+
+  <h3>Production deployment</h3>
+  <div class="command">
+    <div class="label">Rebuild and monitor production containers</div>
+    <pre>docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml ps
+docker compose -f docker-compose.prod.yml logs -f</pre>
+    <p>Builds the backend/frontend containers, checks their status, and watches logs for errors after deployment.</p>
+  </div>
+
+  <h3>Before risky database work</h3>
+  <div class="command">
+    <div class="label">Backup first, then migrate/import</div>
+    <pre>docker exec hms_postgres pg_dump -U hms_user -d hms_db &gt; backups\hms_db_backup_before_change.sql
+npm run db:migrate</pre>
+    <p>Create a backup before migrations, old patient imports, or other database-changing tasks.</p>
+  </div>
+
+  <p class="small">Prepared for the HMS project in <code>D:\PROJECTS\HMS_SR</code>. Keep real passwords and production environment values out of shared documents.</p>
+</body>
+</html>
