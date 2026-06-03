@@ -102,23 +102,60 @@ function rowParams(patient) {
 
 export async function findPatients(queryParams = {}) {
   const search = String(queryParams.search || "").trim().toLowerCase();
+  const searchDigits = search.replace(/\D/g, "");
   const city = String(queryParams.city || "").trim().toLowerCase();
   const conditions = ["deleted_at IS NULL"];
   const params = [];
+  let orderBy = "registration_date DESC NULLS LAST, registration_time DESC NULLS LAST, created_at DESC";
 
   if (search) {
     params.push(`%${search}%`);
+    const searchLikeParam = params.length;
     conditions.push(`
       (
-        LOWER(uhid) LIKE $${params.length}
-        OR LOWER(COALESCE(registration_number, '')) LIKE $${params.length}
-        OR LOWER(COALESCE(opd_ipd_number, '')) LIKE $${params.length}
-        OR LOWER(full_name) LIKE $${params.length}
-        OR LOWER(COALESCE(father_name, '')) LIKE $${params.length}
-        OR LOWER(phone) LIKE $${params.length}
-        OR LOWER(COALESCE(metadata->>'idNumber', '')) LIKE $${params.length}
+        LOWER(uhid) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(registration_number, '')) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(opd_ipd_number, '')) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(metadata->>'legacyUhid', '')) LIKE $${searchLikeParam}
+        OR LOWER(full_name) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(father_name, '')) LIKE $${searchLikeParam}
+        OR LOWER(phone) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(alt_phone, '')) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(metadata->>'idNumber', '')) LIKE $${searchLikeParam}
       )
     `);
+
+    params.push(search);
+    const exactSearchParam = params.length;
+    params.push(searchDigits ? searchDigits.padStart(6, "0") : "");
+    const paddedDigitsParam = params.length;
+
+    orderBy = `
+      CASE
+        WHEN LOWER(COALESCE(registration_number, '')) = $${exactSearchParam}
+          OR LOWER(uhid) = $${exactSearchParam}
+          OR LOWER(COALESCE(opd_ipd_number, '')) = $${exactSearchParam}
+          OR LOWER(COALESCE(metadata->>'legacyUhid', '')) = $${exactSearchParam}
+          OR ($${paddedDigitsParam} <> '' AND RIGHT(uhid, 6) = $${paddedDigitsParam})
+        THEN 0
+        WHEN LOWER(COALESCE(registration_number, '')) LIKE $${searchLikeParam}
+          OR LOWER(uhid) LIKE $${searchLikeParam}
+          OR LOWER(COALESCE(opd_ipd_number, '')) LIKE $${searchLikeParam}
+          OR LOWER(COALESCE(metadata->>'legacyUhid', '')) LIKE $${searchLikeParam}
+        THEN 1
+        WHEN LOWER(full_name) LIKE $${searchLikeParam}
+          OR LOWER(COALESCE(father_name, '')) LIKE $${searchLikeParam}
+        THEN 2
+        WHEN LOWER(phone) LIKE $${searchLikeParam}
+          OR LOWER(COALESCE(alt_phone, '')) LIKE $${searchLikeParam}
+          OR LOWER(COALESCE(metadata->>'idNumber', '')) LIKE $${searchLikeParam}
+        THEN 3
+        ELSE 4
+      END,
+      registration_date DESC NULLS LAST,
+      registration_time DESC NULLS LAST,
+      created_at DESC
+    `;
   }
 
   if (city) {
@@ -131,7 +168,7 @@ export async function findPatients(queryParams = {}) {
     SELECT *
     FROM patients
     WHERE ${conditions.join(" AND ")}
-    ORDER BY registration_date DESC NULLS LAST, registration_time DESC NULLS LAST, created_at DESC
+    ORDER BY ${orderBy}
     `,
     params
   );
