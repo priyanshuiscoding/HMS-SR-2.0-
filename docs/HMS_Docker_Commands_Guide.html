@@ -199,6 +199,10 @@
     Run all commands from the project root: <code>D:\PROJECTS\HMS_SR</code>.
   </div>
 
+  <div class="warning">
+    The main <code>docker-compose.yml</code> is configured for local/LAN Docker use over HTTP. It runs the backend with <code>NODE_ENV=development</code>, <code>COOKIE_SECURE=false</code>, and local placeholder JWT secrets so the production readiness gate does not stop the container. For real HTTPS production, use strong unique secrets, <code>COOKIE_SECURE=true</code>, <code>TRUST_PROXY=true</code>, and the production environment file.
+  </div>
+
   <h2>2. Daily HMS Docker Commands</h2>
 
   <div class="command">
@@ -328,6 +332,10 @@ docker compose up -d --build</pre>
 
   <div class="warning">
     Production Docker uses <code>.env.production</code> for the backend. Confirm that file exists on the server before rebuilding containers.
+  </div>
+
+  <div class="warning">
+    Do not reuse the local Docker JWT secrets from <code>docker-compose.yml</code> for a real hospital production deployment. Production secrets must be private, unique, and at least 48 characters long.
   </div>
 
   <div class="command">

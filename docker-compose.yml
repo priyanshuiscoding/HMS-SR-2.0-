@@ -28,9 +28,15 @@ services:
     container_name: hms_backend
     restart: unless-stopped
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 5000
       FRONTEND_URL: http://localhost:5173
+      JWT_ACCESS_SECRET: docker_local_access_secret_change_before_real_production_1234567890
+      JWT_REFRESH_SECRET: docker_local_refresh_secret_change_before_real_production_1234567890
+      JWT_ACCESS_EXPIRES: 8h
+      JWT_REFRESH_EXPIRES: 30d
+      COOKIE_SECURE: "false"
+      TRUST_PROXY: "false"
       PERSISTENCE_ENABLED: "true"
       DB_HOST: postgres
       DB_PORT: 5432
