@@ -1,5 +1,6 @@
 import { createId, db, getRoomMasters as getStaticRoomMasters } from "../../data/store.js";
 import { createError } from "../../utils/errors.js";
+import { workflowMetadata } from "../../utils/workflow.js";
 import { getPatientById } from "../patients/patients.service.js";
 import {
   assignBedRecord,
@@ -9,7 +10,8 @@ import {
   findRoomRecord,
   listBedRecords,
   listRoomRecords,
-  roomNumberExists
+  roomNumberExists,
+  updateBedStatusRecord
 } from "./rooms.repository.js";
 
 const BLOCKED_BED_STATUSES = ["cleaning", "maintenance"];
@@ -221,6 +223,34 @@ export async function dischargeBed(roomId, bedId, payload) {
   }
 
   syncBedMirror(result);
+  return getRoomDetails(roomId);
+}
+
+export async function updateBedWorkflowStatus(roomId, bedId, payload = {}, user = {}) {
+  await roomOrThrow(roomId);
+  const bed = await bedOrThrow(bedId);
+
+  if (bed.roomId !== roomId) {
+    throw createError("Bed not found.", 404);
+  }
+
+  const status = String(payload.status || "").trim().toLowerCase();
+  if (!["available", "reserved", "cleaning", "maintenance"].includes(status)) {
+    throw createError("Invalid bed workflow status.");
+  }
+
+  if (bed.status === "occupied") {
+    throw createError("Occupied beds must be discharged or transferred before changing status.");
+  }
+
+  const updated = await updateBedStatusRecord(roomId, bedId, {
+    status,
+    note: payload.note || payload.reason || "",
+    metadata: workflowMetadata(payload, user, `room:bed:${status}`)
+  });
+
+  if (!updated) throw createError("Bed not found.", 404);
+  syncBedMirror(updated);
   return getRoomDetails(roomId);
 }
 

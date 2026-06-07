@@ -3,6 +3,7 @@ import { Router } from "express";
 import { authorize } from "../../middleware/rbac.js";
 import {
   assignBedHandler,
+  bedWorkflowStatusHandler,
   createRoomHandler,
   dischargeBedHandler,
   roomAvailabilityHandler,
@@ -20,5 +21,6 @@ roomsRouter.get("/:id", authorize(["admin", "doctor", "reception", "accounts", "
 roomsRouter.post("/", authorize(["admin", "accounts"]), createRoomHandler);
 roomsRouter.post("/:roomId/beds/:bedId/assign", authorize(["admin", "doctor", "reception", "nursing"]), assignBedHandler);
 roomsRouter.post("/:roomId/beds/:bedId/discharge", authorize(["admin", "doctor", "reception", "nursing"]), dischargeBedHandler);
+roomsRouter.put("/:roomId/beds/:bedId/status", authorize(["admin", "reception", "nursing", "housekeeping"]), bedWorkflowStatusHandler);
 
 export { roomsRouter };

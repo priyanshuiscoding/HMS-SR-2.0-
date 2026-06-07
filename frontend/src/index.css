@@ -1370,6 +1370,72 @@ textarea {
   background: rgba(248, 252, 255, 0.82);
 }
 
+.appointment-receipt-print-sheet {
+  display: none;
+}
+
+.receipt-hospital-name,
+.receipt-hospital-subtitle,
+.receipt-token {
+  text-align: center;
+}
+
+.receipt-hospital-name {
+  color: var(--color-navy);
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.receipt-hospital-subtitle {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-weight: 700;
+}
+
+.receipt-token {
+  margin: 18px auto;
+  padding: 14px;
+  border: 2px solid #202020;
+  color: #202020;
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.receipt-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.receipt-grid div {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(32, 32, 32, 0.2);
+}
+
+.receipt-grid strong {
+  color: #202020;
+}
+
+.receipt-grid span {
+  color: #202020;
+  overflow-wrap: anywhere;
+}
+
+.receipt-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  margin-top: 34px;
+  padding-top: 20px;
+  border-top: 1px dashed rgba(32, 32, 32, 0.45);
+  color: #202020;
+  font-weight: 700;
+}
+
 @media print {
   .sidebar,
   .navbar,
@@ -1409,6 +1475,32 @@ textarea {
 
   body {
     background: #ffffff;
+  }
+
+  body.print-appointment-receipt .main-panel > :not(.appointment-receipt-print-sheet) {
+    display: none !important;
+  }
+
+  body.print-appointment-receipt .dashboard-shell,
+  body.print-appointment-receipt .main-panel {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body.print-appointment-receipt .appointment-receipt-print-sheet {
+    display: block !important;
+    width: 88mm;
+    max-width: 100%;
+    margin: 0 auto !important;
+    padding: 10mm 8mm !important;
+    border: 1px solid #202020;
+    border-radius: 0;
+    background: #ffffff !important;
+    color: #202020 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
   }
 }
 

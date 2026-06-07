@@ -139,6 +139,9 @@ function toCamelQueueItem(row) {
     bookedBy: row.booked_by || "",
     source: row.source || "Reception",
     smsSent: Boolean(row.sms_sent),
+    consultationPayment: row.metadata?.consultationPayment || null,
+    queueStatus: row.metadata?.queueStatus || "",
+    workflow: row.metadata?.workflow || null,
     doctorName: row.doctor_name || "Unassigned",
     visitId: row.visit_id || null,
     visitStatus: row.visit_status || null
@@ -181,6 +184,7 @@ export async function listOpdQueue(date, doctorId = "") {
       ${doctorFilter}
       AND a.deleted_at IS NULL
       AND a.status NOT IN ('cancelled', 'no_show')
+      AND a.metadata->'consultationPayment'->>'status' = 'paid'
     ORDER BY a.token_number ASC, a.appointment_time ASC
     `,
     params

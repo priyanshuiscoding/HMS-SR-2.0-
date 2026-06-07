@@ -11,7 +11,8 @@ import {
   getPharmacyMasters,
   getPharmacyPrescriptions,
   getPharmacyStock,
-  receiveInventoryStock
+  receiveInventoryStock,
+  updatePrescriptionPharmacyWorkflow
 } from "../../services/api.js";
 
 const initialReceiveForm = {
@@ -101,6 +102,28 @@ export function PharmacyPage() {
     }
   };
 
+  const handlePrescriptionWorkflow = async (action, label = action) => {
+    if (!selectedPrescription) {
+      return;
+    }
+
+    const reason = window.prompt(`Reason for ${label}:`);
+    if (!reason?.trim()) {
+      setError("Reason is required for pharmacy workflow actions.");
+      return;
+    }
+
+    try {
+      const response = await updatePrescriptionPharmacyWorkflow(selectedPrescription.id, { action, reason });
+      setSelectedPrescription(response.item);
+      await loadAll(statusFilter);
+      setMessage(response.message);
+      setError("");
+    } catch (apiError) {
+      setError(apiError.message || "Unable to update pharmacy workflow.");
+    }
+  };
+
   const handleReceiveChange = (event) => {
     setReceiveForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
@@ -175,6 +198,7 @@ export function PharmacyPage() {
             <select value={statusFilter} onChange={handleFilterChange}>
               <option value="pending">Pending dispensing</option>
               <option value="completed">Completed dispensing</option>
+              <option value="cancelled">Cancelled prescriptions</option>
               <option value="">All prescriptions</option>
             </select>
           </div>
@@ -200,8 +224,8 @@ export function PharmacyPage() {
                   <div className="timeline-copy">{item.prescriptionDate}</div>
                 </div>
                 <div className="queue-actions">
-                  <span className={`status-pill ${item.isDispensed ? "completed" : "waiting"}`}>
-                    {item.isDispensed ? "dispensed" : "pending"}
+                  <span className={`status-pill ${item.isDispensed ? "completed" : item.pharmacyStatus === "cancelled" ? "cancelled" : "waiting"}`}>
+                    {item.pharmacyStatus || (item.isDispensed ? "dispensed" : "pending")}
                   </span>
                 </div>
               </div>
@@ -228,6 +252,14 @@ export function PharmacyPage() {
               >
                 {selectedPrescription?.isDispensed ? "Already Dispensed" : "Dispense Prescription"}
               </Button>
+              <div className="action-row">
+                <Button variant="secondary" onClick={() => handlePrescriptionWorkflow("cancel", "cancel prescription")} disabled={!selectedPrescription || selectedPrescription.isDispensed}>
+                  Cancel
+                </Button>
+                <Button variant="secondary" onClick={() => handlePrescriptionWorkflow("reopen", "reopen prescription")} disabled={!selectedPrescription || selectedPrescription.isDispensed}>
+                  Reopen
+                </Button>
+              </div>
             </div>
 
             {error ? <div className="error-text">{error}</div> : null}
@@ -240,7 +272,7 @@ export function PharmacyPage() {
                   <div className="detail-list">
                     <div><strong>Prescription:</strong> {selectedPrescription.prescriptionNumber}</div>
                     <div><strong>Diagnosis:</strong> {selectedPrescription.diagnosis}</div>
-                    <div><strong>Dispense status:</strong> {selectedPrescription.isDispensed ? "Completed" : "Pending"}</div>
+                    <div><strong>Dispense status:</strong> {selectedPrescription.pharmacyStatus || (selectedPrescription.isDispensed ? "Completed" : "Pending")}</div>
                     <div><strong>Visit:</strong> {selectedPrescription.visit?.opdNumber || "Linked OPD visit"}</div>
                     {!["admin", "pharmacy"].includes(user?.role) ? (
                       <div><strong>Access:</strong> View only</div>

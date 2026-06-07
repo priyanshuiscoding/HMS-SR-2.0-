@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>SR-AIIMS HMS User Guide for Hospital Staff</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 16mm 14mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: #1d2733;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 12px;
+      line-height: 1.45;
+      background: #ffffff;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      margin: 0 0 8px;
+      color: #10243f;
+      line-height: 1.18;
+    }
+
+    h1 {
+      font-size: 30px;
+      margin-top: 10px;
+    }
+
+    h2 {
+      font-size: 20px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #d7e3f4;
+      margin-top: 24px;
+    }
+
+    h3 {
+      font-size: 15px;
+      margin-top: 15px;
+    }
+
+    h4 {
+      font-size: 13px;
+      margin-top: 12px;
+    }
+
+    p {
+      margin: 0 0 8px;
+    }
+
+    ul,
+    ol {
+      margin: 5px 0 11px 18px;
+      padding: 0;
+    }
+
+    li {
+      margin: 3px 0;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 9px 0 14px;
+      page-break-inside: avoid;
+    }
+
+    th,
+    td {
+      border: 1px solid #c9d5e6;
+      padding: 6px 7px;
+      vertical-align: top;
+      text-align: left;
+    }
+
+    th {
+      background: #eef5ff;
+      color: #10243f;
+      font-weight: 700;
+    }
+
+    .cover {
+      min-height: 720px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border: 2px solid #173f73;
+      padding: 38px;
+      page-break-after: always;
+    }
+
+    .brand {
+      color: #173f73;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      max-width: 560px;
+      font-size: 15px;
+      margin-top: 12px;
+      color: #465668;
+    }
+
+    .doc-meta {
+      margin-top: 32px;
+      padding: 14px 16px;
+      background: #f5f8fc;
+      border-left: 5px solid #f28c28;
+    }
+
+    .note {
+      padding: 9px 11px;
+      border-left: 4px solid #173f73;
+      background: #f7faff;
+      margin: 9px 0 13px;
+      page-break-inside: avoid;
+    }
+
+    .warning {
+      border-left-color: #b02a37;
+      background: #fff7f7;
+    }
+
+    .success {
+      border-left-color: #2f855a;
+      background: #f4fbf7;
+    }
+
+    .workflow {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 12px 0 14px;
+    }
+
+    .step {
+      min-height: 88px;
+      padding: 10px;
+      border: 1px solid #c9d5e6;
+      border-top: 4px solid #173f73;
+      background: #ffffff;
+      page-break-inside: avoid;
+    }
+
+    .step strong {
+      display: block;
+      color: #10243f;
+      margin-bottom: 5px;
+    }
+
+    .arrow-row {
+      text-align: center;
+      font-weight: 700;
+      color: #66788e;
+      margin: -3px 0 6px;
+    }
+
+    .role-card {
+      border: 1px solid #c9d5e6;
+      padding: 10px 12px;
+      margin: 10px 0;
+      page-break-inside: avoid;
+    }
+
+    .role-card h3 {
+      margin-top: 0;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .small {
+      font-size: 11px;
+      color: #596a7c;
+    }
+
+    .kbd {
+      display: inline-block;
+      padding: 1px 5px;
+      border: 1px solid #b8c4d2;
+      border-radius: 3px;
+      background: #f4f7fb;
+      font-family: Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <div class="brand">SR-AIIMS HMS</div>
+    <h1>Hospital Management System User Guide</h1>
+    <p class="subtitle">
+      A simple operating manual for reception, doctors, nursing, laboratory, pharmacy,
+      Panchkarma, accounts, HR, housekeeping, inventory, and administration teams.
+    </p>
+    <div class="doc-meta">
+      <p><strong>Audience:</strong> Non-technical hospital staff and department heads</p>
+      <p><strong>Purpose:</strong> Explain the daily flow, screen usage, role responsibilities, and safe working practices</p>
+      <p><strong>Prepared for:</strong> Shanti-Ratnam / SR-AIIMS hospital operations</p>
+      <p><strong>Version:</strong> Staff training edition - 2026-06-01</p>
+    </div>
+  </section>
+
+  <h2>1. Whole HMS Working Flow</h2>
+  <p>
+    The HMS connects patient registration, appointment booking, consultation, tests,
+    medicine, therapy, admission, billing, and reporting. Each department updates its
+    own part of the work so the next department can continue without repeating data entry.
+  </p>
+
+  <div class="workflow">
+    <div class="step"><strong>1. Login</strong>Staff logs in with their own username and password. The menu changes according to role.</div>
+    <div class="step"><strong>2. Patient Registry</strong>Reception searches existing patient or registers a new patient. UHID / registration number is generated by system.</div>
+    <div class="step"><strong>3. Appointment</strong>Reception books doctor, date, time slot, department, and complaint. Token/queue appears for today.</div>
+  </div>
+  <div class="arrow-row">Login -> Patient -> Appointment -> OPD Queue</div>
+  <div class="workflow">
+    <div class="step"><strong>4. Screening / Vitals</strong>Nursing or reception records BP, pulse, temperature, weight, height, SPO2, and RR.</div>
+    <div class="step"><strong>5. Doctor OPD</strong>Doctor opens queue, records assessment, diagnosis, prescription, lab order, therapy advice, and discharge summary.</div>
+    <div class="step"><strong>6. Lab / Pharmacy / Therapy</strong>Lab collects samples and enters results. Pharmacy dispenses medicines. Panchkarma schedules and completes therapies.</div>
+  </div>
+  <div class="arrow-row">Screening -> Doctor -> Lab / Pharmacy / Panchkarma</div>
+  <div class="workflow">
+    <div class="step"><strong>7. Billing</strong>Accounts, reception, or allowed staff create bills, collect payments, and print invoices.</div>
+    <div class="step"><strong>8. IPD / Rooms</strong>If admitted, patient is assigned room/bed, bedside notes and vitals are recorded, therapies are scheduled, then discharge is completed.</div>
+    <div class="step"><strong>9. Reports and Admin</strong>Management reviews OPD, IPD, revenue, pharmacy, lab, Panchkarma, inventory, and HR reports.</div>
+  </div>
+
+  <h3>Main Patient Journey</h3>
+  <table>
+    <tr>
+      <th>Stage</th>
+      <th>Department</th>
+      <th>What is done in HMS</th>
+      <th>Next output</th>
+    </tr>
+    <tr>
+      <td>Registration</td>
+      <td>Reception</td>
+      <td>Create patient record or find old patient by UHID, phone, name, father name, OPD/IPD number, or ID number.</td>
+      <td>Patient profile is ready.</td>
+    </tr>
+    <tr>
+      <td>Appointment</td>
+      <td>Reception</td>
+      <td>Select patient, doctor, department, date, time slot, visit type, source, and complaint.</td>
+      <td>Patient appears in today's queue.</td>
+    </tr>
+    <tr>
+      <td>Screening</td>
+      <td>Nursing / Reception</td>
+      <td>Open OPD queue, start/load consultation, record vitals.</td>
+      <td>Doctor sees vitals in the visit.</td>
+    </tr>
+    <tr>
+      <td>Consultation</td>
+      <td>Doctor</td>
+      <td>Enter Ayurveda assessment, diagnosis, medicines, lab tests, therapy plan, diet, lifestyle advice, and follow-up.</td>
+      <td>Prescription, lab order, therapy advice, and bill request.</td>
+    </tr>
+    <tr>
+      <td>Services</td>
+      <td>Lab / Pharmacy / Panchkarma</td>
+      <td>Complete ordered tests, dispense medicines, or complete therapy session.</td>
+      <td>Results, dispensing record, therapy completion, charges.</td>
+    </tr>
+    <tr>
+      <td>Payment</td>
+      <td>Accounts / Reception</td>
+      <td>Create invoice, add items if needed, collect payment, print invoice.</td>
+      <td>Paid or pending balance record.</td>
+    </tr>
+    <tr>
+      <td>Admission</td>
+      <td>Reception / Nursing / Doctor</td>
+      <td>Admit patient in IPD, assign bed, record progress notes and vitals, schedule therapy, discharge and bill stay.</td>
+      <td>Closed admission and discharge record.</td>
+    </tr>
+  </table>
+
+  <div class="note">
+    <strong>Important habit:</strong> Always search before creating a new patient. This avoids duplicate UHID and keeps the patient's history in one place.
+  </div>
+
+  <h2>2. Basic Screen Use for Everyone</h2>
+  <ol>
+    <li>Open the HMS web link given by admin.</li>
+    <li>Login with your assigned username and password.</li>
+    <li>Use the left side menu to open your department screen.</li>
+    <li>Use search boxes to find patient, bill, appointment, item, or order.</li>
+    <li>Fill required details carefully. Do not guess medical, billing, or identity information.</li>
+    <li>Click the main button such as <span class="kbd">Register Patient</span>, <span class="kbd">Book Appointment</span>, <span class="kbd">Save Results</span>, or <span class="kbd">Collect Payment</span>.</li>
+    <li>Read success or error message shown on screen. If an error appears, correct the details and try again.</li>
+    <li>Logout or lock the computer when leaving the desk.</li>
+  </ol>
+
+  <h3>Common Menu Items</h3>
+  <table>
+    <tr><th>Menu</th><th>Used for</th><th>Main users</th></tr>
+    <tr><td>Dashboard</td><td>Overall hospital summary and quick notes.</td><td>All allowed users</td></tr>
+    <tr><td>Patients</td><td>Patient registration, search, profile, documents, history.</td><td>Reception, doctors, nursing, pharmacy, lab, accounts, HR</td></tr>
+    <tr><td>Appointments</td><td>Doctor appointment booking, slots, queue, cancellation.</td><td>Reception, admin, doctors</td></tr>
+    <tr><td>Calendar</td><td>Hospital events, reminders, follow-ups, therapy and operational tasks.</td><td>Most operational roles</td></tr>
+    <tr><td>OPD</td><td>OPD queue, vitals, doctor consultation, prescription, lab order, OPD billing, discharge summary.</td><td>Reception, doctors, nursing</td></tr>
+    <tr><td>Billing</td><td>Manual bills, payments, invoices, receipt history.</td><td>Accounts, reception, admin, doctors</td></tr>
+    <tr><td>IPD</td><td>Admission, bedside notes, vitals, IPD therapies, discharge and stay bill.</td><td>Reception, doctors, nursing, accounts</td></tr>
+    <tr><td>Panchkarma</td><td>Therapy scheduling, execution, material use, therapy billing.</td><td>Therapists, doctors, reception, accounts</td></tr>
+    <tr><td>Rooms</td><td>Room/bed availability, bed assignment, discharge/cleaning status.</td><td>Reception, nursing, admin, accounts</td></tr>
+    <tr><td>Laboratory</td><td>Lab order board, sample collection, result entry, report print, lab invoice.</td><td>Lab, doctors, reception, accounts</td></tr>
+    <tr><td>Pharmacy</td><td>Prescription queue, dispensing, stock receiving, stock alerts, pharmacy invoice link.</td><td>Pharmacy, doctors, accounts</td></tr>
+    <tr><td>Inventory</td><td>Hospital store items, non-pharmacy stock movement and ledger.</td><td>Admin, accounts, nursing, HR, housekeeping</td></tr>
+    <tr><td>HR</td><td>Staff profile, attendance, leave, duty roster, payroll, documents.</td><td>HR and admin</td></tr>
+    <tr><td>Users</td><td>Staff directory and role mix.</td><td>Admin and HR</td></tr>
+    <tr><td>Reports</td><td>Operational, finance, pharmacy, lab, Panchkarma, OPD and IPD reports.</td><td>Admin and department leads</td></tr>
+  </table>
+
+  <h2 class="page-break">3. Role-Wise Training Guide</h2>
+
+  <div class="role-card">
+    <h3>Reception / Front Desk</h3>
+    <p><strong>Main responsibility:</strong> Patient entry, appointment booking, queue control, basic OPD/IPD coordination, and some billing support.</p>
+    <h4>Daily flow</h4>
+    <ol>
+      <li>Open <strong>Patients</strong> and search by UHID, registration number, OPD/IPD number, phone, ID number, father name, or patient name.</li>
+      <li>If patient is new, click <strong>Add Patient</strong> and enter patient type, name, father name, DOB, gender, phone, address, ID details, emergency contact, and referred by.</li>
+      <li>Open <strong>Appointments</strong>, select existing patient, doctor, department, date, time slot, type, source, and problem.</li>
+      <li>Watch <strong>Reception queue board</strong> for today's patients.</li>
+      <li>In <strong>OPD</strong>, start or load consultation when patient reaches OPD desk.</li>
+      <li>If allowed at your desk, generate OPD bill or guide patient to accounts.</li>
+      <li>For admitted patient, coordinate <strong>IPD</strong> admission and room/bed assignment.</li>
+    </ol>
+    <h4>Do and do not</h4>
+    <ul>
+      <li>Do search first before adding a patient.</li>
+      <li>Do enter correct mobile number because later search and communication depend on it.</li>
+      <li>Do not create duplicate patient records for follow-up visits.</li>
+      <li>Do not cancel appointments unless requested by patient, doctor, or authorized staff.</li>
+    </ul>
+  </div>
+
+  <div class="role-card">
+    <h3>Screening / Nursing Desk</h3>
+    <p><strong>Main responsibility:</strong> Record patient vitals before or during OPD/IPD care.</p>
+    <h4>OPD screening flow</h4>
+    <ol>
+      <li>Open <strong>OPD</strong> and choose the patient from the OPD queue.</li>
+      <li>Click start/load consultation if required.</li>
+      <li>Enter vitals: BP, pulse, temperature, weight, height, SPO2, and respiratory rate.</li>
+      <li>Click <strong>Save Vitals</strong>. The visit is forwarded for doctor consultation.</li>
+    </ol>
+    <h4>IPD nursing flow</h4>
+    <ol>
+      <li>Open <strong>IPD</strong> and select active admission.</li>
+      <li>Add progress notes when required.</li>
+      <li>Record bedside vitals: BP, pulse, temp, SPO2, RR, weight, and notes.</li>
+      <li>Check scheduled therapies and bed/room status.</li>
+    </ol>
+  </div>
+
+  <div class="role-card">
+    <h3>Doctors</h3>
+    <p><strong>Main responsibility:</strong> Clinical assessment, diagnosis, prescription, lab order, therapy advice, follow-up, and visit completion.</p>
+    <h4>OPD consultation flow</h4>
+    <ol>
+      <li>Open <strong>OPD</strong> and filter by doctor if needed.</li>
+      <li>Select patient from queue and load the visit.</li>
+      <li>Review patient details, complaint, and vitals.</li>
+      <li>Enter Ayurvedic assessment such as prakriti, nadi pariksha, agni, koshtha, vikriti, and observations.</li>
+      <li>Enter diagnosis, complaints, medicines, dose, frequency, route, duration, anupana, and instructions.</li>
+      <li>Add diet, lifestyle, yoga, Panchkarma, specialized therapy, investigation advice, and follow-up date.</li>
+      <li>Create lab order if tests are required.</li>
+      <li>Save discharge summary or print patient copy when needed.</li>
+      <li>Generate OPD bill if allowed, or ask accounts/reception to bill.</li>
+      <li>Click <strong>Complete Visit</strong> only after consultation is final.</li>
+    </ol>
+    <h4>Good practice</h4>
+    <ul>
+      <li>Save prescription before sending patient to pharmacy.</li>
+      <li>Create lab order before asking patient to go to laboratory.</li>
+      <li>Use clear medicine instructions so pharmacy and patient can understand.</li>
+    </ul>
+  </div>
+
+  <div class="role-card">
+    <h3>Laboratory</h3>
+    <p><strong>Main responsibility:</strong> Receive lab orders, collect samples, enter results, print reports, and create lab invoice if needed.</p>
+    <ol>
+      <li>Open <strong>Laboratory</strong>.</li>
+      <li>Select the lab order from <strong>Lab Register / Order board</strong>.</li>
+      <li>Check patient information, ordered tests, doctor, and priority.</li>
+      <li>Enter sample type, collection time, and collection note.</li>
+      <li>Click <strong>Collect Sample</strong>.</li>
+      <li>Enter processing summary and test results, including value, flag, and remarks.</li>
+      <li>Click <strong>Save Results</strong>.</li>
+      <li>Use <strong>Print Report</strong> to give the patient or doctor a printed copy.</li>
+      <li>Create lab invoice from the billing link if the lab order is not already billed.</li>
+    </ol>
+  </div>
+
+  <div class="role-card">
+    <h3>Pharmacy</h3>
+    <p><strong>Main responsibility:</strong> Dispense prescribed medicines, maintain stock, receive batches, and review stock alerts.</p>
+    <ol>
+      <li>Open <strong>Pharmacy</strong>.</li>
+      <li>Select prescription from <strong>Prescription Queue</strong>.</li>
+      <li>Review patient name, doctor, medicines, dose, duration, and instructions.</li>
+      <li>Check stock alerts before dispensing.</li>
+      <li>Dispense medicine lines and complete the prescription.</li>
+      <li>For new stock, use <strong>Receive Stock</strong> and enter medicine, supplier, batch number, expiry date, quantity, purchase price, selling price, and note.</li>
+      <li>Review <strong>Recent Dispensing</strong> for completion history.</li>
+    </ol>
+    <div class="note warning">
+      <strong>Pharmacy caution:</strong> Always verify medicine name, batch, expiry, and quantity before handing medicine to patient.
+    </div>
+  </div>
+
+  <div class="role-card">
+    <h3>Panchkarma / Therapist</h3>
+    <p><strong>Main responsibility:</strong> Schedule, start, complete, and bill therapy sessions with material usage tracking.</p>
+    <ol>
+      <li>Open <strong>Panchkarma</strong>.</li>
+      <li>For new session, select patient, therapy, therapist, recommended by, room, date, time, duration, recovery bed if needed, complaint, and preparation notes.</li>
+      <li>Click <strong>Schedule Session</strong>.</li>
+      <li>Use <strong>Daily Board</strong> to see the day's therapy queue.</li>
+      <li>Select session and click start when patient arrives.</li>
+      <li>Enter execution notes, outcome, follow-up advice, session charge, payment status, and materials used.</li>
+      <li>Click <strong>Complete Session</strong>.</li>
+    </ol>
+  </div>
+
+  <div class="role-card">
+    <h3>Accounts / Billing</h3>
+    <p><strong>Main responsibility:</strong> Create invoices, collect payments, print receipts, and monitor balance amounts.</p>
+    <ol>
+      <li>Open <strong>Billing</strong>.</li>
+      <li>To create manual invoice, choose patient and bill type.</li>
+      <li>Add discount, tax, notes, doctor details, patient address override if needed, and bill items.</li>
+      <li>For each item, enter description/product name, category, quantity, unit price, and pharmacy batch/expiry details if pharmacy bill.</li>
+      <li>Click <strong>Create Bill</strong>.</li>
+      <li>Select bill from <strong>Bill register</strong>.</li>
+      <li>For payment, enter amount, payment mode, reference number, and note.</li>
+      <li>Click <strong>Collect Payment</strong>.</li>
+      <li>Click <strong>Print Invoice</strong> when patient needs copy.</li>
+    </ol>
+    <div class="note warning">
+      <strong>Billing caution:</strong> Discounts, refunds, and corrections must follow hospital approval policy. Add clear reason notes.
+    </div>
+  </div>
+
+  <div class="role-card">
+    <h3>IPD / Ward Team</h3>
+    <p><strong>Main responsibility:</strong> Manage admission, bed, daily notes, vitals, therapy, discharge, and IPD billing.</p>
+    <ol>
+      <li>Open <strong>IPD</strong> and use <strong>Admit Patient</strong>.</li>
+      <li>Select patient, room, bed, attending doctor, admission source, date, time, expected discharge, reason, diagnosis, and initial note.</li>
+      <li>Click <strong>Admit Patient</strong>.</li>
+      <li>Select the admission from <strong>IPD register</strong>.</li>
+      <li>Add clinical notes and bedside vitals regularly.</li>
+      <li>Schedule IPD therapy if prescribed.</li>
+      <li>At discharge, enter date, time, status, condition, stay days override if needed, bed status after discharge, extra charge, discharge summary, advice, and bed note.</li>
+      <li>Tick <strong>Create IPD bill on discharge</strong> when billing should be generated.</li>
+      <li>Click <strong>Discharge Patient</strong>.</li>
+    </ol>
+  </div>
+
+  <div class="role-card">
+    <h3>Rooms / Housekeeping</h3>
+    <p><strong>Main responsibility:</strong> Keep bed status clear so reception and IPD staff know what is available.</p>
+    <ol>
+      <li>Open <strong>Rooms</strong>.</li>
+      <li>Check room register for available, occupied, cleaning, and maintenance beds.</li>
+      <li>Select a room, then select bed.</li>
+      <li>For available bed, assign patient and enter admission type, expected discharge, and note.</li>
+      <li>For occupied bed, discharge bed and set next status: cleaning, available, or maintenance.</li>
+      <li>Use cleaning status until room is ready for next patient.</li>
+    </ol>
+  </div>
+
+  <div class="role-card">
+    <h3>Inventory / Store</h3>
+    <p><strong>Main responsibility:</strong> Track non-pharmacy hospital items such as linen, housekeeping material, equipment, and consumables.</p>
+    <ol>
+      <li>Open <strong>Inventory</strong>.</li>
+      <li>Create item with name, category, department, unit, opening quantity, reorder level, location, supplier, purchase price, and notes.</li>
+      <li>Use <strong>Stock Movement</strong> for receipt, issue, or adjustment.</li>
+      <li>Enter item, type, quantity, department, reference number, and note.</li>
+      <li>Click <strong>Update Stock</strong>.</li>
+      <li>Review hospital store and movement history regularly.</li>
+    </ol>
+  </div>
+
+  <div class="role-card">
+    <h3>HR</h3>
+    <p><strong>Main responsibility:</strong> Maintain staff records, attendance, leave, duty roster, payroll, and documents.</p>
+    <ol>
+      <li>Open <strong>HR</strong>.</li>
+      <li>Create or update employee profile with joining date, employment type/status, emergency contact, salary, and notes.</li>
+      <li>Review daily attendance sheet and department attendance.</li>
+      <li>Add leave entry with employee, leave type, start date, end date, and reason.</li>
+      <li>Create shifts with name, start, end, break minutes, and grace minutes.</li>
+      <li>Assign employee to shift with effective date and week off.</li>
+      <li>Add payroll with employee, month, basic salary, allowances, deductions, and status.</li>
+      <li>Add employee document metadata such as type, name, number, issue date, expiry date, and file URL.</li>
+    </ol>
+  </div>
+
+  <div class="role-card">
+    <h3>Admin / Management</h3>
+    <p><strong>Main responsibility:</strong> Supervise system usage, users, roles, reports, approvals, and operational quality.</p>
+    <ol>
+      <li>Use <strong>Users</strong> to review imported staff directory and department/role mix.</li>
+      <li>Use <strong>Reports</strong> for daily OPD, IPD census, revenue, pharmacy sales, lab workload, and Panchkarma performance.</li>
+      <li>Check duplicate patient problems, unpaid bills, stock alerts, pending lab results, and incomplete visits.</li>
+      <li>Approve high-value discounts, refunds, billing corrections, and stock adjustments as per hospital policy.</li>
+      <li>Make sure staff use their own login. Do not allow shared passwords.</li>
+    </ol>
+  </div>
+
+  <h2 class="page-break">4. Module-Wise Quick Instructions</h2>
+
+  <h3>Patients</h3>
+  <table>
+    <tr><th>Task</th><th>Steps</th><th>Responsible roles</th></tr>
+    <tr><td>Search patient</td><td>Patients -> type UHID, reg no., OPD/IPD no., phone, ID number, father name, or name -> Search -> View.</td><td>Most roles with patient access</td></tr>
+    <tr><td>Register patient</td><td>Patients -> Add Patient -> fill demographic/contact/identity/emergency details -> Register Patient.</td><td>Reception, admin</td></tr>
+    <tr><td>Upload old records</td><td>Patient profile -> Documents -> enter title/type/notes -> choose PDF -> Upload.</td><td>Admin, reception, doctor, nursing</td></tr>
+    <tr><td>Review history</td><td>Patient profile -> Timeline, Appointments, Prescriptions, IPD, Panchkarma, lab, billing, pharmacy.</td><td>All patient care departments</td></tr>
+  </table>
+
+  <h3>Appointments</h3>
+  <table>
+    <tr><th>Task</th><th>Steps</th></tr>
+    <tr><td>Book appointment</td><td>Appointments -> select patient or enter walk-in details -> choose doctor/department/date/time/type/source/problem -> Book Appointment.</td></tr>
+    <tr><td>Cancel appointment</td><td>Appointment list -> find appointment -> Cancel. Use only when authorized.</td></tr>
+    <tr><td>Check queue</td><td>Appointments -> Today queue board shows token, patient, department, time, and status.</td></tr>
+  </table>
+
+  <h3>OPD</h3>
+  <table>
+    <tr><th>Task</th><th>Steps</th></tr>
+    <tr><td>Start visit</td><td>OPD -> select patient in queue -> Start/Load consultation.</td></tr>
+    <tr><td>Record vitals</td><td>Enter BP, pulse, temp, weight, height, SPO2, RR -> Save Vitals.</td></tr>
+    <tr><td>Doctor assessment</td><td>Enter Ayurvedic assessment, diagnosis, medicines, diet, lifestyle, therapy, investigations, follow-up -> Save.</td></tr>
+    <tr><td>Lab order</td><td>Select priority and tests -> Create Lab Order.</td></tr>
+    <tr><td>OPD bill</td><td>Choose consultation/lab charge options and payment status -> Generate Bill.</td></tr>
+    <tr><td>Close visit</td><td>After all clinical work is done -> Complete Visit.</td></tr>
+  </table>
+
+  <h3>Laboratory</h3>
+  <table>
+    <tr><th>Task</th><th>Steps</th></tr>
+    <tr><td>Collect sample</td><td>Laboratory -> select order -> enter sample type, collection time, note -> Collect Sample.</td></tr>
+    <tr><td>Enter results</td><td>Enter processing summary, result values, flags, remarks -> Save Results.</td></tr>
+    <tr><td>Print report</td><td>Select completed order -> Print Report.</td></tr>
+    <tr><td>Create lab invoice</td><td>Billing Link -> choose payment status -> Create Bill if no bill exists.</td></tr>
+  </table>
+
+  <h3>Pharmacy</h3>
+  <table>
+    <tr><th>Task</th><th>Steps</th></tr>
+    <tr><td>Dispense prescription</td><td>Pharmacy -> select prescription -> review medicines -> dispense/complete.</td></tr>
+    <tr><td>Receive stock</td><td>Receive Stock -> enter medicine, supplier, batch, expiry, quantity, purchase/selling price -> Receive Pharmacy Stock.</td></tr>
+    <tr><td>Monitor stock</td><td>Review Stock Alerts and recent dispensing history.</td></tr>
+  </table>
+
+  <h3>Billing</h3>
+  <table>
+    <tr><th>Task</th><th>Steps</th></tr>
+    <tr><td>Create bill</td><td>Billing -> choose patient and bill type -> add items, discount, tax, notes -> Create Bill.</td></tr>
+    <tr><td>Collect payment</td><td>Select bill -> amount, payment mode, reference number, note -> Collect Payment.</td></tr>
+    <tr><td>Print invoice</td><td>Select bill -> Print Invoice.</td></tr>
+  </table>
+
+  <h3>IPD and Rooms</h3>
+  <table>
+    <tr><th>Task</th><th>Steps</th></tr>
+    <tr><td>Admit patient</td><td>IPD -> select patient, room, bed, doctor, source, dates, reason, diagnosis -> Admit Patient.</td></tr>
+    <tr><td>Record ward work</td><td>Select admission -> add notes, vitals, and therapies.</td></tr>
+    <tr><td>Discharge patient</td><td>Fill discharge details, advice, bed note, bill option -> Discharge Patient.</td></tr>
+    <tr><td>Manage bed</td><td>Rooms -> choose bed -> Assign or Discharge -> set cleaning/available/maintenance.</td></tr>
+  </table>
+
+  <h2 class="page-break">5. Permissions Summary</h2>
+  <p>
+    Some buttons are hidden or disabled depending on the logged-in role. If a staff member
+    cannot see a screen or button, they should contact admin or HR instead of using another
+    person's login.
+  </p>
+  <table>
+    <tr>
+      <th>Area</th>
+      <th>Main allowed roles</th>
+      <th>Notes</th>
+    </tr>
+    <tr><td>Patient search/profile</td><td>Admin, reception, doctor, pharmacy, lab, therapist, nursing, housekeeping, accounts, HR</td><td>Broad access for patient service continuity.</td></tr>
+    <tr><td>Patient registration</td><td>Admin, reception</td><td>Only front desk/admin should create patient records.</td></tr>
+    <tr><td>Appointments</td><td>Admin, reception, doctor</td><td>Booking/cancellation mainly reception/admin.</td></tr>
+    <tr><td>OPD</td><td>Admin, reception, doctor, nursing</td><td>Doctor-only clinical documentation for assessment/prescription.</td></tr>
+    <tr><td>Billing</td><td>Admin, accounts, reception, doctor</td><td>Payment collection mainly accounts/reception/admin.</td></tr>
+    <tr><td>IPD</td><td>Admin, accounts, reception, doctor, nursing</td><td>Ward and admission coordination.</td></tr>
+    <tr><td>Panchkarma</td><td>Admin, accounts, reception, doctor, therapist</td><td>Execution mainly therapist/doctor/admin.</td></tr>
+    <tr><td>Rooms</td><td>Admin, accounts, reception, doctor, nursing</td><td>Bed status must be updated immediately.</td></tr>
+    <tr><td>Laboratory</td><td>Admin, doctor, reception, lab, accounts</td><td>Sample/result work mainly lab.</td></tr>
+    <tr><td>Pharmacy</td><td>Admin, pharmacy, doctor, accounts</td><td>Stock receiving/dispensing mainly pharmacy/admin.</td></tr>
+    <tr><td>Inventory</td><td>Admin, accounts, nursing, HR, housekeeping</td><td>General store only, not pharmacy medicines.</td></tr>
+    <tr><td>HR and Users</td><td>Admin, HR</td><td>Employee and user management.</td></tr>
+    <tr><td>Reports</td><td>Admin, doctor, accounts, lab, therapist, reception, nursing, pharmacy</td><td>Used for department monitoring.</td></tr>
+  </table>
+
+  <h2>6. Daily Closing Checklist</h2>
+  <table>
+    <tr><th>Department</th><th>Before leaving for the day</th></tr>
+    <tr><td>Reception</td><td>All arrived patients registered, appointments correct, cancellations updated, no duplicate patient entries created.</td></tr>
+    <tr><td>Nursing/Screening</td><td>Vitals saved for all screened patients, IPD bedside vitals updated, pending notes informed to doctor.</td></tr>
+    <tr><td>Doctors</td><td>Consultations completed, prescriptions saved, lab orders created, discharge summaries saved/printed where needed.</td></tr>
+    <tr><td>Laboratory</td><td>Samples collected status updated, results saved, urgent reports communicated, pending orders reviewed.</td></tr>
+    <tr><td>Pharmacy</td><td>Prescriptions dispensed/closed, low-stock alerts checked, received stock entered with batch and expiry.</td></tr>
+    <tr><td>Panchkarma</td><td>Sessions completed or rescheduled, materials used entered, charges/payment status updated.</td></tr>
+    <tr><td>Accounts</td><td>Payments collected, unpaid/partial bills reviewed, invoices printed if requested, corrections noted for approval.</td></tr>
+    <tr><td>IPD/Rooms</td><td>Admissions active, bed status correct, discharges completed, cleaning/maintenance beds marked correctly.</td></tr>
+    <tr><td>Inventory</td><td>Receipts/issues/adjustments entered, low stock reviewed, references and notes added.</td></tr>
+    <tr><td>HR</td><td>Attendance, leave, roster, payroll, and document updates saved as required.</td></tr>
+  </table>
+
+  <h2>7. Data Quality and Safety Rules</h2>
+  <ul>
+    <li>Use your own login only. Never share passwords.</li>
+    <li>Search before creating a patient.</li>
+    <li>Use correct spelling for patient name and father name.</li>
+    <li>Enter phone numbers carefully; they are used for searching and communication.</li>
+    <li>Do not leave required fields blank if the information is available.</li>
+    <li>Do not use another department's role to bypass permission.</li>
+    <li>For bills, refunds, discounts, and corrections, add notes and follow approval process.</li>
+    <li>For pharmacy, verify batch, expiry, and quantity.</li>
+    <li>For lab, verify patient and order before collecting sample.</li>
+    <li>For discharge, confirm all clinical, billing, bed, and medicine steps are complete.</li>
+  </ul>
+
+  <h2>8. Common Problems and What to Do</h2>
+  <table>
+    <tr><th>Problem</th><th>What staff should do</th></tr>
+    <tr><td>Patient not found</td><td>Search by phone, father name, UHID, registration number, and alternate spelling. If still not found, ask reception/admin before creating new record.</td></tr>
+    <tr><td>Wrong patient selected</td><td>Stop before saving. Go back and select correct patient. Inform admin if wrong information was already saved.</td></tr>
+    <tr><td>Button is disabled</td><td>Your role may not have permission, or required information is missing. Ask the responsible department or admin.</td></tr>
+    <tr><td>Appointment slot not available</td><td>Select another available slot or another date. Emergency override is not generally allowed.</td></tr>
+    <tr><td>Bill already exists</td><td>Open Billing and review existing invoice instead of creating a duplicate.</td></tr>
+    <tr><td>Lab result entered wrongly</td><td>Inform lab lead/admin immediately for correction process.</td></tr>
+    <tr><td>Medicine stock low or expired</td><td>Do not dispense from expired batch. Update stock and inform pharmacy lead/admin.</td></tr>
+    <tr><td>Bed still showing occupied after discharge</td><td>Open Rooms/IPD and set bed status to cleaning, available, or maintenance as applicable.</td></tr>
+  </table>
+
+  <div class="note success">
+    <strong>Training tip:</strong> During first week, each department should practice with sample patients under supervision before using the HMS independently on live patients.
+  </div>
+</body>
+</html>

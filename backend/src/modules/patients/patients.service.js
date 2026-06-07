@@ -39,6 +39,19 @@ function calculateAge(dateOfBirth) {
   return age;
 }
 
+function normalizeAgeYears(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  const age = Number(value);
+  if (!Number.isFinite(age) || age < 0 || age > 130) {
+    throw createError("Age must be a valid number between 0 and 130.");
+  }
+
+  return Math.floor(age);
+}
+
 function buildAddress(payload) {
   const segments = [payload.houseStreet, payload.areaVillage, payload.cityDistrict || payload.city, payload.state]
     .map((value) => String(value || "").trim())
@@ -310,15 +323,16 @@ export async function deletePatientDocument(patientId, documentId) {
 }
 
 export async function createPatient(payload, createdBy) {
-  if (!payload.firstName || !payload.lastName || !payload.phone || !payload.dateOfBirth || !payload.gender) {
-    throw createError("First name, last name, phone, date of birth, and gender are required.");
+  if (!payload.firstName || !String(payload.firstName).trim()) {
+    throw createError("Patient name is required.");
   }
 
-  if (!payload.houseStreet && !payload.address) {
-    throw createError("House/street or address is required.");
+  if (!payload.houseStreet && !payload.address && !payload.areaVillage && !payload.cityDistrict && !payload.city) {
+    throw createError("Address, area/village, or city is required.");
   }
 
-  const phoneExists = await patientPhoneExists(payload.phone);
+  const normalizedPhone = String(payload.phone || "").trim();
+  const phoneExists = normalizedPhone ? await patientPhoneExists(normalizedPhone) : false;
 
   if (phoneExists) {
     throw createError("A patient with this phone number already exists.");
@@ -328,6 +342,8 @@ export async function createPatient(payload, createdBy) {
   const registrationTime = new Date().toTimeString().slice(0, 5);
   const address = buildAddress(payload);
   const cityDistrict = payload.cityDistrict?.trim() || payload.city?.trim() || "Sagar";
+
+  const ageYears = payload.dateOfBirth ? calculateAge(payload.dateOfBirth) : normalizeAgeYears(payload.ageYears);
 
   const patient = {
     id: createId(),
@@ -339,16 +355,16 @@ export async function createPatient(payload, createdBy) {
     patientType: payload.patientType || "new",
     title: payload.title || "Mr",
     firstName: payload.firstName.trim(),
-    lastName: payload.lastName.trim(),
-    fullName: `${payload.firstName.trim()} ${payload.lastName.trim()}`,
+    lastName: payload.lastName?.trim() || "",
+    fullName: `${payload.firstName.trim()} ${payload.lastName?.trim() || ""}`.trim(),
     fatherName: payload.fatherName?.trim() || "",
-    gender: payload.gender,
-    dateOfBirth: payload.dateOfBirth,
-    ageYears: calculateAge(payload.dateOfBirth),
+    gender: payload.gender || "",
+    dateOfBirth: payload.dateOfBirth || null,
+    ageYears,
     bloodGroup: payload.bloodGroup || "",
     maritalStatus: payload.maritalStatus || "",
     occupation: payload.occupation || "",
-    phone: payload.phone.trim(),
+    phone: normalizedPhone,
     altPhone: payload.altPhone || "",
     email: payload.email || "",
     houseStreet: payload.houseStreet?.trim() || "",
@@ -373,7 +389,20 @@ export async function createPatient(payload, createdBy) {
 
 export async function updatePatient(id, payload) {
   const patient = await getPatientById(id);
+  const nextFirstName = String(payload.firstName ?? patient.firstName ?? "").trim();
+  const nextLastName = String(payload.lastName ?? patient.lastName ?? "").trim();
+  const nextPhone = String(payload.phone ?? patient.phone ?? "").trim();
+
+  if (!nextFirstName) {
+    throw createError("Patient name is required.");
+  }
+
+  if (nextPhone && nextPhone !== patient.phone && await patientPhoneExists(nextPhone, id)) {
+    throw createError("A patient with this phone number already exists.");
+  }
+
   const nextDateOfBirth = payload.dateOfBirth ?? patient.dateOfBirth;
+  const nextAgeYears = nextDateOfBirth ? calculateAge(nextDateOfBirth) : normalizeAgeYears(payload.ageYears ?? patient.ageYears);
   const nextCityDistrict = payload.cityDistrict ?? payload.city ?? patient.cityDistrict ?? patient.city;
 
   Object.assign(patient, {
@@ -381,17 +410,17 @@ export async function updatePatient(id, payload) {
     opdIpdNumber: payload.opdIpdNumber ?? patient.opdIpdNumber,
     patientType: payload.patientType ?? patient.patientType,
     title: payload.title ?? patient.title,
-    firstName: payload.firstName ?? patient.firstName,
-    lastName: payload.lastName ?? patient.lastName,
-    fullName: `${payload.firstName ?? patient.firstName} ${payload.lastName ?? patient.lastName}`,
+    firstName: nextFirstName,
+    lastName: nextLastName,
+    fullName: `${nextFirstName} ${nextLastName}`.trim(),
     fatherName: payload.fatherName ?? patient.fatherName,
     dateOfBirth: nextDateOfBirth,
-    ageYears: calculateAge(nextDateOfBirth),
+    ageYears: nextAgeYears,
     gender: payload.gender ?? patient.gender,
     bloodGroup: payload.bloodGroup ?? patient.bloodGroup,
     maritalStatus: payload.maritalStatus ?? patient.maritalStatus,
     occupation: payload.occupation ?? patient.occupation,
-    phone: payload.phone ?? patient.phone,
+    phone: nextPhone,
     altPhone: payload.altPhone ?? patient.altPhone,
     email: payload.email ?? patient.email,
     houseStreet: payload.houseStreet ?? patient.houseStreet,

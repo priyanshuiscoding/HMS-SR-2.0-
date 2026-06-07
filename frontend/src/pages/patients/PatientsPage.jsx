@@ -13,6 +13,7 @@ const initialForm = {
   lastName: "",
   fatherName: "",
   dateOfBirth: "",
+  ageYears: "",
   gender: "female",
   bloodGroup: "",
   maritalStatus: "",
@@ -91,13 +92,15 @@ export function PatientsPage() {
     };
   }, [patients]);
 
-  const derivedAge = useMemo(() => calculateAge(formState.dateOfBirth), [formState.dateOfBirth]);
   const canRegisterPatient = ["admin", "reception"].includes(user?.role);
 
   const handleInputChange = (event) => {
+    const { name, value } = event.target;
+
     setFormState((current) => ({
       ...current,
-      [event.target.name]: event.target.value
+      [name]: value,
+      ...(name === "dateOfBirth" ? { ageYears: calculateAge(value) } : {})
     }));
   };
 
@@ -198,7 +201,7 @@ export function PatientsPage() {
               className="search-input"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by reg no., UHID, OPD/IPD no., phone, ID number, father name, or patient name"
+              placeholder="Search by reg no., UHID, OPD/IPD no., phone, address, ID number, father name, or patient name"
             />
             <Button type="submit">Search</Button>
           </form>
@@ -323,7 +326,15 @@ export function PatientsPage() {
               </div>
               <div className="field">
                 <label>Age</label>
-                <input value={derivedAge} disabled readOnly placeholder="Auto from DOB" />
+                <input
+                  name="ageYears"
+                  type="number"
+                  min="0"
+                  max="130"
+                  value={formState.ageYears}
+                  onChange={handleInputChange}
+                  placeholder="Enter age if DOB unknown"
+                />
               </div>
               <div className="field">
                 <label>Blood group</label>

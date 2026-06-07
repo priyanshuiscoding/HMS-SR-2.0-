@@ -121,6 +121,11 @@ export async function findPatients(queryParams = {}) {
         OR LOWER(COALESCE(father_name, '')) LIKE $${searchLikeParam}
         OR LOWER(phone) LIKE $${searchLikeParam}
         OR LOWER(COALESCE(alt_phone, '')) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(address, '')) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(house_street, '')) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(area_village, '')) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(city, '')) LIKE $${searchLikeParam}
+        OR LOWER(COALESCE(pincode, '')) LIKE $${searchLikeParam}
         OR LOWER(COALESCE(metadata->>'idNumber', '')) LIKE $${searchLikeParam}
       )
     `);
@@ -150,7 +155,13 @@ export async function findPatients(queryParams = {}) {
           OR LOWER(COALESCE(alt_phone, '')) LIKE $${searchLikeParam}
           OR LOWER(COALESCE(metadata->>'idNumber', '')) LIKE $${searchLikeParam}
         THEN 3
-        ELSE 4
+        WHEN LOWER(COALESCE(address, '')) LIKE $${searchLikeParam}
+          OR LOWER(COALESCE(house_street, '')) LIKE $${searchLikeParam}
+          OR LOWER(COALESCE(area_village, '')) LIKE $${searchLikeParam}
+          OR LOWER(COALESCE(city, '')) LIKE $${searchLikeParam}
+          OR LOWER(COALESCE(pincode, '')) LIKE $${searchLikeParam}
+        THEN 4
+        ELSE 5
       END,
       registration_date DESC NULLS LAST,
       registration_time DESC NULLS LAST,

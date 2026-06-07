@@ -1,6 +1,7 @@
 import { createId, db, getLabTestMasters } from "../../data/store.js";
 import { todayDate } from "../../utils/dateTime.js";
 import { createError } from "../../utils/errors.js";
+import { appendWorkflowMetadata } from "../../utils/workflow.js";
 import { createBill } from "../billing/billing.service.js";
 import {
   collectLabSampleRecord,
@@ -11,7 +12,8 @@ import {
   linkLabBillRecord,
   listLabOrderRecords,
   listLabTestRecords,
-  saveLabResultsRecord
+  saveLabResultsRecord,
+  updateLabOrderStatusRecord
 } from "./laboratory.repository.js";
 
 function syncLabOrderMirror(order) {
@@ -245,6 +247,32 @@ export async function createLabBill(orderId, payload, userId) {
 
   syncLabOrderMirror(updated);
   return updated;
+}
+
+export async function updateLabOrderWorkflowStatus(orderId, payload = {}, user = {}) {
+  const order = await getLabOrderDetails(orderId);
+  const action = String(payload.action || "").trim().toLowerCase();
+  const statusByAction = {
+    cancel: "cancelled",
+    reopen: "pending",
+    requeue: "pending"
+  };
+
+  if (!statusByAction[action]) {
+    throw createError("Invalid lab workflow action.");
+  }
+
+  const metadata = appendWorkflowMetadata(order.metadata, payload, user, `lab:${action}`);
+  const result = await updateLabOrderStatusRecord(orderId, {
+    status: statusByAction[action],
+    metadata
+  });
+
+  if (!result) throw createError("Lab order not found.", 404);
+  if (result.conflict === "reported") throw createError("Reported lab orders cannot be cancelled.");
+
+  syncLabOrderMirror(result);
+  return result;
 }
 
 export function getLabOrderDetailsFromMirror(orderId) {

@@ -3,6 +3,7 @@ import { consultationCharge, opdOperatingHours } from "../../config/hospitalData
 import { createError } from "../../utils/errors.js";
 import { getPatientById } from "../patients/patients.service.js";
 import { listDoctors } from "../users/users.service.js";
+import { appendWorkflowMetadata, workflowMetadata } from "../../utils/workflow.js";
 import {
   cancelAppointmentRecord,
   countAppointmentsForDate,
@@ -10,6 +11,7 @@ import {
   findAppointmentById,
   getBookedTimesForDoctor,
   listAppointmentRecords,
+  updateAppointmentMetadataRecord,
   updateAppointmentRecord,
   updateAppointmentStatusRecord
 } from "./appointments.repository.js";
@@ -20,14 +22,16 @@ const CONSULTATION_FEE = consultationCharge;
 const BOOKING_TYPES = ["new", "follow_up"];
 const BOOKING_SOURCES = ["Website", "Reception", "Call", "WhatsApp", "Walk-in"];
 const APPOINTMENT_STATUSES = ["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"];
+const PAYMENT_MODES = ["cash", "upi", "card", "bank_transfer", "other"];
 const STATUS_TRANSITIONS = {
-  scheduled: ["confirmed", "in_progress", "cancelled", "no_show"],
-  confirmed: ["in_progress", "cancelled", "no_show"],
+  scheduled: ["confirmed", "in_progress", "completed", "cancelled", "no_show"],
+  confirmed: ["in_progress", "completed", "cancelled", "no_show"],
   in_progress: ["completed", "cancelled"],
   completed: [],
   cancelled: [],
   no_show: []
 };
+const QUEUE_ACTIONS = ["call", "hold", "requeue", "no_show", "cancel", "complete"];
 const OPD_SCHEDULE = {
   weekday: opdOperatingHours.mondayToSaturday,
   sundayAndHoliday: opdOperatingHours.sunday
@@ -147,6 +151,30 @@ function normalizeStatus(status) {
   return nextStatus;
 }
 
+function normalizePaymentMode(value = "cash") {
+  const mode = String(value || "").trim().toLowerCase();
+  if (PAYMENT_MODES.includes(mode)) {
+    return mode;
+  }
+  throw createError("Invalid consultation payment mode.");
+}
+
+function normalizeConsultationPayment(payload = {}) {
+  const amount = Number(payload.consultationFeeAmount ?? payload.paymentAmount ?? CONSULTATION_FEE);
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw createError("Consultation fee payment is required before adding the patient to OPD queue.");
+  }
+
+  return {
+    status: "paid",
+    amount,
+    paymentMode: normalizePaymentMode(payload.paymentMode || "cash"),
+    referenceNumber: String(payload.paymentReference || "").trim(),
+    paidAt: new Date().toISOString()
+  };
+}
+
 function ensureValidTimeForDate(date, time) {
   const slots = getSlotsForDate(date);
   if (!slots.includes(time)) {
@@ -238,10 +266,6 @@ export async function createAppointment(payload, bookedBy) {
     patientGender = normalizeGender(patientGender);
   }
 
-  if (!payload.chiefComplaint || !String(payload.chiefComplaint).trim()) {
-    throw createError("Problem / chief complaint is required.");
-  }
-
   const item = {
     id: createId(),
     patientId,
@@ -254,11 +278,14 @@ export async function createAppointment(payload, bookedBy) {
     appointmentTime,
     type: normalizeType(payload.type || "new"),
     department: payload.department,
-    status: payload.status || "scheduled",
+    status: "confirmed",
     chiefComplaint: String(payload.chiefComplaint || "").trim(),
     bookedBy,
     source: BOOKING_SOURCES.includes(payload.source) ? payload.source : "Reception",
-    smsSent: false
+    smsSent: false,
+    metadata: {
+      consultationPayment: normalizeConsultationPayment(payload)
+    }
   };
 
   try {
@@ -338,19 +365,70 @@ export async function updateAppointmentStatus(id, payload = {}, actor = {}) {
   const savedAppointment = await updateAppointmentStatusRecord(id, nextStatus, {
     statusUpdatedAt: new Date().toISOString(),
     statusUpdatedBy: actor.sub || "",
-    statusUpdateNote: String(payload.note || "").trim()
+    statusUpdateNote: String(payload.note || "").trim(),
+    ...workflowMetadata(payload, actor, `appointment:${nextStatus}`)
   });
   syncAppointmentMirror(savedAppointment);
   return savedAppointment;
 }
 
-export async function cancelAppointment(id) {
+export async function updateAppointmentQueueAction(id, payload = {}, actor = {}) {
+  const item = await getAppointmentById(id);
+  const action = String(payload.action || "").trim().toLowerCase();
+
+  if (!QUEUE_ACTIONS.includes(action)) {
+    throw createError("Invalid queue action.");
+  }
+
+  if (["cancelled", "no_show", "completed"].includes(item.status) && action !== "requeue") {
+    throw createError("This appointment is already closed.");
+  }
+
+  const metadata = appendWorkflowMetadata(item.metadata, payload, actor, `appointment:${action}`);
+  const queueStatusByAction = {
+    call: "called",
+    hold: "hold",
+    requeue: "waiting",
+    no_show: "closed",
+    cancel: "closed",
+    complete: "closed"
+  };
+
+  metadata.queueStatus = queueStatusByAction[action];
+  metadata.statusUpdatedAt = new Date().toISOString();
+  metadata.statusUpdatedBy = actor.sub || "";
+  metadata.statusUpdateNote = metadata.workflow.reason;
+
+  if (action === "requeue" && ["cancelled", "no_show"].includes(item.status)) {
+    const savedAppointment = await updateAppointmentStatusRecord(id, "confirmed", metadata);
+    syncAppointmentMirror(savedAppointment);
+    return savedAppointment;
+  }
+
+  if (action === "call" || action === "hold" || action === "requeue") {
+    const savedAppointment = await updateAppointmentMetadataRecord(id, metadata);
+    syncAppointmentMirror(savedAppointment);
+    return savedAppointment;
+  }
+
+  const statusByAction = {
+    no_show: "no_show",
+    cancel: "cancelled",
+    complete: "completed"
+  };
+
+  const savedAppointment = await updateAppointmentStatusRecord(id, statusByAction[action], metadata);
+  syncAppointmentMirror(savedAppointment);
+  return savedAppointment;
+}
+
+export async function cancelAppointment(id, payload = {}, actor = {}) {
   const item = await getAppointmentById(id);
   if (item.status === "cancelled") {
     return item;
   }
 
-  const savedAppointment = await cancelAppointmentRecord(id);
+  const savedAppointment = await cancelAppointmentRecord(id, workflowMetadata(payload, actor, "appointment:cancel"));
   syncAppointmentMirror(savedAppointment);
   return savedAppointment;
 }
@@ -381,6 +459,7 @@ export async function getAppointmentMasters() {
     departments: getDepartments(),
     types: BOOKING_TYPES,
     statuses: APPOINTMENT_STATUSES,
+    paymentModes: PAYMENT_MODES,
     sources: BOOKING_SOURCES,
     slotDurationMinutes: SLOT_DURATION_MINUTES,
     consultationFee: CONSULTATION_FEE,

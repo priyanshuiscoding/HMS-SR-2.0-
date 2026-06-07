@@ -8,6 +8,7 @@ import {
   createAppointmentHandler,
   getAppointmentHandler,
   listAppointmentsHandler,
+  updateAppointmentQueueActionHandler,
   todayAppointmentsHandler,
   updateAppointmentStatusHandler,
   updateAppointmentHandler
@@ -23,6 +24,7 @@ appointmentsRouter.get("/masters", authorize(["admin", "reception", "doctor"]), 
 appointmentsRouter.get("/:id", authorize(["admin", "reception", "doctor"]), getAppointmentHandler);
 appointmentsRouter.put("/:id", authorize(["admin", "reception"]), updateAppointmentHandler);
 appointmentsRouter.put("/:id/status", authorize(["admin", "reception", "doctor"]), updateAppointmentStatusHandler);
+appointmentsRouter.put("/:id/queue-action", authorize(["admin", "reception", "doctor"]), updateAppointmentQueueActionHandler);
 appointmentsRouter.delete("/:id", authorize(["admin", "reception"]), cancelAppointmentHandler);
 
 export { appointmentsRouter };

@@ -11,7 +11,8 @@ import {
   getRoom,
   getRoomMasters,
   getRooms,
-  getRoomsAvailability
+  getRoomsAvailability,
+  updateRoomBedStatus
 } from "../../services/api.js";
 
 const initialRoomForm = {
@@ -180,6 +181,28 @@ export function RoomsPage() {
     }
   };
 
+  const handleBedStatusChange = async (status) => {
+    if (!selectedRoom?.item?.id || !selectedBed?.id) {
+      return;
+    }
+
+    const reason = window.prompt(`Reason for moving bed to ${status}:`);
+    if (!reason?.trim()) {
+      setError("Reason is required for bed status changes.");
+      return;
+    }
+
+    try {
+      const response = await updateRoomBedStatus(selectedRoom.item.id, selectedBed.id, { status, reason, note: reason });
+      setMessage(response.message);
+      setSelectedRoom({ item: response.item, beds: response.beds });
+      setSelectedBed(null);
+      await loadData(filters, selectedRoom.item.id);
+    } catch (apiError) {
+      setError(apiError.message || "Unable to update bed status.");
+    }
+  };
+
   const patientLabel = (patient) => `${patient.uhid || patient.registrationNumber || "UHID"} - ${patient.firstName || ""} ${patient.lastName || ""}`.trim();
 
   return (
@@ -299,6 +322,12 @@ export function RoomsPage() {
               <div className="field"><label>Expected discharge</label><input name="expectedDischargeDate" type="date" value={assignForm.expectedDischargeDate} onChange={handleAssignFormChange} /></div>
               <div className="field field-span-2"><label>Assignment note</label><input name="note" value={assignForm.note} onChange={handleAssignFormChange} /></div>
               <div className="field field-span-2"><Button type="submit">Assign Bed</Button></div>
+              <div className="field field-span-2 action-row">
+                <Button type="button" variant="secondary" onClick={() => handleBedStatusChange("available")}>Available</Button>
+                <Button type="button" variant="secondary" onClick={() => handleBedStatusChange("reserved")}>Reserve</Button>
+                <Button type="button" variant="secondary" onClick={() => handleBedStatusChange("cleaning")}>Cleaning</Button>
+                <Button type="button" variant="secondary" onClick={() => handleBedStatusChange("maintenance")}>Maintenance</Button>
+              </div>
             </form>
           )}
         </article>

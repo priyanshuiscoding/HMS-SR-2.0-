@@ -11,7 +11,8 @@ import {
   getLabOrders,
   getLabSummary,
   getLabTests,
-  saveLabResults
+  saveLabResults,
+  updateLabOrderWorkflow
 } from "../../services/api.js";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -208,6 +209,26 @@ export function LaboratoryPage() {
     }
   };
 
+  const handleWorkflowAction = async (action, label = action) => {
+    if (!selectedOrder?.id) {
+      return;
+    }
+
+    const reason = window.prompt(`Reason for ${label}:`);
+    if (!reason?.trim()) {
+      setError("Reason is required for lab workflow actions.");
+      return;
+    }
+
+    try {
+      const response = await updateLabOrderWorkflow(selectedOrder.id, { action, reason });
+      setMessage(response.message);
+      await loadAll(filters, response.item.id);
+    } catch (apiError) {
+      setError(apiError.message || "Unable to update lab workflow.");
+    }
+  };
+
   return (
     <DashboardLayout>
       <section className="hero-panel logo-hero">
@@ -284,7 +305,12 @@ export function LaboratoryPage() {
               <div className="eyebrow">Report View</div>
               <h3>{selectedOrder?.orderNumber || "Select a lab order"}</h3>
             </div>
-            <Button variant="secondary" onClick={() => window.print()} disabled={!selectedOrder}>Print Report</Button>
+            <div className="action-row">
+              <Button variant="secondary" onClick={() => handleWorkflowAction("cancel", "cancel lab order")} disabled={!selectedOrder}>Cancel</Button>
+              <Button variant="secondary" onClick={() => handleWorkflowAction("reopen", "reopen lab order")} disabled={!selectedOrder}>Reopen</Button>
+              <Button variant="secondary" onClick={() => handleWorkflowAction("requeue", "requeue lab order")} disabled={!selectedOrder}>Requeue</Button>
+              <Button variant="secondary" onClick={() => window.print()} disabled={!selectedOrder}>Print Report</Button>
+            </div>
           </div>
 
           {error ? <div className="error-text no-print">{error}</div> : null}

@@ -6,7 +6,8 @@ import {
   getLabOrderDetails,
   getLabSummary,
   listLabOrders,
-  saveLabResults
+  saveLabResults,
+  updateLabOrderWorkflowStatus
 } from "./laboratory.service.js";
 
 export async function mastersHandler(_req, res, next) {
@@ -68,6 +69,14 @@ export async function saveResultsHandler(req, res, next) {
 export async function createBillHandler(req, res, next) {
   try {
     res.json({ item: await createLabBill(req.params.id, req.body, req.user.sub), message: "Lab bill created successfully." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function labWorkflowActionHandler(req, res, next) {
+  try {
+    res.json({ item: await updateLabOrderWorkflowStatus(req.params.id, req.body, req.user), message: "Lab workflow action saved successfully." });
   } catch (error) {
     next(error);
   }

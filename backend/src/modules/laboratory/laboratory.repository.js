@@ -459,3 +459,23 @@ export async function linkLabBillRecord(orderId, billId) {
     return loadOrderBundle(client, orderId);
   });
 }
+
+export async function updateLabOrderStatusRecord(orderId, payload = {}) {
+  return withTransaction(async (client) => {
+    const current = await loadOrderBundle(client, orderId);
+    if (!current) return null;
+    if (current.status === "reported" && payload.status === "cancelled") return { conflict: "reported" };
+
+    await client.query(
+      `
+      UPDATE lab_orders
+      SET status = $2, metadata = metadata || $3::jsonb, updated_at = NOW()
+      WHERE id = $1
+      `,
+      [orderId, payload.status, JSON.stringify(payload.metadata || {})]
+    );
+
+    await client.query("UPDATE lab_order_tests SET status = $2 WHERE order_id = $1", [orderId, payload.status]);
+    return loadOrderBundle(client, orderId);
+  });
+}

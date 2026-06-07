@@ -6,13 +6,13 @@ import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import {
-  cancelAppointment,
   createAppointment,
   getAppointmentMasters,
   getAppointments,
   getAvailableSlots,
   getPatients,
-  getTodayAppointments
+  getTodayAppointments,
+  updateAppointmentQueueAction
 } from "../../services/api.js";
 
 const initialForm = {
@@ -28,8 +28,23 @@ const initialForm = {
   department: "",
   status: "scheduled",
   chiefComplaint: "",
-  source: "Reception"
+  source: "Reception",
+  consultationFeeAmount: "",
+  paymentMode: "cash",
+  paymentReference: ""
 };
+
+function formatTimeLabel(time) {
+  const [hourValue, minuteValue] = String(time || "").split(":").map(Number);
+
+  if (!Number.isFinite(hourValue) || !Number.isFinite(minuteValue)) {
+    return time || "";
+  }
+
+  const hour = hourValue % 12 || 12;
+  const period = hourValue >= 12 ? "PM" : "AM";
+  return `${hour}:${String(minuteValue).padStart(2, "0")} ${period}`;
+}
 
 export function AppointmentsPage() {
   const { user } = useAuth();
@@ -56,6 +71,7 @@ export function AppointmentsPage() {
   const [availableSlots, setAvailableSlots] = useState([]);
   const [filters, setFilters] = useState({ date: "", status: "" });
   const [formState, setFormState] = useState(initialForm);
+  const [lastReceipt, setLastReceipt] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -90,7 +106,9 @@ export function AppointmentsPage() {
           doctorId: firstDoctorId,
           department: firstDoctorDepartment,
           type: mastersResponse.types?.[0] || "new",
-          source: mastersResponse.sources?.includes("Reception") ? "Reception" : (mastersResponse.sources?.[0] || "Reception")
+          source: mastersResponse.sources?.includes("Reception") ? "Reception" : (mastersResponse.sources?.[0] || "Reception"),
+          consultationFeeAmount: mastersResponse.consultationFee || 200,
+          paymentMode: mastersResponse.paymentModes?.[0] || "cash"
         }));
       } catch (apiError) {
         setError(apiError.message || "Unable to initialize appointment masters.");
@@ -150,6 +168,7 @@ export function AppointmentsPage() {
   const applyFilters = async (event) => {
     event.preventDefault();
     setError("");
+    setLastReceipt(null);
     await loadData(filters);
   };
 
@@ -205,17 +224,34 @@ export function AppointmentsPage() {
 
     setError("");
     setSuccess("");
+    setLastReceipt(null);
 
     try {
       const response = await createAppointment(formState);
-      setSuccess(response.message);
+      const payment = response.item.consultationPayment || response.item.metadata?.consultationPayment || {};
+      setLastReceipt({
+        appointmentNumber: response.item.appointmentNumber,
+        tokenNumber: response.item.tokenNumber,
+        patientName: response.item.patientName,
+        doctorName: masters.doctors.find((doctor) => doctor.id === response.item.doctorId)?.fullName || "Doctor",
+        department: response.item.department,
+        appointmentDate: response.item.appointmentDate,
+        appointmentTime: response.item.appointmentTime,
+        receiptNumber: payment.receiptNumber,
+        amount: payment.amount,
+        paymentMode: payment.paymentMode,
+        referenceNumber: payment.referenceNumber
+      });
+      setSuccess(`${response.message} Token ${response.item.tokenNumber} generated after payment.`);
       setFormState((current) => ({
         ...initialForm,
         appointmentDate: current.appointmentDate,
         doctorId: current.doctorId || masters.doctors[0]?.id || "",
         department: (masters.doctors.find((doctor) => doctor.id === current.doctorId)?.department) || masters.doctors[0]?.department || masters.departments[0] || "",
         type: masters.types?.[0] || "new",
-        source: masters.sources?.includes("Reception") ? "Reception" : (masters.sources?.[0] || "Reception")
+        source: masters.sources?.includes("Reception") ? "Reception" : (masters.sources?.[0] || "Reception"),
+        consultationFeeAmount: masters.consultationFee || 200,
+        paymentMode: masters.paymentModes?.[0] || "cash"
       }));
       await loadData(filters);
       const refreshedSlots = await getAvailableSlots(formState.appointmentDate, formState.doctorId);
@@ -225,19 +261,42 @@ export function AppointmentsPage() {
     }
   };
 
-  const handleCancel = async (id) => {
+  const printLastReceipt = () => {
+    if (!lastReceipt) {
+      return;
+    }
+
+    const cleanup = () => {
+      document.body.classList.remove("print-appointment-receipt");
+      window.removeEventListener("afterprint", cleanup);
+    };
+
+    document.body.classList.add("print-appointment-receipt");
+    window.addEventListener("afterprint", cleanup);
+    window.setTimeout(() => window.print(), 0);
+  };
+
+  const handleQueueAction = async (id, action, label = action) => {
     if (!canManageAppointments) {
-      setError("Only admin and reception users can cancel appointments.");
+      setError("Only admin and reception users can manage appointment workflow actions.");
+      return;
+    }
+
+    const reason = window.prompt(`Reason for ${label}:`);
+    if (!reason?.trim()) {
+      setError("Reason is required for workflow actions.");
       return;
     }
 
     try {
-      await cancelAppointment(id);
+      await updateAppointmentQueueAction(id, { action, reason });
       await loadData(filters);
     } catch (apiError) {
-      setError(apiError.message || "Unable to cancel appointment.");
+      setError(apiError.message || "Unable to update appointment workflow.");
     }
   };
+
+  const handleCancel = (id) => handleQueueAction(id, "cancel", "cancel");
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -263,9 +322,9 @@ export function AppointmentsPage() {
           <article className="content-card inset-card">
             <h3>OPD timings</h3>
             <div className="detail-list">
-              <div><strong>Morning:</strong> 09:00 - 13:30</div>
-              <div><strong>Evening:</strong> 15:30 - 19:30</div>
-              <div><strong>Sunday/Holiday:</strong> 09:00 - 12:30</div>
+              <div><strong>Morning:</strong> 9:00 AM - 1:30 PM</div>
+              <div><strong>Evening:</strong> 3:30 PM - 7:30 PM</div>
+              <div><strong>Sunday/Holiday:</strong> 9:00 AM - 12:30 PM</div>
               <div><strong>Slot duration:</strong> {masters.slotDurationMinutes} minutes</div>
             </div>
           </article>
@@ -277,6 +336,7 @@ export function AppointmentsPage() {
               <div><strong>Same-day booking:</strong> Allowed</div>
               <div><strong>Emergency override:</strong> Not allowed</div>
               <div><strong>Consultation fee:</strong> Rs. {masters.consultationFee}</div>
+              <div><strong>Queue rule:</strong> Token enters OPD queue only after payment</div>
             </div>
           </article>
         </div>
@@ -291,7 +351,7 @@ export function AppointmentsPage() {
         <article className="stat-card">
           <div className="stat-label">Confirmed</div>
           <div className="stat-value">{stats.confirmed}</div>
-          <div className="stat-note">Ready for queue flow</div>
+          <div className="stat-note">Paid and ready for queue</div>
         </article>
         <article className="stat-card">
           <div className="stat-label">Scheduled</div>
@@ -321,7 +381,7 @@ export function AppointmentsPage() {
                 value={formState.patientId}
                 options={patients}
                 onChange={handlePatientSelect}
-                placeholder="Click and type patient name, UHID, phone, father name, or city"
+                placeholder="Click and type patient name, UHID, phone, father name, address, or city"
                 emptyLabel="No matching patient. Leave blank to enter a new patient below."
                 getOptionLabel={patientLabel}
                 getOptionMeta={(patient) => [patient.phone, patient.fatherName, patient.cityDistrict || patient.city].filter(Boolean).join(" | ")}
@@ -332,6 +392,9 @@ export function AppointmentsPage() {
                   patient.lastName,
                   patient.fatherName,
                   patient.phone,
+                  patient.address,
+                  patient.houseStreet,
+                  patient.areaVillage,
                   patient.cityDistrict,
                   patient.city
                 ].filter(Boolean).join(" ")}
@@ -403,7 +466,7 @@ export function AppointmentsPage() {
                 <option value="">Choose slot</option>
                 {availableSlots.map((slot) => (
                   <option key={slot.time} value={slot.time} disabled={slot.isBooked}>
-                    {slot.time} {slot.isBooked ? "- Booked" : ""}
+                    {formatTimeLabel(slot.time)} {slot.isBooked ? "- Booked" : ""}
                   </option>
                 ))}
               </select>
@@ -433,14 +496,51 @@ export function AppointmentsPage() {
 
             <div className="field field-span-2">
               <label>Problem</label>
-              <input name="chiefComplaint" value={formState.chiefComplaint} onChange={handleFormChange} required />
+              <input name="chiefComplaint" value={formState.chiefComplaint} onChange={handleFormChange} placeholder="Optional" />
+            </div>
+
+            <div className="field">
+              <label>Consultation fee</label>
+              <input
+                name="consultationFeeAmount"
+                type="number"
+                min="1"
+                value={formState.consultationFeeAmount}
+                onChange={handleFormChange}
+                required
+              />
+            </div>
+
+            <div className="field">
+              <label>Payment mode</label>
+              <select name="paymentMode" value={formState.paymentMode} onChange={handleFormChange} required>
+                {(masters.paymentModes || ["cash", "upi", "card", "bank_transfer", "other"]).map((mode) => (
+                  <option key={mode} value={mode}>{mode.replaceAll("_", " ")}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field field-span-2">
+              <label>Payment reference</label>
+              <input name="paymentReference" value={formState.paymentReference} onChange={handleFormChange} placeholder="Optional UPI/card/reference number" />
             </div>
 
             {error ? <div className="error-text field-span-2">{error}</div> : null}
             {success ? <div className="success-text field-span-2">{success}</div> : null}
+            {lastReceipt ? (
+              <div className="empty-state field-span-2">
+                <strong>Receipt {lastReceipt.receiptNumber}</strong>
+                <div>Token {lastReceipt.tokenNumber} - {lastReceipt.patientName}</div>
+                <div>{lastReceipt.department} with {lastReceipt.doctorName} on {lastReceipt.appointmentDate} at {formatTimeLabel(lastReceipt.appointmentTime)}</div>
+                <div>Paid Rs. {lastReceipt.amount} via {lastReceipt.paymentMode}{lastReceipt.referenceNumber ? ` (${lastReceipt.referenceNumber})` : ""}</div>
+                <div className="action-row" style={{ marginTop: 10 }}>
+                  <Button type="button" variant="secondary" onClick={printLastReceipt}>Print Receipt</Button>
+                </div>
+              </div>
+            ) : null}
 
             <div className="field-span-2 action-row">
-              <Button type="submit" disabled={!canManageAppointments}>Book Appointment</Button>
+              <Button type="submit" disabled={!canManageAppointments}>Collect Fee & Generate Token</Button>
             </div>
             {!canManageAppointments ? <div className="empty-state field-span-2">Appointment booking and cancellation are limited to admin and reception roles.</div> : null}
           </form>
@@ -461,9 +561,16 @@ export function AppointmentsPage() {
                   <strong>Token {appointment.tokenNumber}</strong>
                   <div className="timeline-copy">{appointment.patientName}</div>
                   <div className="timeline-copy">{appointment.department}</div>
-                  <div className="timeline-copy">{appointment.appointmentTime}</div>
+                  <div className="timeline-copy">{formatTimeLabel(appointment.appointmentTime)}</div>
+                  <div className="timeline-copy">Receipt {appointment.consultationPayment?.receiptNumber || "paid"}</div>
                 </div>
                 <span className={`status-pill ${appointment.status}`}>{appointment.status}</span>
+                <div className="queue-actions">
+                  <button className="table-link button-link" type="button" onClick={() => handleQueueAction(appointment.id, "call", "call patient")}>Call</button>
+                  <button className="table-link button-link" type="button" onClick={() => handleQueueAction(appointment.id, "hold", "hold")}>Hold</button>
+                  <button className="table-link button-link" type="button" onClick={() => handleQueueAction(appointment.id, "requeue", "requeue")}>Requeue</button>
+                  <button className="table-link button-link" type="button" onClick={() => handleQueueAction(appointment.id, "no_show", "no show")}>No Show</button>
+                </div>
               </div>
             ))}
 
@@ -503,6 +610,7 @@ export function AppointmentsPage() {
                 <th>Date</th>
                 <th>Time</th>
                 <th>Status</th>
+                <th>Receipt</th>
                 <th></th>
               </tr>
             </thead>
@@ -525,10 +633,11 @@ export function AppointmentsPage() {
                     </td>
                     <td>{doctor?.fullName || "Unassigned"}</td>
                     <td>{appointment.appointmentDate}</td>
-                    <td>{appointment.appointmentTime}</td>
+                    <td>{formatTimeLabel(appointment.appointmentTime)}</td>
                     <td><span className={`status-pill ${appointment.status}`}>{appointment.status}</span></td>
+                    <td>{appointment.consultationPayment?.receiptNumber || "-"}</td>
                     <td>
-                      {appointment.status !== "cancelled" ? (
+                      {!["cancelled", "no_show", "completed"].includes(appointment.status) ? (
                         <button className="table-link button-link" type="button" onClick={() => handleCancel(appointment.id)} disabled={!canManageAppointments}>
                           Cancel
                         </button>
@@ -545,6 +654,29 @@ export function AppointmentsPage() {
           {!appointments.length ? <div className="empty-state">No appointments found for the selected filters.</div> : null}
         </div>
       </section>
+
+      {lastReceipt ? (
+        <section className="appointment-receipt-print-sheet" aria-hidden="true">
+          <div className="receipt-hospital-name">SR-AIIMS HMS</div>
+          <div className="receipt-hospital-subtitle">Consultation Fee Receipt</div>
+          <div className="receipt-token">Token {lastReceipt.tokenNumber}</div>
+          <div className="receipt-grid">
+            <div><strong>Receipt No.</strong><span>{lastReceipt.receiptNumber}</span></div>
+            <div><strong>Appointment No.</strong><span>{lastReceipt.appointmentNumber}</span></div>
+            <div><strong>Patient</strong><span>{lastReceipt.patientName}</span></div>
+            <div><strong>Doctor</strong><span>{lastReceipt.doctorName}</span></div>
+            <div><strong>Department</strong><span>{lastReceipt.department}</span></div>
+            <div><strong>Date / Time</strong><span>{lastReceipt.appointmentDate} {formatTimeLabel(lastReceipt.appointmentTime)}</span></div>
+            <div><strong>Amount Paid</strong><span>Rs. {lastReceipt.amount}</span></div>
+            <div><strong>Payment Mode</strong><span>{lastReceipt.paymentMode}</span></div>
+            <div><strong>Reference</strong><span>{lastReceipt.referenceNumber || "-"}</span></div>
+          </div>
+          <div className="receipt-footer">
+            <span>Patient copy</span>
+            <span>Authorized signature</span>
+          </div>
+        </section>
+      ) : null}
     </DashboardLayout>
   );
 }

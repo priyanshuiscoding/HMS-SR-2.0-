@@ -234,3 +234,27 @@ export async function dischargeBedRecord(roomId, bedId, payload = {}) {
     return toCamelBed(updated.rows[0]);
   });
 }
+
+export async function updateBedStatusRecord(roomId, bedId, payload = {}) {
+  const result = await query(
+    `
+    UPDATE beds
+    SET
+      status = $3,
+      patient_id = CASE WHEN $3 IN ('available', 'reserved', 'cleaning', 'maintenance') THEN NULL ELSE patient_id END,
+      patient_name = CASE WHEN $3 IN ('available', 'reserved', 'cleaning', 'maintenance') THEN '' ELSE patient_name END,
+      assigned_at = CASE WHEN $3 IN ('available', 'reserved', 'cleaning', 'maintenance') THEN NULL ELSE assigned_at END,
+      expected_discharge_date = CASE WHEN $3 IN ('available', 'reserved', 'cleaning', 'maintenance') THEN NULL ELSE expected_discharge_date END,
+      note = $4,
+      admission_type = CASE WHEN $3 IN ('available', 'reserved', 'cleaning', 'maintenance') THEN '' ELSE admission_type END,
+      assigned_by = CASE WHEN $3 IN ('available', 'reserved', 'cleaning', 'maintenance') THEN NULL ELSE assigned_by END,
+      metadata = metadata || $5::jsonb,
+      updated_at = NOW()
+    WHERE id = $1 AND room_id = $2
+    RETURNING *
+    `,
+    [bedId, roomId, payload.status, payload.note || "", JSON.stringify(payload.metadata || {})]
+  );
+
+  return toCamelBed(result.rows[0]);
+}

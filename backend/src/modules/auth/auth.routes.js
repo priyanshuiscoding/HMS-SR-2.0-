@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { authenticate } from "../../middleware/auth.js";
 import { auditWrites } from "../../middleware/audit.js";
+import { rateLimit } from "../../middleware/security.js";
 import { validateBody, validators } from "../../middleware/validate.js";
 import {
   changePasswordHandler,
@@ -17,6 +18,7 @@ const authRouter = Router();
 
 authRouter.post(
   "/login",
+  rateLimit({ keyPrefix: "login", max: 10 }),
   validateBody({
     email: [validators.required("Email"), validators.email()],
     password: [validators.required("Password")]
@@ -27,6 +29,7 @@ authRouter.post("/logout", logoutHandler);
 authRouter.post("/refresh", refreshHandler);
 authRouter.post(
   "/forgot-password",
+  rateLimit({ keyPrefix: "forgot-password", max: 5 }),
   validateBody({
     email: [validators.required("Email"), validators.email()]
   }),
@@ -34,6 +37,7 @@ authRouter.post(
 );
 authRouter.post(
   "/reset-password",
+  rateLimit({ keyPrefix: "reset-password", max: 8 }),
   validateBody({
     email: [validators.required("Email"), validators.email()],
     otp: [validators.required("OTP"), validators.minLength("OTP", 6)],

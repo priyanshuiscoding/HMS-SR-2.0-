@@ -28,6 +28,9 @@ function toCamelAppointment(row) {
     statusUpdatedAt: row.metadata?.statusUpdatedAt || "",
     statusUpdatedBy: row.metadata?.statusUpdatedBy || "",
     statusUpdateNote: row.metadata?.statusUpdateNote || "",
+    queueStatus: row.metadata?.queueStatus || "",
+    workflow: row.metadata?.workflow || null,
+    consultationPayment: row.metadata?.consultationPayment || null,
     metadata: row.metadata || {},
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -139,10 +142,18 @@ export async function createAppointmentRecord(payload) {
     const appointmentCountResult = await client.query("SELECT COUNT(*)::int + 1 AS next_number FROM appointments");
     const tokenNumber = dailyCountResult.rows[0].count + 1;
     const appointmentNumber = `APT-${new Date().getFullYear()}-${String(appointmentCountResult.rows[0].next_number).padStart(5, "0")}`;
+    const receiptNumber = `RCPT-${new Date().getFullYear()}-${String(appointmentCountResult.rows[0].next_number).padStart(5, "0")}`;
 
     const appointment = {
       ...payload,
       appointmentNumber,
+      metadata: {
+        ...(payload.metadata || {}),
+        consultationPayment: {
+          ...(payload.metadata?.consultationPayment || {}),
+          receiptNumber
+        }
+      },
       tokenNumber,
       status: payload.status || "scheduled",
       smsSent: false
@@ -217,9 +228,26 @@ export async function updateAppointmentStatusRecord(id, status, metadata = {}) {
   return toCamelAppointment(result.rows[0]);
 }
 
-export async function cancelAppointmentRecord(id) {
+export async function updateAppointmentMetadataRecord(id, metadata = {}) {
+  const result = await query(
+    `
+    UPDATE appointments
+    SET
+      metadata = metadata || $2::jsonb,
+      updated_at = NOW()
+    WHERE id = $1 AND deleted_at IS NULL
+    RETURNING *
+    `,
+    [id, JSON.stringify(metadata)]
+  );
+
+  return toCamelAppointment(result.rows[0]);
+}
+
+export async function cancelAppointmentRecord(id, metadata = {}) {
   return updateAppointmentStatusRecord(id, "cancelled", {
-    statusUpdatedAt: new Date().toISOString()
+    statusUpdatedAt: new Date().toISOString(),
+    ...metadata
   });
 }
 

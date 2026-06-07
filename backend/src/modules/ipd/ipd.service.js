@@ -2,6 +2,7 @@ import { ipdTreatmentPackages, ipdWardCharges } from "../../config/hospitalData.
 import { createId, db } from "../../data/store.js";
 import { currentTime, nowIso, todayDate } from "../../utils/dateTime.js";
 import { createError } from "../../utils/errors.js";
+import { appendWorkflowMetadata } from "../../utils/workflow.js";
 import { createBill } from "../billing/billing.service.js";
 import { createPanchkarmaSchedule, getPanchkarmaMasters } from "../panchkarma/panchkarma.service.js";
 import { listSessionRecords } from "../panchkarma/panchkarma.repository.js";
@@ -19,7 +20,8 @@ import {
   listNoteRecords,
   listVitalRecords,
   loadIpdRelatedRecords,
-  updateAdmissionRecord
+  updateAdmissionRecord,
+  updateAdmissionStatusRecord
 } from "./ipd.repository.js";
 
 function formatPatientName(patient) {
@@ -549,6 +551,36 @@ export async function dischargeAdmission(admissionId, payload, userId) {
 
   if (!result) throw createError("IPD admission not found.", 404);
   if (result.conflict === "inactive") throw createError("This admission is already discharged.");
+
+  syncAdmissionMirror(result);
+  await loadIpdMirrorsFromDatabase();
+  return enrichAdmission(result);
+}
+
+export async function updateAdmissionWorkflowStatus(admissionId, payload = {}, user = {}) {
+  const admission = await getAdmissionDetails(admissionId);
+  const action = String(payload.action || "").trim().toLowerCase();
+  const statusByAction = {
+    cancel: "cancelled",
+    transfer: "transferred",
+    reopen: "active"
+  };
+
+  if (!statusByAction[action]) {
+    throw createError("Invalid IPD workflow action.");
+  }
+
+  const metadata = appendWorkflowMetadata(admission.metadata, payload, user, `ipd:${action}`);
+  const result = await updateAdmissionStatusRecord(admissionId, {
+    status: statusByAction[action],
+    metadata,
+    nextBedStatus: payload.nextBedStatus || "cleaning",
+    bedNote: payload.bedNote || metadata.workflow.reason
+  });
+
+  if (!result) throw createError("IPD admission not found.", 404);
+  if (result.conflict === "inactive") throw createError("Only active IPD admissions can be cancelled or transferred.");
+  if (result.conflict === "invalid_status") throw createError("This admission cannot be reopened from its current state.");
 
   syncAdmissionMirror(result);
   await loadIpdMirrorsFromDatabase();

@@ -15,7 +15,8 @@ import {
   saveAyurvedaAssessment,
   saveOpdDischargeSummary,
   saveOpdVitals,
-  savePrescription
+  savePrescription,
+  updateOpdVisitWorkflow
 } from "../../services/api.js";
 
 const initialVitals = {
@@ -592,6 +593,32 @@ export function OpdPage() {
       setMessage("Consultation completed.");
     } catch (apiError) {
       setError(apiError.message || "Unable to complete consultation.");
+    }
+  };
+
+  const visitWorkflowAction = async (action, label = action) => {
+    if (!visitPayload?.visit?.id) {
+      return;
+    }
+
+    if (!["admin", "doctor", "reception", "nursing"].includes(user?.role)) {
+      setError("You do not have permission to update OPD workflow status.");
+      return;
+    }
+
+    const reason = window.prompt(`Reason for ${label}:`);
+    if (!reason?.trim()) {
+      setError("Reason is required for OPD workflow actions.");
+      return;
+    }
+
+    try {
+      await updateOpdVisitWorkflow(visitPayload.visit.id, { action, reason });
+      await loadQueue(filterDoctorId);
+      await loadVisit(visitPayload.visit.id, selectedQueueItem);
+      setMessage("OPD workflow action saved.");
+    } catch (apiError) {
+      setError(apiError.message || "Unable to update OPD workflow.");
     }
   };
 
@@ -1396,10 +1423,16 @@ export function OpdPage() {
                     <div className="eyebrow">Close Visit</div>
                     <h3>Complete consultation</h3>
                   </div>
-                  <Button onClick={completeConsultationAction} disabled={!canClinicalDocument}>Complete Visit</Button>
+                  <div className="action-row">
+                    <Button variant="secondary" onClick={() => visitWorkflowAction("hold", "hold visit")}>Hold</Button>
+                    <Button variant="secondary" onClick={() => visitWorkflowAction("requeue", "requeue visit")}>Requeue</Button>
+                    <Button variant="secondary" onClick={() => visitWorkflowAction("cancel", "cancel visit")}>Cancel</Button>
+                    <Button variant="secondary" onClick={() => visitWorkflowAction("reopen", "reopen visit")}>Reopen</Button>
+                    <Button onClick={completeConsultationAction} disabled={!canClinicalDocument}>Complete Visit</Button>
+                  </div>
                 </div>
                 <p className="page-copy">
-                  Use this when the consultation, advice, and prescription have been finalized.
+                  Use Complete when the consultation is finalized. Use Hold, Requeue, Cancel, or Reopen when the patient flow changes.
                 </p>
               </article>
             </>

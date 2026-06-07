@@ -6,6 +6,7 @@ import {
 import { consultationCharge, opdOperatingHours } from "../../config/hospitalData.js";
 import { todayDate } from "../../utils/dateTime.js";
 import { createError } from "../../utils/errors.js";
+import { appendWorkflowMetadata, workflowMetadata } from "../../utils/workflow.js";
 import { getAppointmentById, updateAppointmentStatus } from "../appointments/appointments.service.js";
 import { admitPatient } from "../ipd/ipd.service.js";
 import { createLabOrder, getLabMasters } from "../laboratory/laboratory.service.js";
@@ -326,12 +327,51 @@ export async function saveDischargeSummary(visitId, payload, doctorId) {
   return upsertDischargeSummaryRecord(summary);
 }
 
-export async function completeVisit(visitId) {
+export async function completeVisit(visitId, actor = {}) {
   const visit = await getVisitById(visitId);
-  const savedVisit = await updateVisitStatusRecord(visitId, "completed");
+  const savedVisit = await updateVisitStatusRecord(visitId, "completed", {
+    ...workflowMetadata({ reason: "Consultation completed" }, actor, "opd:complete")
+  });
   syncVisitMirror(savedVisit);
   if (visit.appointmentId) {
-    await updateAppointmentStatus(visit.appointmentId, { status: "completed", note: `Completed from OPD visit ${visit.opdNumber}` });
+    await updateAppointmentStatus(visit.appointmentId, { status: "completed", note: `Completed from OPD visit ${visit.opdNumber}` }, actor);
+  }
+
+  return savedVisit;
+}
+
+export async function updateVisitWorkflowStatus(visitId, payload = {}, actor = {}) {
+  const visit = await getVisitById(visitId);
+  const action = String(payload.action || "").trim().toLowerCase();
+  const actionMap = {
+    hold: "waiting",
+    requeue: "waiting",
+    cancel: "cancelled",
+    reopen: "waiting",
+    start: "in_consultation",
+    complete: "completed"
+  };
+
+  if (!actionMap[action]) {
+    throw createError("Invalid OPD workflow action.");
+  }
+
+  if (visit.status === "completed" && action !== "reopen") {
+    throw createError("Completed OPD visits must be reopened before further action.");
+  }
+
+  const metadata = appendWorkflowMetadata(visit.metadata, payload, actor, `opd:${action}`);
+  metadata.queueStatus = action === "hold" ? "hold" : action === "requeue" ? "waiting" : metadata.queueStatus || "";
+
+  const savedVisit = await updateVisitStatusRecord(visitId, actionMap[action], metadata);
+  syncVisitMirror(savedVisit);
+
+  if (visit.appointmentId && ["cancel", "complete"].includes(action)) {
+    await updateAppointmentStatus(visit.appointmentId, {
+      status: action === "cancel" ? "cancelled" : "completed",
+      reason: metadata.workflow.reason,
+      note: metadata.workflow.note || metadata.workflow.reason
+    }, actor);
   }
 
   return savedVisit;

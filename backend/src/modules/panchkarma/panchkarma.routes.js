@@ -5,6 +5,7 @@ import {
   completePanchkarmaSessionHandler,
   createPanchkarmaScheduleHandler,
   listPanchkarmaSchedulesHandler,
+  panchkarmaWorkflowActionHandler,
   panchkarmaMastersHandler,
   panchkarmaScheduleDetailsHandler,
   panchkarmaSummaryHandler,
@@ -53,6 +54,11 @@ panchkarmaRouter.post(
   "/schedule/:id/complete",
   authorize(["admin", "doctor", "therapist", "accounts"]),
   completePanchkarmaSessionHandler
+);
+panchkarmaRouter.put(
+  "/schedule/:id/workflow",
+  authorize(["admin", "doctor", "reception", "therapist", "accounts"]),
+  panchkarmaWorkflowActionHandler
 );
 
 export { panchkarmaRouter };

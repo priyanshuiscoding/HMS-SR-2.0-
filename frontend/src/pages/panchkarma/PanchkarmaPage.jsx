@@ -13,7 +13,8 @@ import {
   getPanchkarmaSchedules,
   getPanchkarmaSummary,
   getPatients,
-  startPanchkarmaSession
+  startPanchkarmaSession,
+  updatePanchkarmaWorkflow
 } from "../../services/api.js";
 
 const today = new Date().toISOString().slice(0, 10);
@@ -261,6 +262,26 @@ export function PanchkarmaPage() {
     }
   };
 
+  const handleWorkflowAction = async (action, label = action) => {
+    if (!selectedSchedule?.id) {
+      return;
+    }
+
+    const reason = window.prompt(`Reason for ${label}:`);
+    if (!reason?.trim()) {
+      setError("Reason is required for Panchkarma workflow actions.");
+      return;
+    }
+
+    try {
+      const response = await updatePanchkarmaWorkflow(selectedSchedule.id, { action, reason });
+      setMessage(response.message);
+      await loadData(filters, response.item.id);
+    } catch (apiError) {
+      setError(apiError.message || "Unable to update Panchkarma workflow.");
+    }
+  };
+
   return (
     <DashboardLayout>
       <section className="hero-panel logo-hero">
@@ -453,11 +474,19 @@ export function PanchkarmaPage() {
               <div className="eyebrow">Session Detail</div>
               <h3>{selectedSchedule?.scheduleNumber || "Select a session"}</h3>
             </div>
-            {selectedSchedule?.status === "scheduled" ? (
-              <Button onClick={handleStartSession} disabled={!["admin", "doctor", "therapist"].includes(user?.role)}>
-                Start Session
-              </Button>
-            ) : null}
+            <div className="action-row">
+              {selectedSchedule?.status === "scheduled" ? (
+                <Button onClick={handleStartSession} disabled={!["admin", "doctor", "therapist"].includes(user?.role)}>
+                  Start Session
+                </Button>
+              ) : null}
+              {selectedSchedule ? (
+                <>
+                  <Button variant="secondary" onClick={() => handleWorkflowAction("cancel", "cancel session")}>Cancel</Button>
+                  <Button variant="secondary" onClick={() => handleWorkflowAction("reopen", "reopen session")}>Reopen</Button>
+                </>
+              ) : null}
+            </div>
           </div>
 
           {error ? <div className="error-text">{error}</div> : null}

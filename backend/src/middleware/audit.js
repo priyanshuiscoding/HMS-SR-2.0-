@@ -2,9 +2,27 @@ import { logger } from "../config/logger.js";
 import { createAuditLog } from "../modules/audit/audit.repository.js";
 
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const SENSITIVE_KEYS = new Set(["password", "newPassword", "currentPassword", "otp", "token", "accessToken", "refreshToken"]);
 
 function entityTypeFromPath(path = "") {
   return path.split("/").filter(Boolean)[0] || "system";
+}
+
+function redact(value) {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(redact);
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, entry]) => [
+      key,
+      SENSITIVE_KEYS.has(key) ? "[redacted]" : redact(entry)
+    ])
+  );
 }
 
 export function auditWrites(req, res, next) {
@@ -27,7 +45,8 @@ export function auditWrites(req, res, next) {
       userAgent: req.get("user-agent") || "",
       newValue: {
         params: req.params || {},
-        query: req.query || {}
+        query: req.query || {},
+        body: redact(req.body || {})
       },
       status: "success"
     }).catch((error) => {

@@ -5,6 +5,7 @@ import {
   collectSampleHandler,
   createBillHandler,
   createOrderHandler,
+  labWorkflowActionHandler,
   listOrdersHandler,
   mastersHandler,
   orderDetailsHandler,
@@ -22,5 +23,6 @@ laboratoryRouter.post("/orders", authorize(["admin", "doctor"]), createOrderHand
 laboratoryRouter.post("/orders/:id/sample-collection", authorize(["admin", "lab", "reception", "doctor"]), collectSampleHandler);
 laboratoryRouter.post("/orders/:id/results", authorize(["admin", "lab", "doctor"]), saveResultsHandler);
 laboratoryRouter.post("/orders/:id/bill", authorize(["admin", "accounts", "reception", "doctor", "lab"]), createBillHandler);
+laboratoryRouter.put("/orders/:id/workflow", authorize(["admin", "lab", "reception", "doctor"]), labWorkflowActionHandler);
 
 export { laboratoryRouter };

@@ -6,6 +6,7 @@ import {
   getAvailableSlots,
   getTodayAppointments,
   listAppointments,
+  updateAppointmentQueueAction,
   updateAppointmentStatus,
   updateAppointment
 } from "./appointments.service.js";
@@ -45,7 +46,7 @@ export async function updateAppointmentHandler(req, res, next) {
 
 export async function cancelAppointmentHandler(req, res, next) {
   try {
-    res.json({ item: await cancelAppointment(req.params.id), message: "Appointment cancelled successfully." });
+    res.json({ item: await cancelAppointment(req.params.id, req.body, req.user), message: "Appointment cancelled successfully." });
   } catch (error) {
     next(error);
   }
@@ -55,6 +56,15 @@ export async function updateAppointmentStatusHandler(req, res, next) {
   try {
     const item = await updateAppointmentStatus(req.params.id, req.body, req.user);
     res.json({ item, message: "Appointment status updated successfully." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateAppointmentQueueActionHandler(req, res, next) {
+  try {
+    const item = await updateAppointmentQueueAction(req.params.id, req.body, req.user);
+    res.json({ item, message: "Appointment queue action saved successfully." });
   } catch (error) {
     next(error);
   }

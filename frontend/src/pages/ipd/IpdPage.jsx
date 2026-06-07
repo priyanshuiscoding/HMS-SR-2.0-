@@ -13,7 +13,8 @@ import {
   getIpdMasters,
   getIpdSummary,
   getPatients,
-  scheduleIpdTherapy
+  scheduleIpdTherapy,
+  updateIpdAdmissionWorkflow
 } from "../../services/api.js";
 
 const initialAdmissionForm = {
@@ -281,6 +282,32 @@ export function IpdPage() {
     }
   };
 
+  const handleAdmissionWorkflow = async (action, label = action) => {
+    if (!selectedAdmission?.id) {
+      return;
+    }
+
+    const reason = window.prompt(`Reason for ${label}:`);
+    if (!reason?.trim()) {
+      setError("Reason is required for IPD workflow actions.");
+      return;
+    }
+
+    try {
+      const response = await updateIpdAdmissionWorkflow(selectedAdmission.id, {
+        action,
+        reason,
+        nextBedStatus: "cleaning",
+        bedNote: reason
+      });
+      setMessage(response.message);
+      setSelectedAdmission(response.item);
+      await loadData(filters, selectedAdmission.id);
+    } catch (apiError) {
+      setError(apiError.message || "Unable to update IPD workflow.");
+    }
+  };
+
   const stats = summary || {
     totalAdmissions: 0,
     activeAdmissions: 0,
@@ -390,7 +417,7 @@ export function IpdPage() {
           <div className="section-header"><div><div className="eyebrow">Admissions</div><h3>IPD register</h3></div></div>
           <div className="toolbar">
             <input className="search-input" name="search" value={filters.search} onChange={handleFilterChange} placeholder="Search by patient, admission no, diagnosis" />
-            <select name="status" value={filters.status} onChange={handleFilterChange}><option value="">All statuses</option><option value="active">active</option><option value="discharged">discharged</option></select>
+            <select name="status" value={filters.status} onChange={handleFilterChange}><option value="">All statuses</option><option value="active">active</option><option value="discharged">discharged</option><option value="transferred">transferred</option><option value="cancelled">cancelled</option></select>
           </div>
           <div className="queue-list">
             {admissions.map((admission) => (
@@ -413,7 +440,16 @@ export function IpdPage() {
 
       <section className="opd-grid">
         <article className="content-card">
-          <div className="section-header"><div><div className="eyebrow">Admission Detail</div><h3>{selectedAdmission?.admissionNumber || "Select an admission"}</h3></div></div>
+          <div className="section-header">
+            <div><div className="eyebrow">Admission Detail</div><h3>{selectedAdmission?.admissionNumber || "Select an admission"}</h3></div>
+            {selectedAdmission ? (
+              <div className="action-row">
+                <Button variant="secondary" onClick={() => handleAdmissionWorkflow("cancel", "cancel admission")}>Cancel</Button>
+                <Button variant="secondary" onClick={() => handleAdmissionWorkflow("transfer", "transfer admission")}>Transfer</Button>
+                <Button variant="secondary" onClick={() => handleAdmissionWorkflow("reopen", "reopen admission")}>Reopen</Button>
+              </div>
+            ) : null}
+          </div>
           {error ? <div className="error-text">{error}</div> : null}
           {message ? <div className="success-text">{message}</div> : null}
           {selectedAdmission ? (

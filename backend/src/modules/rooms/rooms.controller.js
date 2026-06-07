@@ -5,7 +5,8 @@ import {
   getRoomDetails,
   getRoomMasters,
   getRoomsAvailability,
-  listRooms
+  listRooms,
+  updateBedWorkflowStatus
 } from "./rooms.service.js";
 
 export async function roomMastersHandler(_req, res, next) {
@@ -64,6 +65,17 @@ export async function dischargeBedHandler(req, res, next) {
     res.json({
       ...(await dischargeBed(req.params.roomId, req.params.bedId, req.body)),
       message: "Bed discharged successfully."
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function bedWorkflowStatusHandler(req, res, next) {
+  try {
+    res.json({
+      ...(await updateBedWorkflowStatus(req.params.roomId, req.params.bedId, req.body, req.user)),
+      message: "Bed workflow status updated successfully."
     });
   } catch (error) {
     next(error);

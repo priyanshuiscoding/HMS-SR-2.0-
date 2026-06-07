@@ -9,7 +9,8 @@ import {
   saveAssessment,
   saveDischargeSummary,
   savePrescription,
-  saveVitals
+  saveVitals,
+  updateVisitWorkflowStatus
 } from "./opd.service.js";
 
 export async function queueHandler(req, res, next) {
@@ -79,7 +80,15 @@ export async function dischargeSummarySaveHandler(req, res, next) {
 
 export async function completeVisitHandler(req, res, next) {
   try {
-    res.json({ item: await completeVisit(req.params.id), message: "Consultation completed successfully." });
+    res.json({ item: await completeVisit(req.params.id, req.user), message: "Consultation completed successfully." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function visitWorkflowActionHandler(req, res, next) {
+  try {
+    res.json({ item: await updateVisitWorkflowStatus(req.params.id, req.body, req.user), message: "OPD workflow action saved successfully." });
   } catch (error) {
     next(error);
   }

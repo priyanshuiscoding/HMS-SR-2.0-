@@ -424,6 +424,46 @@ export async function dischargeAdmissionRecord(admissionId, payload) {
   });
 }
 
+export async function updateAdmissionStatusRecord(admissionId, payload = {}) {
+  return withTransaction(async (client) => {
+    const admissionResult = await client.query("SELECT * FROM ipd_admissions WHERE id = $1 FOR UPDATE", [admissionId]);
+    const admission = admissionResult.rows[0];
+
+    if (!admission) return null;
+
+    if (payload.status === "active" && !["cancelled", "transferred", "discharged"].includes(admission.status)) {
+      return { conflict: "invalid_status" };
+    }
+
+    if (["cancelled", "transferred"].includes(payload.status) && admission.status !== "active") {
+      return { conflict: "inactive" };
+    }
+
+    await client.query(
+      `
+      UPDATE ipd_admissions
+      SET status = $2, metadata = metadata || $3::jsonb, updated_at = NOW()
+      WHERE id = $1
+      `,
+      [admissionId, payload.status, JSON.stringify(payload.metadata || {})]
+    );
+
+    if (["cancelled", "transferred"].includes(payload.status) && admission.bed_id) {
+      await client.query(
+        `
+        UPDATE beds
+        SET status = $2, patient_id = NULL, patient_name = '', assigned_at = NULL,
+            expected_discharge_date = NULL, note = $3, admission_type = '', assigned_by = NULL, updated_at = NOW()
+        WHERE id = $1
+        `,
+        [admission.bed_id, payload.nextBedStatus || "cleaning", payload.bedNote || payload.metadata?.workflow?.reason || ""]
+      );
+    }
+
+    return loadAdmissionBundle(client, admissionId);
+  });
+}
+
 export async function loadIpdRelatedRecords() {
   const [admissions, notesResult, vitalsResult] = await Promise.all([
     listAdmissionRecords(),

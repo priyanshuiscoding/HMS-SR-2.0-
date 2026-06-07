@@ -6,7 +6,8 @@ import {
   getPanchkarmaSummary,
   getPanchkarmaTherapies,
   listPanchkarmaSchedules,
-  startPanchkarmaSession
+  startPanchkarmaSession,
+  updatePanchkarmaWorkflowStatus
 } from "./panchkarma.service.js";
 
 export async function panchkarmaTherapiesHandler(_req, res, next) {
@@ -76,6 +77,17 @@ export async function completePanchkarmaSessionHandler(req, res, next) {
     res.json({
       item: await completePanchkarmaSession(req.params.id, req.body, req.user.sub),
       message: "Panchkarma session completed successfully."
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function panchkarmaWorkflowActionHandler(req, res, next) {
+  try {
+    res.json({
+      item: await updatePanchkarmaWorkflowStatus(req.params.id, req.body, req.user),
+      message: "Panchkarma workflow action saved successfully."
     });
   } catch (error) {
     next(error);

@@ -8,6 +8,7 @@ import {
   admissionNotesHandler,
   admissionVitalsHandler,
   admitPatientHandler,
+  admissionWorkflowActionHandler,
   dischargeAdmissionHandler,
   ipdCensusHandler,
   ipdMastersHandler,
@@ -32,5 +33,6 @@ ipdRouter.post("/admissions/:id/notes", authorize(["admin", "doctor", "nursing"]
 ipdRouter.post("/admissions/:id/vitals", authorize(["admin", "doctor", "nursing"]), addAdmissionVitalsHandler);
 ipdRouter.post("/admissions/:id/therapies", authorize(["admin", "doctor", "therapist", "nursing"]), scheduleAdmissionTherapyHandler);
 ipdRouter.post("/admissions/:id/discharge", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), dischargeAdmissionHandler);
+ipdRouter.put("/admissions/:id/workflow", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), admissionWorkflowActionHandler);
 
 export { ipdRouter };

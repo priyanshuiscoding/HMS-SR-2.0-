@@ -12,6 +12,7 @@ import {
   queueHandler,
   referVisitToIpdHandler,
   visitDetailsHandler,
+  visitWorkflowActionHandler,
   vitalsHandler
 } from "./opd.controller.js";
 
@@ -28,5 +29,6 @@ opdRouter.post("/visits/:id/discharge-summary", authorize(["admin", "doctor"]), 
 opdRouter.post("/visits/:id/lab-orders", authorize(["admin", "doctor"]), createVisitLabOrderHandler);
 opdRouter.post("/visits/:id/refer-ipd", authorize(["admin", "doctor"]), referVisitToIpdHandler);
 opdRouter.put("/visits/:id/complete", authorize(["admin", "doctor"]), completeVisitHandler);
+opdRouter.put("/visits/:id/workflow", authorize(["admin", "doctor", "reception", "nursing"]), visitWorkflowActionHandler);
 
 export { opdRouter };

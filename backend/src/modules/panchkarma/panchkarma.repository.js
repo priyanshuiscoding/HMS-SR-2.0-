@@ -382,6 +382,28 @@ export async function completeSessionRecord(sessionId, payload) {
   });
 }
 
+export async function updateSessionStatusRecord(sessionId, payload = {}) {
+  return withTransaction(async (client) => {
+    const sessionResult = await client.query("SELECT * FROM panchkarma_sessions WHERE id = $1 FOR UPDATE", [sessionId]);
+    const session = sessionResult.rows[0];
+
+    if (!session) return null;
+    if (payload.status === "cancelled" && session.status === "completed") return { conflict: "completed" };
+    if (payload.status === "scheduled" && !["cancelled", "in_progress"].includes(session.status)) return { conflict: "invalid_status" };
+
+    await client.query(
+      `
+      UPDATE panchkarma_sessions
+      SET status = $2, metadata = metadata || $3::jsonb, updated_at = NOW()
+      WHERE id = $1
+      `,
+      [sessionId, payload.status, JSON.stringify(payload.metadata || {})]
+    );
+
+    return loadSessionBundle(client, sessionId);
+  });
+}
+
 export async function loadPanchkarmaMirrors() {
   const [therapies, sessions] = await Promise.all([
     listTherapyRecords(),

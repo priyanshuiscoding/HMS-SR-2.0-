@@ -52,6 +52,7 @@ function toCamelPrescription(row, medicines = [], dispensation = null) {
     diagnosis: row.diagnosis || "",
     diagnosisAyurvedic: row.diagnosis_ayurvedic || "",
     isDispensed: Boolean(row.is_dispensed),
+    pharmacyStatus: row.metadata?.pharmacyStatus || (row.is_dispensed ? "completed" : "pending"),
     medicines,
     dispensation,
     metadata: row.metadata || {}
@@ -101,8 +102,9 @@ export async function listDispensationRecords(filters = {}) {
 export async function listPrescriptionQueueRecords(filters = {}) {
   const params = [];
   const conditions = ["1 = 1"];
-  if (filters.status === "pending") conditions.push("p.is_dispensed = false");
+  if (filters.status === "pending") conditions.push("p.is_dispensed = false AND COALESCE(p.metadata->>'pharmacyStatus', 'pending') <> 'cancelled'");
   if (filters.status === "completed") conditions.push("p.is_dispensed = true");
+  if (filters.status === "cancelled") conditions.push("COALESCE(p.metadata->>'pharmacyStatus', '') = 'cancelled'");
   if (filters.patientId) {
     params.push(filters.patientId);
     conditions.push(`p.patient_id = $${params.length}`);
@@ -138,6 +140,28 @@ export async function listPrescriptionQueueRecords(filters = {}) {
   return prescriptionResult.rows.map((row) =>
     toCamelPrescription(row, medicinesByPrescription.get(row.id) || [], dispensationByPrescription.get(row.id) || null)
   );
+}
+
+export async function updatePrescriptionPharmacyStatusRecord(prescriptionId, payload = {}) {
+  return withTransaction(async (client) => {
+    const prescriptionResult = await client.query("SELECT * FROM prescriptions WHERE id = $1 FOR UPDATE", [prescriptionId]);
+    const prescription = prescriptionResult.rows[0];
+
+    if (!prescription) return null;
+    if (prescription.is_dispensed && payload.status === "cancelled") return { conflict: "dispensed" };
+
+    await client.query(
+      `
+      UPDATE prescriptions
+      SET metadata = metadata || $2::jsonb, updated_at = NOW()
+      WHERE id = $1
+      `,
+      [prescriptionId, JSON.stringify(payload.metadata || {})]
+    );
+
+    const [updated] = await listPrescriptionQueueRecords({ patientId: prescription.patient_id });
+    return updated?.id === prescriptionId ? updated : (await listPrescriptionQueueRecords()).find((item) => item.id === prescriptionId);
+  });
 }
 
 export async function getStockSummaryRecords() {

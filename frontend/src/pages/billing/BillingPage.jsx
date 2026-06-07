@@ -272,6 +272,12 @@ export function BillingPage() {
     await loadAll(nextFilters);
   };
 
+  const showPaymentQueue = async (paymentStatus) => {
+    const nextFilters = { ...filters, paymentStatus };
+    setFilters(nextFilters);
+    await loadAll(nextFilters);
+  };
+
   const handleBillSelect = async (billId) => {
     try {
       const detail = await getBill(billId);
@@ -416,6 +422,17 @@ export function BillingPage() {
         <article className="stat-card"><div className="stat-label">Revenue</div><div className="stat-value">Rs. {summary?.totalRevenue || 0}</div><div className="stat-note">Collected till now</div></article>
         <article className="stat-card"><div className="stat-label">Outstanding</div><div className="stat-value">Rs. {summary?.outstanding || 0}</div><div className="stat-note">Pending collections</div></article>
         <article className="stat-card"><div className="stat-label">Today</div><div className="stat-value">Rs. {summary?.todayCollections || 0}</div><div className="stat-note">Collected today</div></article>
+      </section>
+
+      <section className="content-card">
+        <div className="section-header">
+          <div><div className="eyebrow">Payment Queue</div><h3>Separate unpaid and partial bills</h3></div>
+          <div className="action-row">
+            <Button variant="secondary" onClick={() => showPaymentQueue("unpaid")}>Unpaid {summary?.unpaidBills || 0}</Button>
+            <Button variant="secondary" onClick={() => showPaymentQueue("partial")}>Partial {summary?.partialBills || 0}</Button>
+            <Button variant="secondary" onClick={() => showPaymentQueue("")}>All Bills</Button>
+          </div>
+        </div>
       </section>
 
       <section className="workspace-grid">

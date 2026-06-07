@@ -8,6 +8,7 @@ import {
   lowStockHandler,
   pharmacyMastersHandler,
   pharmacyStockHandler,
+  prescriptionWorkflowActionHandler,
   prescriptionQueueHandler
 } from "./pharmacy.controller.js";
 
@@ -23,6 +24,11 @@ pharmacyRouter.post(
   "/prescriptions/:prescriptionId/dispense",
   authorize(["admin", "pharmacy"]),
   dispenseHandler
+);
+pharmacyRouter.put(
+  "/prescriptions/:prescriptionId/workflow",
+  authorize(["admin", "pharmacy", "doctor"]),
+  prescriptionWorkflowActionHandler
 );
 
 export { pharmacyRouter };

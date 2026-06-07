@@ -6,7 +6,8 @@ import {
   getPharmacyMasters,
   getPharmacyStock,
   listDispensations,
-  listPrescriptionQueue
+  listPrescriptionQueue,
+  updatePrescriptionPharmacyWorkflow
 } from "./pharmacy.service.js";
 
 export async function pharmacyMastersHandler(_req, res, next) {
@@ -62,6 +63,15 @@ export async function dispenseHandler(req, res, next) {
   try {
     const item = await dispensePrescription(req.params.prescriptionId, req.body, req.user.sub);
     res.status(201).json({ item, message: "Prescription dispensed successfully." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function prescriptionWorkflowActionHandler(req, res, next) {
+  try {
+    const item = await updatePrescriptionPharmacyWorkflow(req.params.prescriptionId, req.body, req.user);
+    res.json({ item, message: "Pharmacy workflow action saved successfully." });
   } catch (error) {
     next(error);
   }

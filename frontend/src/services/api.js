@@ -112,6 +112,7 @@ export const getSystemOverview = () => get("/system/overview");
 export const getPatients = (search = "") => get("/patients", search ? { search } : {});
 export const createPatient = (payload) => post("/patients", payload);
 export const getPatient = (id) => get(`/patients/${id}`);
+export const updatePatient = (id, payload) => put(`/patients/${id}`, payload);
 export const getPatientHistory = (id) => get(`/patients/${id}/history`);
 export const getPatientDocuments = (id) => get(`/patients/${id}/documents`);
 export const uploadPatientDocument = (id, payload) => post(`/patients/${id}/documents`, payload);
@@ -125,6 +126,7 @@ export const getTodayAppointments = () => get("/appointments/today");
 export const getAvailableSlots = (date, doctorId) => get("/appointments/available-slots", { date, doctorId });
 export const cancelAppointment = (id) => del(`/appointments/${id}`);
 export const updateAppointmentStatus = (id, payload) => put(`/appointments/${id}/status`, payload);
+export const updateAppointmentQueueAction = (id, payload) => put(`/appointments/${id}/queue-action`, payload);
 
 export const getCalendarEvents = (params = {}) => get("/calendar/events", params);
 export const createCalendarEvent = (payload) => post("/calendar/events", payload);
@@ -162,6 +164,7 @@ export const saveOpdDischargeSummary = (id, payload) => post(`/opd/visits/${id}/
 export const createOpdLabOrder = (id, payload) => post(`/opd/visits/${id}/lab-orders`, payload);
 export const referOpdVisitToIpd = (id, payload) => post(`/opd/visits/${id}/refer-ipd`, payload);
 export const completeOpdVisit = (id) => put(`/opd/visits/${id}/complete`);
+export const updateOpdVisitWorkflow = (id, payload) => put(`/opd/visits/${id}/workflow`, payload);
 
 export const getLabTests = () => get("/lab/tests");
 export const createLabOrder = (payload) => post("/lab/orders", payload);
@@ -171,6 +174,7 @@ export const getLabOrder = (id) => get(`/lab/orders/${id}`);
 export const collectLabSample = (id, payload) => post(`/lab/orders/${id}/sample-collection`, payload);
 export const saveLabResults = (id, payload) => post(`/lab/orders/${id}/results`, payload);
 export const createLabBill = (id, payload = {}) => post(`/lab/orders/${id}/bill`, payload);
+export const updateLabOrderWorkflow = (id, payload) => put(`/lab/orders/${id}/workflow`, payload);
 
 export const getBills = (params = {}) => get("/billing/bills", params);
 export const createBill = (payload) => post("/billing/bills", payload);
@@ -200,6 +204,7 @@ export const getPharmacyExpiringStock = (withinDays = 90) => get("/pharmacy/stoc
 export const getPharmacyPrescriptions = (params = {}) => get("/pharmacy/prescriptions", params);
 export const getDispensations = (params = {}) => get("/pharmacy/dispensations", params);
 export const dispensePrescription = (prescriptionId, payload) => post(`/pharmacy/prescriptions/${prescriptionId}/dispense`, payload);
+export const updatePrescriptionPharmacyWorkflow = (prescriptionId, payload) => put(`/pharmacy/prescriptions/${prescriptionId}/workflow`, payload);
 
 export const getInventoryMasters = () => get("/inventory/masters");
 export const getHospitalInventoryItems = (params = {}) => get("/inventory/hospital-items", params);
@@ -227,6 +232,7 @@ export const addIpdNote = (id, payload) => post(`/ipd/admissions/${id}/notes`, p
 export const addIpdVitals = (id, payload) => post(`/ipd/admissions/${id}/vitals`, payload);
 export const scheduleIpdTherapy = (id, payload) => post(`/ipd/admissions/${id}/therapies`, payload);
 export const dischargeIpdAdmission = (id, payload) => post(`/ipd/admissions/${id}/discharge`, payload);
+export const updateIpdAdmissionWorkflow = (id, payload) => put(`/ipd/admissions/${id}/workflow`, payload);
 
 export const getRoomMasters = () => get("/rooms/masters");
 export const getRooms = (params = {}) => get("/rooms", params);
@@ -235,6 +241,8 @@ export const getRoom = (id) => get(`/rooms/${id}`);
 export const createRoom = (payload) => post("/rooms", payload);
 export const assignRoomBed = (roomId, bedId, payload) => post(`/rooms/${roomId}/beds/${bedId}/assign`, payload);
 export const dischargeRoomBed = (roomId, bedId, payload) => post(`/rooms/${roomId}/beds/${bedId}/discharge`, payload);
+export const updateRoomBedStatus = (roomId, bedId, payload) => put(`/rooms/${roomId}/beds/${bedId}/status`, payload);
+export const updatePanchkarmaWorkflow = (id, payload) => put(`/panchkarma/schedule/${id}/workflow`, payload);
 
 export const getReportsOverview = (params = {}) => get("/reports/overview", params);
 export const getDailyOpdReport = (params = {}) => get("/reports/daily-opd", params);

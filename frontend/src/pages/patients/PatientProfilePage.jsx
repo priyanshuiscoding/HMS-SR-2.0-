@@ -8,6 +8,7 @@ import {
   deletePatientDocument,
   downloadPatientDocument,
   getPatientHistory,
+  updatePatient,
   uploadPatientDocument
 } from "../../services/api.js";
 
@@ -17,6 +18,64 @@ const documentInitialForm = {
   notes: "",
   file: null
 };
+
+const patientEditInitialForm = {
+  patientType: "new",
+  title: "",
+  firstName: "",
+  lastName: "",
+  fatherName: "",
+  dateOfBirth: "",
+  ageYears: "",
+  gender: "",
+  bloodGroup: "",
+  maritalStatus: "",
+  occupation: "",
+  phone: "",
+  altPhone: "",
+  email: "",
+  houseStreet: "",
+  areaVillage: "",
+  cityDistrict: "",
+  state: "",
+  pincode: "",
+  idType: "",
+  idNumber: "",
+  opdIpdNumber: "",
+  emergencyContactName: "",
+  emergencyContactPhone: "",
+  referredBy: ""
+};
+
+function toPatientEditForm(patient = {}) {
+  return {
+    patientType: patient.patientType || "new",
+    title: patient.title || "",
+    firstName: patient.firstName || "",
+    lastName: patient.lastName || "",
+    fatherName: patient.fatherName || "",
+    dateOfBirth: patient.dateOfBirth || "",
+    ageYears: patient.ageYears || "",
+    gender: patient.gender || "",
+    bloodGroup: patient.bloodGroup || "",
+    maritalStatus: patient.maritalStatus || "",
+    occupation: patient.occupation || "",
+    phone: patient.phone || "",
+    altPhone: patient.altPhone || "",
+    email: patient.email || "",
+    houseStreet: patient.houseStreet || "",
+    areaVillage: patient.areaVillage || "",
+    cityDistrict: patient.cityDistrict || patient.city || "",
+    state: patient.state || "",
+    pincode: patient.pincode || "",
+    idType: patient.idType || "",
+    idNumber: patient.idNumber || "",
+    opdIpdNumber: patient.opdIpdNumber || "",
+    emergencyContactName: patient.emergencyContactName || "",
+    emergencyContactPhone: patient.emergencyContactPhone || "",
+    referredBy: patient.referredBy || ""
+  };
+}
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -42,6 +101,18 @@ function formatFileSize(size) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatTimeLabel(time) {
+  const [hourValue, minuteValue] = String(time || "").split(":").map(Number);
+
+  if (!Number.isFinite(hourValue) || !Number.isFinite(minuteValue)) {
+    return time || "";
+  }
+
+  const hour = hourValue % 12 || 12;
+  const period = hourValue >= 12 ? "PM" : "AM";
+  return `${hour}:${String(minuteValue).padStart(2, "0")} ${period}`;
+}
+
 export function PatientProfilePage() {
   const { id } = useParams();
   const { user } = useAuth();
@@ -51,14 +122,21 @@ export function PatientProfilePage() {
   const [documentStatus, setDocumentStatus] = useState("");
   const [documentError, setDocumentError] = useState("");
   const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [isEditingPatient, setIsEditingPatient] = useState(false);
+  const [patientEditForm, setPatientEditForm] = useState(patientEditInitialForm);
+  const [patientEditStatus, setPatientEditStatus] = useState("");
+  const [patientEditError, setPatientEditError] = useState("");
+  const [savingPatient, setSavingPatient] = useState(false);
 
   const canUploadDocuments = ["admin", "reception", "doctor"].includes(user?.role);
   const canDeleteDocuments = ["admin", "reception"].includes(user?.role);
+  const canEditPatient = ["admin", "reception"].includes(user?.role);
 
   async function loadPatientProfile() {
     try {
       const response = await getPatientHistory(id);
       setPayload(response);
+      setPatientEditForm(toPatientEditForm(response.patient));
     } catch (apiError) {
       setError(apiError.message || "Unable to load patient profile.");
     }
@@ -69,6 +147,47 @@ export function PatientProfilePage() {
   }, [id]);
 
   const patient = payload?.patient;
+
+  const handlePatientEditInputChange = (event) => {
+    const { name, value } = event.target;
+    setPatientEditForm((current) => ({
+      ...current,
+      [name]: value
+    }));
+  };
+
+  const handlePatientEditCancel = () => {
+    setPatientEditForm(toPatientEditForm(patient));
+    setIsEditingPatient(false);
+    setPatientEditError("");
+    setPatientEditStatus("");
+  };
+
+  const handlePatientEditSubmit = async (event) => {
+    event.preventDefault();
+
+    if (!canEditPatient) {
+      setPatientEditError("Only admin and reception users can edit patient details.");
+      return;
+    }
+
+    setSavingPatient(true);
+    setPatientEditError("");
+    setPatientEditStatus("");
+
+    try {
+      const response = await updatePatient(id, patientEditForm);
+      setPatientEditStatus(response.message || "Patient details updated successfully.");
+      setPayload((current) => current ? { ...current, patient: response.item } : current);
+      setPatientEditForm(toPatientEditForm(response.item));
+      setIsEditingPatient(false);
+      await loadPatientProfile();
+    } catch (apiError) {
+      setPatientEditError(apiError.message || "Unable to update patient details.");
+    } finally {
+      setSavingPatient(false);
+    }
+  };
 
   const handleDocumentInputChange = (event) => {
     const { name, value, files } = event.target;
@@ -164,10 +283,168 @@ export function PatientProfilePage() {
                 {patient.registrationTime ? ` at ${patient.registrationTime}` : ""}
               </p>
             </div>
-            <Link className="inline-link" to="/patients">
-              Back to registry
-            </Link>
+            <div className="action-row">
+              {canEditPatient ? (
+                <button className="inline-link button-link" type="button" onClick={() => setIsEditingPatient(true)}>
+                  Edit details
+                </button>
+              ) : null}
+              <Link className="inline-link" to="/patients">
+                Back to registry
+              </Link>
+            </div>
           </section>
+
+          {patientEditStatus ? <div className="success-text">{patientEditStatus}</div> : null}
+
+          {isEditingPatient ? (
+            <section className="content-card">
+              <div className="section-header">
+                <div>
+                  <div className="eyebrow">Edit</div>
+                  <h3>Patient details</h3>
+                </div>
+              </div>
+
+              <form className="form-grid" onSubmit={handlePatientEditSubmit}>
+                <div className="field">
+                  <label>Patient type</label>
+                  <select name="patientType" value={patientEditForm.patientType} onChange={handlePatientEditInputChange}>
+                    <option value="new">New</option>
+                    <option value="follow_up">Follow-up</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>OPD / IPD No.</label>
+                  <input name="opdIpdNumber" value={patientEditForm.opdIpdNumber} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>Title</label>
+                  <select name="title" value={patientEditForm.title} onChange={handlePatientEditInputChange}>
+                    <option value="">Select</option>
+                    <option value="Mr">Mr</option>
+                    <option value="Mrs">Mrs</option>
+                    <option value="Miss">Miss</option>
+                    <option value="Master">Master</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Gender</label>
+                  <select name="gender" value={patientEditForm.gender} onChange={handlePatientEditInputChange}>
+                    <option value="">Not recorded</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>First name</label>
+                  <input name="firstName" value={patientEditForm.firstName} onChange={handlePatientEditInputChange} required />
+                </div>
+                <div className="field">
+                  <label>Last name</label>
+                  <input name="lastName" value={patientEditForm.lastName} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field field-span-2">
+                  <label>Father's name</label>
+                  <input name="fatherName" value={patientEditForm.fatherName} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>Date of birth</label>
+                  <input name="dateOfBirth" type="date" value={patientEditForm.dateOfBirth} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>Age</label>
+                  <input name="ageYears" type="number" min="0" max="130" value={patientEditForm.ageYears} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>Blood group</label>
+                  <input name="bloodGroup" value={patientEditForm.bloodGroup} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>Marital status</label>
+                  <select name="maritalStatus" value={patientEditForm.maritalStatus} onChange={handlePatientEditInputChange}>
+                    <option value="">Select</option>
+                    <option value="single">Single</option>
+                    <option value="married">Married</option>
+                  </select>
+                </div>
+                <div className="field field-span-2">
+                  <label>Occupation</label>
+                  <input name="occupation" value={patientEditForm.occupation} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>Mobile no.</label>
+                  <input name="phone" value={patientEditForm.phone} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>Alternate mobile no.</label>
+                  <input name="altPhone" value={patientEditForm.altPhone} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field field-span-2">
+                  <label>Email ID</label>
+                  <input name="email" type="email" value={patientEditForm.email} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field field-span-2">
+                  <label>House / Street</label>
+                  <input name="houseStreet" value={patientEditForm.houseStreet} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field field-span-2">
+                  <label>Area / Village</label>
+                  <input name="areaVillage" value={patientEditForm.areaVillage} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>City / District</label>
+                  <input name="cityDistrict" value={patientEditForm.cityDistrict} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>State</label>
+                  <input name="state" value={patientEditForm.state} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>PIN code</label>
+                  <input name="pincode" value={patientEditForm.pincode} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>Referred by</label>
+                  <input name="referredBy" value={patientEditForm.referredBy} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>ID type</label>
+                  <select name="idType" value={patientEditForm.idType} onChange={handlePatientEditInputChange}>
+                    <option value="">Optional</option>
+                    <option value="aadhaar">Aadhaar</option>
+                    <option value="voter_id">Voter ID</option>
+                    <option value="pan">PAN</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div className="field">
+                  <label>ID number</label>
+                  <input name="idNumber" value={patientEditForm.idNumber} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>Emergency contact</label>
+                  <input name="emergencyContactName" value={patientEditForm.emergencyContactName} onChange={handlePatientEditInputChange} />
+                </div>
+                <div className="field">
+                  <label>Emergency phone</label>
+                  <input name="emergencyContactPhone" value={patientEditForm.emergencyContactPhone} onChange={handlePatientEditInputChange} />
+                </div>
+
+                {patientEditError ? <div className="error-text field-span-2">{patientEditError}</div> : null}
+
+                <div className="field-span-2 action-row">
+                  <Button type="submit" disabled={savingPatient}>
+                    {savingPatient ? "Saving..." : "Save Patient Details"}
+                  </Button>
+                  <button className="secondary-button" type="button" onClick={handlePatientEditCancel} disabled={savingPatient}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </section>
+          ) : null}
 
           <section className="detail-grid">
             <article className="content-card">
@@ -349,7 +626,7 @@ export function PatientProfilePage() {
                       <tr key={appointment.id}>
                         <td>{appointment.appointmentNumber}</td>
                         <td>{appointment.appointmentDate}</td>
-                        <td>{appointment.appointmentTime}</td>
+                        <td>{formatTimeLabel(appointment.appointmentTime)}</td>
                         <td>{appointment.department}</td>
                         <td><span className={`status-pill ${appointment.status}`}>{appointment.status}</span></td>
                         <td>{appointment.chiefComplaint || "General consultation"}</td>

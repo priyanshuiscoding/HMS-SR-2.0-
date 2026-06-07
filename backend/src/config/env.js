@@ -37,5 +37,14 @@ export const env = {
   dbName: process.env.DB_NAME || "hms_db",
   dbUser: process.env.DB_USER || "hms_user",
   dbPassword: process.env.DB_PASSWORD || "hms_password",
-  dbSsl: String(process.env.DB_SSL || "false").toLowerCase() === "true"
+  dbSsl: String(process.env.DB_SSL || "false").toLowerCase() === "true",
+  otpDeliveryMode: process.env.OTP_DELIVERY_MODE || "dev",
+  otpTtlMinutes: Number(process.env.OTP_TTL_MINUTES || 10),
+  smtpHost: process.env.SMTP_HOST || "",
+  smtpPort: Number(process.env.SMTP_PORT || 587),
+  smtpUser: process.env.SMTP_USER || "",
+  smtpPassword: process.env.SMTP_PASSWORD || "",
+  smtpFrom: process.env.SMTP_FROM || "",
+  smsProviderUrl: process.env.SMS_PROVIDER_URL || "",
+  smsProviderToken: process.env.SMS_PROVIDER_TOKEN || ""
 };

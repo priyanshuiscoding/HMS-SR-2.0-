@@ -1,6 +1,7 @@
 import { createId, db } from "../../data/store.js";
 import { todayDate } from "../../utils/dateTime.js";
 import { createError } from "../../utils/errors.js";
+import { appendWorkflowMetadata } from "../../utils/workflow.js";
 import { getPatientById } from "../patients/patients.service.js";
 import { listDoctors, listTherapists } from "../users/users.service.js";
 import {
@@ -12,7 +13,8 @@ import {
   listSessionRecords,
   listTherapyRecords,
   loadPanchkarmaMirrors,
-  startSessionRecord
+  startSessionRecord,
+  updateSessionStatusRecord
 } from "./panchkarma.repository.js";
 
 function syncById(collection, item, prepend = false) {
@@ -386,4 +388,31 @@ export async function completePanchkarmaSession(scheduleId, payload, userId) {
   syncScheduleMirror(result.session);
   syncBillMirror(result.bill);
   return enrichSchedule(result.session);
+}
+
+export async function updatePanchkarmaWorkflowStatus(scheduleId, payload = {}, user = {}) {
+  const schedule = await getPanchkarmaScheduleDetails(scheduleId);
+  const action = String(payload.action || "").trim().toLowerCase();
+  const statusByAction = {
+    cancel: "cancelled",
+    reopen: "scheduled",
+    requeue: "scheduled"
+  };
+
+  if (!statusByAction[action]) {
+    throw createError("Invalid Panchkarma workflow action.");
+  }
+
+  const metadata = appendWorkflowMetadata(schedule.metadata, payload, user, `panchkarma:${action}`);
+  const result = await updateSessionStatusRecord(scheduleId, {
+    status: statusByAction[action],
+    metadata
+  });
+
+  if (!result) throw createError("Panchkarma session not found.", 404);
+  if (result.conflict === "completed") throw createError("Completed Panchkarma sessions cannot be cancelled.");
+  if (result.conflict === "invalid_status") throw createError("This Panchkarma session cannot be reopened from its current state.");
+
+  syncScheduleMirror(result);
+  return enrichSchedule(result);
 }

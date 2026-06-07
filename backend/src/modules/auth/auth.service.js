@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 import { env } from "../../config/env.js";
+import { logger } from "../../config/logger.js";
 import { createError } from "../../utils/errors.js";
 import { findUserByEmail, hashPasswordForStorage, updateUserPasswordHash, updateUserRecord, verifyPassword } from "../users/users.repository.js";
 
@@ -113,19 +115,22 @@ export async function requestPasswordReset(email) {
     return { message: "If the account exists, an OTP reset flow has been initiated." };
   }
 
-  const otp = "123456";
-  resetOtpStore.set(user.email, otp);
+  const otp = crypto.randomInt(100000, 1000000).toString();
+  const expiresAt = Date.now() + Math.max(env.otpTtlMinutes, 1) * 60 * 1000;
+  resetOtpStore.set(user.email, { otp, expiresAt });
+  await deliverResetOtp(user, otp);
 
   return {
-    message: "OTP generated for foundation mode.",
-    otp
+    message: env.otpDeliveryMode === "dev"
+      ? "OTP generated in development mode. Check backend logs."
+      : "If the account exists, an OTP reset flow has been initiated."
   };
 }
 
 export async function resetPassword({ email, otp, newPassword }) {
   const expectedOtp = resetOtpStore.get(email);
 
-  if (!expectedOtp || expectedOtp !== otp) {
+  if (!expectedOtp || expectedOtp.otp !== otp || expectedOtp.expiresAt < Date.now()) {
     throw createError("Invalid OTP.", 400);
   }
 
@@ -139,6 +144,21 @@ export async function resetPassword({ email, otp, newPassword }) {
   resetOtpStore.delete(email);
 
   return { message: "Password updated successfully." };
+}
+
+async function deliverResetOtp(user, otp) {
+  if (env.otpDeliveryMode === "dev") {
+    logger.info(`Password reset OTP for ${user.email}: ${otp}`);
+    return;
+  }
+
+  if (["email", "email_sms"].includes(env.otpDeliveryMode)) {
+    logger.info(`Email OTP requested for ${user.email}. Configure SMTP integration to send it.`);
+  }
+
+  if (["sms", "email_sms"].includes(env.otpDeliveryMode)) {
+    logger.info(`SMS OTP requested for ${user.phone || user.email}. Configure SMS_PROVIDER_URL/SMS_PROVIDER_TOKEN to send it.`);
+  }
 }
 
 export async function changePassword(email, payload) {

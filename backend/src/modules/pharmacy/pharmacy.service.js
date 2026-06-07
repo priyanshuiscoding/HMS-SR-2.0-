@@ -1,5 +1,6 @@
 import { createId, db } from "../../data/store.js";
 import { createError } from "../../utils/errors.js";
+import { appendWorkflowMetadata } from "../../utils/workflow.js";
 import { listBatchRecords, listMedicineRecords } from "../inventory/inventory.repository.js";
 import { loadInventoryMirrorsFromDatabase } from "../inventory/inventory.service.js";
 import {
@@ -8,7 +9,8 @@ import {
   getStockSummaryRecords,
   listDispensationRecords,
   listPrescriptionQueueRecords,
-  loadPharmacyMirrors
+  loadPharmacyMirrors,
+  updatePrescriptionPharmacyStatusRecord
 } from "./pharmacy.repository.js";
 
 function syncPharmacyMirrors({ stockTransactions = [], dispensations = [] } = {}) {
@@ -43,7 +45,7 @@ export async function getPharmacyMasters() {
   db.medicineMasters.splice(0, db.medicineMasters.length, ...medicines);
   return {
     medicines,
-    statuses: ["pending", "completed"],
+    statuses: ["pending", "completed", "cancelled"],
     alerts: await getPharmacyAlerts(stock)
   };
 }
@@ -103,4 +105,26 @@ export async function dispensePrescription(prescriptionId, payload = {}, userId 
   await loadInventoryMirrorsFromDatabase();
   await loadPharmacyMirrorsFromDatabase();
   return dispensation;
+}
+
+export async function updatePrescriptionPharmacyWorkflow(prescriptionId, payload = {}, user = {}) {
+  const action = String(payload.action || "").trim().toLowerCase();
+
+  if (!["cancel", "reopen"].includes(action)) {
+    throw createError("Invalid pharmacy workflow action.");
+  }
+
+  const existing = (await listPrescriptionQueueRecords()).find((item) => item.id === prescriptionId);
+  if (!existing) {
+    throw createError("Prescription not found.", 404);
+  }
+
+  const metadata = appendWorkflowMetadata(existing.metadata, payload, user, `pharmacy:${action}`);
+  metadata.pharmacyStatus = action === "cancel" ? "cancelled" : "pending";
+
+  const result = await updatePrescriptionPharmacyStatusRecord(prescriptionId, { metadata });
+  if (!result) throw createError("Prescription not found.", 404);
+  if (result.conflict === "dispensed") throw createError("Dispensed prescriptions cannot be cancelled.");
+
+  return result;
 }

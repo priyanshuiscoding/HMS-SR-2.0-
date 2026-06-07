@@ -11,7 +11,8 @@ import {
   getIpdSummary,
   listAdmissions,
   scheduleAdmissionTherapy,
-  updateAdmission
+  updateAdmission,
+  updateAdmissionWorkflowStatus
 } from "./ipd.service.js";
 
 export async function ipdMastersHandler(_req, res, next) {
@@ -105,6 +106,14 @@ export async function updateAdmissionHandler(req, res, next) {
 export async function dischargeAdmissionHandler(req, res, next) {
   try {
     res.json({ item: await dischargeAdmission(req.params.id, req.body, req.user.sub), message: "Patient discharged successfully." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function admissionWorkflowActionHandler(req, res, next) {
+  try {
+    res.json({ item: await updateAdmissionWorkflowStatus(req.params.id, req.body, req.user), message: "IPD workflow action saved successfully." });
   } catch (error) {
     next(error);
   }
