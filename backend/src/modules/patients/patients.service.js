@@ -6,6 +6,7 @@ import {
   generateNextUhid,
   insertPatient,
   patientPhoneExists,
+  softDeletePatientRecord,
   updatePatientRecord
 } from "./patients.repository.js";
 import {
@@ -447,4 +448,19 @@ export async function updatePatient(id, payload) {
   const savedPatient = await updatePatientRecord(id, patient);
   syncPatientMirror(savedPatient);
   return savedPatient;
+}
+
+export async function deletePatient(id) {
+  const deletedPatient = await softDeletePatientRecord(id);
+
+  if (!deletedPatient) {
+    throw createError("Patient not found.", 404);
+  }
+
+  const index = db.patients.findIndex((entry) => entry.id === deletedPatient.id);
+  if (index >= 0) {
+    db.patients.splice(index, 1);
+  }
+
+  return deletedPatient;
 }

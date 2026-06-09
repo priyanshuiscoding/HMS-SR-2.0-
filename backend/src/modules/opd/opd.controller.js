@@ -23,7 +23,7 @@ export async function queueHandler(req, res, next) {
 
 export async function createVisitHandler(req, res, next) {
   try {
-    res.status(201).json({ item: await createVisit(req.body), message: "OPD visit created successfully." });
+    res.status(201).json({ item: await createVisit(req.body, req.user), message: "OPD visit created and forwarded to screening." });
   } catch (error) {
     next(error);
   }
@@ -39,7 +39,7 @@ export async function visitDetailsHandler(req, res, next) {
 
 export async function vitalsHandler(req, res, next) {
   try {
-    res.json({ item: await saveVitals(req.params.id, req.body), message: "Vitals updated successfully." });
+    res.json({ item: await saveVitals(req.params.id, req.body, req.user), message: "Screening saved and forwarded to doctor." });
   } catch (error) {
     next(error);
   }

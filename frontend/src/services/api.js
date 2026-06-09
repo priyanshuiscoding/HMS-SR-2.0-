@@ -113,6 +113,7 @@ export const getPatients = (search = "") => get("/patients", search ? { search }
 export const createPatient = (payload) => post("/patients", payload);
 export const getPatient = (id) => get(`/patients/${id}`);
 export const updatePatient = (id, payload) => put(`/patients/${id}`, payload);
+export const deletePatient = (id) => del(`/patients/${id}`);
 export const getPatientHistory = (id) => get(`/patients/${id}/history`);
 export const getPatientDocuments = (id) => get(`/patients/${id}/documents`);
 export const uploadPatientDocument = (id, payload) => post(`/patients/${id}/documents`, payload);

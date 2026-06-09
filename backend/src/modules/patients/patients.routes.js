@@ -3,6 +3,7 @@ import { Router } from "express";
 import { authorize } from "../../middleware/rbac.js";
 import {
   createPatientHandler,
+  deletePatientHandler,
   deletePatientDocumentHandler,
   downloadPatientDocumentHandler,
   getPatientHandler,
@@ -17,6 +18,7 @@ import {
 const patientsRouter = Router();
 const patientReadRoles = ["admin", "reception", "doctor", "pharmacy", "lab", "therapist", "nursing", "housekeeping", "accounts", "hr"];
 const patientWriteRoles = ["admin", "reception"];
+const patientDeleteRoles = ["admin", "hr", "reception"];
 const patientDocumentRoles = ["admin", "doctor", "reception"];
 
 patientsRouter.get("/", authorize(patientReadRoles), listPatientsHandler);
@@ -24,6 +26,7 @@ patientsRouter.post("/", authorize(patientWriteRoles), createPatientHandler);
 patientsRouter.get("/search", authorize(patientReadRoles), searchPatientsHandler);
 patientsRouter.get("/:id", authorize(patientReadRoles), getPatientHandler);
 patientsRouter.put("/:id", authorize(patientWriteRoles), updatePatientHandler);
+patientsRouter.delete("/:id", authorize(patientDeleteRoles), deletePatientHandler);
 patientsRouter.get("/:id/history", authorize(patientReadRoles), patientHistoryHandler);
 patientsRouter.get("/:id/documents", authorize(patientReadRoles), listPatientDocumentsHandler);
 patientsRouter.post("/:id/documents", authorize(patientDocumentRoles), uploadPatientDocumentHandler);

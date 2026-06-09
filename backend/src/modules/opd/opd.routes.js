@@ -22,7 +22,7 @@ opdRouter.get("/queue", authorize(["admin", "reception", "doctor", "nursing"]), 
 opdRouter.get("/masters", authorize(["admin", "doctor", "reception", "nursing"]), mastersHandler);
 opdRouter.post("/visits", authorize(["admin", "reception", "doctor"]), createVisitHandler);
 opdRouter.get("/visits/:id", authorize(["admin", "doctor", "reception", "nursing"]), visitDetailsHandler);
-opdRouter.put("/visits/:id/vitals", authorize(["admin", "doctor", "reception", "nursing"]), vitalsHandler);
+opdRouter.put("/visits/:id/vitals", authorize(["admin", "doctor", "nursing"]), vitalsHandler);
 opdRouter.post("/visits/:id/ayurveda", authorize(["admin", "doctor"]), assessmentSaveHandler);
 opdRouter.post("/visits/:id/prescriptions", authorize(["admin", "doctor"]), prescriptionSaveHandler);
 opdRouter.post("/visits/:id/discharge-summary", authorize(["admin", "doctor"]), dischargeSummarySaveHandler);

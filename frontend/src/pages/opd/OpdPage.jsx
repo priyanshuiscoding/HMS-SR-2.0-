@@ -26,7 +26,8 @@ const initialVitals = {
   vitalsWeight: "",
   vitalsHeight: "",
   vitalsSpo2: "",
-  vitalsRr: ""
+  vitalsRr: "",
+  physicalExam: ""
 };
 
 const initialAssessment = {
@@ -168,6 +169,20 @@ function medicineRows(prescription) {
   }));
 }
 
+const workflowStageLabels = {
+  screening: "Reception -> Screening",
+  doctor: "Screening -> Doctor",
+  pharmacy_reception: "Doctor -> Pharmacy & Reception"
+};
+
+function workflowStageForVisit(visit) {
+  return visit?.metadata?.workflowStage || (visit?.status === "completed" ? "pharmacy_reception" : visit?.status === "waiting" ? "screening" : "doctor");
+}
+
+function workflowStageForQueueItem(item) {
+  return item.visitMetadata?.workflowStage || (item.visitStatus === "completed" ? "pharmacy_reception" : item.visitStatus === "waiting" ? "screening" : item.visitStatus ? "doctor" : "reception");
+}
+
 function mergeDischargeSummary(summary, prescription, visit) {
   const base = clone(initialDischargeSummary);
   const prescriptionRows = medicineRows(prescription);
@@ -264,7 +279,8 @@ export function OpdPage() {
         vitalsWeight: response.visit.vitalsWeight || "",
         vitalsHeight: response.visit.vitalsHeight || "",
         vitalsSpo2: response.visit.vitalsSpo2 || "",
-        vitalsRr: response.visit.vitalsRr || ""
+        vitalsRr: response.visit.vitalsRr || "",
+        physicalExam: response.visit.metadata?.physicalExam || ""
       });
       setAssessmentForm({
         ...initialAssessment,
@@ -303,10 +319,10 @@ export function OpdPage() {
     };
   }, [queue]);
   const canStartVisit = ["admin", "reception", "doctor"].includes(user?.role);
-  const canSaveVitals = ["admin", "reception", "doctor", "nursing"].includes(user?.role);
+  const canSaveVitals = ["admin", "doctor", "nursing"].includes(user?.role);
   const canClinicalDocument = ["admin", "doctor"].includes(user?.role);
   const canCreateBilling = ["admin", "doctor", "reception"].includes(user?.role);
-  const canPrintDischarge = ["admin", "doctor", "reception", "nursing"].includes(user?.role);
+  const canPrintPrescription = ["admin", "doctor", "reception"].includes(user?.role);
 
   const handleDoctorFilter = async (event) => {
     const doctorId = event.target.value;
@@ -330,7 +346,7 @@ export function OpdPage() {
 
       await loadQueue(filterDoctorId);
       await loadVisit(response.item.id, queueItem);
-      setMessage(queueItem.visitId ? "Visit loaded successfully." : "Consultation started successfully.");
+      setMessage(queueItem.visitId ? "Visit loaded successfully." : "OPD form saved by reception and forwarded to screening.");
     } catch (apiError) {
       setError(apiError.message || "Unable to start consultation.");
     }
@@ -488,7 +504,7 @@ export function OpdPage() {
     }
 
     if (!canSaveVitals) {
-      setError("You do not have permission to record vitals.");
+      setError("Only screening/nursing, doctors, and admin can save vitals and physical examination.");
       return;
     }
 
@@ -497,7 +513,7 @@ export function OpdPage() {
       await saveOpdVitals(visitPayload.visit.id, vitalsForm);
       await loadVisit(visitPayload.visit.id, selectedQueueItem);
       await loadQueue(filterDoctorId);
-      setMessage("Vitals saved and forwarded to doctor.");
+      setMessage("Screening saved vitals and physical examination, then forwarded the OPD form to doctor.");
     } catch (apiError) {
       setError(apiError.message || "Unable to save vitals.");
     }
@@ -537,7 +553,7 @@ export function OpdPage() {
     try {
       await savePrescription(visitPayload.visit.id, prescriptionForm);
       await loadVisit(visitPayload.visit.id, selectedQueueItem);
-      setMessage("Prescription saved.");
+      setMessage("Prescription saved. Complete the visit to forward it to pharmacy and reception.");
     } catch (apiError) {
       setError(apiError.message || "Unable to save prescription.");
     }
@@ -566,13 +582,20 @@ export function OpdPage() {
     }
   };
 
-  const printDischargeSummary = () => {
-    if (!canPrintDischarge) {
-      setError("You do not have permission to print discharge summaries.");
+  const printOpdPrescription = () => {
+    if (!canPrintPrescription) {
+      setError("Only doctor, reception, and admin can print OPD prescriptions.");
       return;
     }
 
-    window.print();
+    const cleanup = () => {
+      document.body.classList.remove("print-opd-prescription");
+      window.removeEventListener("afterprint", cleanup);
+    };
+
+    document.body.classList.add("print-opd-prescription");
+    window.addEventListener("afterprint", cleanup);
+    window.setTimeout(() => window.print(), 0);
   };
 
   const completeConsultationAction = async () => {
@@ -590,7 +613,7 @@ export function OpdPage() {
       await completeOpdVisit(visitPayload.visit.id);
       await loadQueue(filterDoctorId);
       await loadVisit(visitPayload.visit.id, selectedQueueItem);
-      setMessage("Consultation completed.");
+      setMessage("Consultation completed and forwarded to pharmacy and reception.");
     } catch (apiError) {
       setError(apiError.message || "Unable to complete consultation.");
     }
@@ -714,10 +737,10 @@ export function OpdPage() {
     <DashboardLayout>
       <section className="hero-panel logo-hero">
         <div className="eyebrow">OPD Consultation</div>
-        <h2>Queue to consultation in one Shanti-Ratnam clinical workflow.</h2>
+        <h2>Reception, screening, doctor, pharmacy, and print in one OPD flow.</h2>
         <p>
-          Reception can create visits from booked appointments, doctors can capture vitals, record Ayurvedic
-          findings, and issue structured prescriptions from the same workspace.
+          Reception forwards the OPD form to screening, screening records vitals and examination, and the doctor
+          completes the prescription before pharmacy and reception handle medicines, payment, and patient copy.
         </p>
       </section>
 
@@ -777,6 +800,7 @@ export function OpdPage() {
                   <div className="timeline-copy">{item.patientName}</div>
                   <div className="timeline-copy">{item.doctorName}</div>
                   <div className="timeline-copy">{item.appointmentTime} - {item.department}</div>
+                  <div className="timeline-copy">{workflowStageLabels[workflowStageForQueueItem(item)] || "Reception entry"}</div>
                 </div>
                 <div className="queue-actions">
                   <span className={`status-pill ${item.visitStatus || item.status}`}>
@@ -826,6 +850,7 @@ export function OpdPage() {
                     <div><strong>Date:</strong> {visitPayload.visit.visitDate}</div>
                     <div><strong>Chief complaint:</strong> {visitPayload.visit.chiefComplaint || "General consultation"}</div>
                     <div><strong>Status:</strong> {visitPayload.visit.status}</div>
+                    <div><strong>Workflow:</strong> {workflowStageLabels[workflowStageForVisit(visitPayload.visit)] || "Reception entry"}</div>
                     <div><strong>Fee:</strong> Rs. {visitPayload.visit.consultationFee}</div>
                   </div>
                 </article>
@@ -842,8 +867,8 @@ export function OpdPage() {
                     <div className="quick-action">
                       <strong>Next step</strong>
                       <div className="timeline-copy">
-                        Reception starts the visit, nursing/JR staff save vitals, doctor completes prescription,
-                        then discharge summary goes to reception and nursing for print.
+                        Reception saves and forwards to screening. Screening saves vitals and physical examination,
+                        then forwards to the doctor. Doctor completes prescription and forwards to pharmacy and reception.
                       </div>
                     </div>
                   </div>
@@ -895,6 +920,10 @@ export function OpdPage() {
                   <div className="field">
                     <label>Respiratory rate</label>
                     <input name="vitalsRr" value={vitalsForm.vitalsRr} onChange={handleVitalsChange} />
+                  </div>
+                  <div className="field field-span-2">
+                    <label>Physical examination</label>
+                    <textarea name="physicalExam" value={vitalsForm.physicalExam} onChange={handleVitalsChange} />
                   </div>
                 </div>
               </article>
@@ -1316,35 +1345,35 @@ export function OpdPage() {
               <article className="content-card print-sheet-card">
                 <div className="section-header no-print">
                   <div>
-                    <div className="eyebrow">Discharge Summary</div>
-                    <h3>Autofilled patient copy</h3>
+                    <div className="eyebrow">OPD Prescription</div>
+                    <h3>Printable patient copy</h3>
                   </div>
                   <div className="action-row">
-                    <Button variant="secondary" onClick={() => saveDischargeSummaryAction("draft")} disabled={!canClinicalDocument}>Save Draft</Button>
+                    <Button variant="secondary" onClick={() => saveDischargeSummaryAction("draft")} disabled={!canClinicalDocument}>Save Doctor Note</Button>
                     <Button onClick={() => saveDischargeSummaryAction("forwarded")} disabled={!canClinicalDocument}>Save & Forward</Button>
-                    <Button variant="secondary" onClick={printDischargeSummary} disabled={!canPrintDischarge || !visitPayload.dischargeSummary}>Print</Button>
+                    <Button variant="secondary" onClick={printOpdPrescription} disabled={!canPrintPrescription || !visitPayload.prescription}>Print OPD</Button>
                   </div>
                 </div>
 
                 <div className="form-grid discharge-form-grid no-print">
                   <div className="field">
-                    <label>Summary date</label>
+                    <label>Prescription note date</label>
                     <input type="date" name="summaryDate" value={dischargeForm.summaryDate} onChange={handleDischargeChange} />
                   </div>
                   <div className="field">
-                    <label>Condition on discharge</label>
+                    <label>Patient condition</label>
                     <input name="conditionOnDischarge" value={dischargeForm.conditionOnDischarge} onChange={handleDischargeChange} />
                   </div>
                   <div className="field field-span-2">
-                    <label>Clinical course during treatment</label>
+                    <label>Doctor note</label>
                     <textarea name="clinicalCourse" value={dischargeForm.clinicalCourse} onChange={handleDischargeChange} />
                   </div>
                   <div className="field field-span-2">
-                    <label>Final diagnosis</label>
+                    <label>Final / working diagnosis</label>
                     <textarea name="finalDiagnosis" value={dischargeForm.finalDiagnosis} onChange={handleDischargeChange} />
                   </div>
                   <div className="field field-span-2">
-                    <label>Advice at discharge</label>
+                    <label>Advice to patient</label>
                     <textarea name="advice" value={dischargeForm.advice} onChange={handleDischargeChange} />
                   </div>
                   <div className="field">
@@ -1352,7 +1381,7 @@ export function OpdPage() {
                     <input type="date" name="followUpDate" value={dischargeForm.followUpDate} onChange={handleDischargeChange} />
                   </div>
                   <div className="field">
-                    <label>Ward / room</label>
+                    <label>OPD room / desk</label>
                     <input value={dischargeForm.metadata.patient.wardRoom} onChange={(event) => handleDischargeMetadataChange("patient", "wardRoom", event.target.value)} />
                   </div>
                   <div className="field">
@@ -1365,55 +1394,132 @@ export function OpdPage() {
                   </div>
                 </div>
 
-                <div className="discharge-print-sheet">
+                <div className="opd-prescription-print-sheet">
                   <div className="print-hospital-name">SHANTI-RATNAM AYUSH INSTITUTE OF INDIAN MEDICAL SCIENCES</div>
-                  <div className="print-hospital-subtitle">Lane No. 3, Nehanagaar, Makaronia, Sagar (M.P)</div>
-                  <h2>Discharge Summary</h2>
-                  <div className="print-grid">
-                    <div><strong>Patient Name:</strong> {visitPayload.visit.patientName}</div>
-                    <div><strong>OPD No./MRN:</strong> {visitPayload.visit.opdNumber}</div>
-                    <div><strong>Date:</strong> {dischargeForm.summaryDate}</div>
-                    <div><strong>Doctor:</strong> {visitPayload.doctorName}</div>
-                    <div><strong>Ward/Room:</strong> {dischargeForm.metadata.patient.wardRoom || "OPD"}</div>
-                    <div><strong>Follow-up:</strong> {dischargeForm.followUpDate || "As advised"}</div>
-                  </div>
-                  <h3>Reason for Treatment & Final Diagnosis</h3>
-                  <p><strong>Chief Complaint:</strong> {visitPayload.visit.chiefComplaint || "General consultation"}</p>
-                  <p>{dischargeForm.finalDiagnosis || prescriptionForm.diagnosis}</p>
-                  <h3>Clinical Course During Treatment</h3>
-                  <p>{dischargeForm.clinicalCourse || "Managed as per OPD prescription and advised therapy plan."}</p>
-                  <h3>Vital Signs at Discharge</h3>
-                  <div className="print-grid">
-                    <div><strong>BP:</strong> {vitalsForm.vitalsBp || "-"}</div>
-                    <div><strong>Pulse:</strong> {vitalsForm.vitalsPulse || "-"}</div>
-                    <div><strong>Temp/SPO2:</strong> {vitalsForm.vitalsTemp || "-"} / {vitalsForm.vitalsSpo2 || "-"}</div>
-                    <div><strong>Weight:</strong> {vitalsForm.vitalsWeight || "-"}</div>
-                  </div>
-                  <h3>Discharge Medications & Continuation</h3>
-                  <table className="print-table">
-                    <thead>
-                      <tr><th>Medicine</th><th>Route</th><th>Dosage</th><th>Duration</th><th>Remarks</th></tr>
-                    </thead>
-                    <tbody>
-                      {dischargeForm.metadata.dischargeMedicines.map((medicine, index) => (
-                        <tr key={`discharge-medicine-${index}`}>
-                          <td>{medicine.medicineName}</td>
-                          <td>{medicine.strengthRoute}</td>
-                          <td>{medicine.dosage}</td>
-                          <td>{medicine.duration}</td>
-                          <td>{medicine.remarks}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  <h3>Dietary & Lifestyle Advice</h3>
-                  <p><strong>Recommended diet:</strong> {dischargeForm.metadata.dietAdvice.recommendedDiet || "-"}</p>
-                  <p><strong>Foods to include:</strong> {dischargeForm.metadata.dietAdvice.foodsToInclude || "-"}</p>
-                  <p><strong>Foods to avoid:</strong> {dischargeForm.metadata.dietAdvice.foodsToAvoid || "-"}</p>
-                  <p>{dischargeForm.advice}</p>
-                  <h3>Follow-up & Monitoring Plan</h3>
-                  <p>Follow-up with: OPD / Phone. Date: {dischargeForm.followUpDate || "as advised"}.</p>
-                  <div className="signature-line">Consulting Physician Signature</div>
+                  <div className="print-hospital-subtitle">Lane No. 3, Nehanagar, Makronia, Sagar (M.P) | 07582357300, 8989927755 | www.shantiratnam.com</div>
+                  <h2>OPD Prescription</h2>
+
+                  <section className="opd-print-block">
+                    <h3>Patient Identification</h3>
+                    <div className="print-grid">
+                      <div><strong>Patient Name:</strong> {visitPayload.visit.patientName}</div>
+                      <div><strong>UID / MRN:</strong> {selectedQueueItem?.patientId || visitPayload.visit.patientId || "-"}</div>
+                      <div><strong>OPD No.:</strong> {visitPayload.visit.opdNumber}</div>
+                      <div><strong>Date / Time:</strong> {visitPayload.visit.visitDate} {selectedQueueItem?.appointmentTime || ""}</div>
+                      <div><strong>Age / Gender:</strong> {selectedQueueItem?.patientAge || "-"} / {selectedQueueItem?.patientGender || "-"}</div>
+                      <div><strong>Contact:</strong> {selectedQueueItem?.patientMobile || "-"}</div>
+                      <div><strong>Email:</strong> -</div>
+                      <div><strong>Doctor:</strong> {visitPayload.doctorName}</div>
+                    </div>
+                  </section>
+
+                  <section className="opd-print-block">
+                    <h3>Vital Signs & Physical Examination</h3>
+                    <div className="print-grid">
+                      <div><strong>BP:</strong> {vitalsForm.vitalsBp || "-"}</div>
+                      <div><strong>Pulse Rate:</strong> {vitalsForm.vitalsPulse || "-"} BPM</div>
+                      <div><strong>Temp / SpO2:</strong> {vitalsForm.vitalsTemp || "-"} / {vitalsForm.vitalsSpo2 || "-"}%</div>
+                      <div><strong>Height / Weight:</strong> {vitalsForm.vitalsHeight || "-"} / {vitalsForm.vitalsWeight || "-"}</div>
+                    </div>
+                    <p><strong>Physical Exam:</strong> {vitalsForm.physicalExam || "-"}</p>
+                  </section>
+
+                  <section className="opd-print-block">
+                    <h3>Clinical Diagnosis (ICD-11)</h3>
+                    <table className="print-table">
+                      <thead>
+                        <tr><th>S.No.</th><th>Diagnosis</th><th>ICD-11 Code</th><th>Primary / Sec.</th></tr>
+                      </thead>
+                      <tbody>
+                        {prescriptionForm.metadata.diagnosisRows.map((row, index) => (
+                          <tr key={`print-diagnosis-${index}`}>
+                            <td>{index + 1}</td>
+                            <td>{row.diagnosis || (index === 0 ? prescriptionForm.diagnosis : "")}</td>
+                            <td>{row.icdCode}</td>
+                            <td>{row.type}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
+
+                  <section className="opd-print-block">
+                    <h3>Main Complaint With Duration</h3>
+                    <table className="print-table">
+                      <thead>
+                        <tr><th>S.No.</th><th>Complaint</th><th>Duration</th></tr>
+                      </thead>
+                      <tbody>
+                        {prescriptionForm.metadata.complaintRows.map((row, index) => (
+                          <tr key={`print-complaint-${index}`}>
+                            <td>{index + 1}</td>
+                            <td>{row.complaint}</td>
+                            <td>{row.duration}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
+
+                  <section className="opd-print-block">
+                    <h3>Medicines & Formulations</h3>
+                    <table className="print-table medicine-print-table">
+                      <thead>
+                        <tr><th>Medicine Name</th><th>Dosage (Matra)</th><th>Frequency (Kaal)</th><th>Duration (Krama)</th></tr>
+                      </thead>
+                      <tbody>
+                        {prescriptionForm.medicines.map((medicine, index) => (
+                          <tr key={`print-medicine-${index}`}>
+                            <td>{medicine.medicineName}</td>
+                            <td>{medicine.dose}</td>
+                            <td>{medicine.frequency}</td>
+                            <td>{medicine.durationDays ? `${medicine.durationDays} days` : ""}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
+
+                  <section className="opd-print-block page-break-before">
+                    <h3>SR-AIIMS Prescribed Therapy Services</h3>
+                    <h4>Yoga & Pranayama Therapy</h4>
+                    {prescriptionForm.metadata.therapyPlan.yoga.map((row, index) => (
+                      <p key={`print-yoga-${index}`}><strong>Yoga:</strong> {row.asanas || "-"} | <strong>Pranayama:</strong> {row.pranayama || "-"} | <strong>Duration:</strong> {row.durationMinutes || "-"}</p>
+                    ))}
+                    <h4>Therapeutic Panchkarma & Massage Services</h4>
+                    <table className="print-table">
+                      <thead><tr><th>Service</th><th>Frequency</th><th>Duration</th></tr></thead>
+                      <tbody>
+                        {prescriptionForm.metadata.therapyPlan.panchkarma.map((row, index) => (
+                          <tr key={`print-panchkarma-${index}`}><td>{row.procedure}</td><td>{row.frequency}</td><td>{row.duration}</td></tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <h4>Specialized Therapy Services</h4>
+                    {prescriptionForm.metadata.therapyPlan.specialized.map((row, index) => (
+                      <p key={`print-special-${index}`}><strong>{row.therapy}:</strong> {row.sessions || "-"} sessions, {row.duration || "-"}</p>
+                    ))}
+                  </section>
+
+                  <section className="opd-print-block">
+                    <h3>Disease-Specific Diet Plan</h3>
+                    <p><strong>Recommended diet:</strong> {prescriptionForm.metadata.dietPlan.recommendedDiet || prescriptionForm.dietRecommendations || "-"}</p>
+                    <p><strong>Foods to include:</strong> {prescriptionForm.metadata.dietPlan.foodsToInclude || "-"}</p>
+                    <p><strong>Foods to avoid:</strong> {prescriptionForm.metadata.dietPlan.foodsToAvoid || "-"}</p>
+                  </section>
+
+                  <section className="opd-print-block">
+                    <h3>Lifestyle Modifications</h3>
+                    <p><strong>Exercise & physical activity:</strong> {prescriptionForm.metadata.lifestylePlan.activityType || "-"} {prescriptionForm.metadata.lifestylePlan.frequency || ""}</p>
+                    <p><strong>Stress management:</strong> {prescriptionForm.metadata.lifestylePlan.stressManagement || "-"}</p>
+                    <p><strong>Investigations:</strong> {prescriptionForm.metadata.investigations.bloodTests ? "Blood tests; " : ""}{prescriptionForm.metadata.investigations.imaging || ""} {prescriptionForm.metadata.investigations.specialtyTests || ""}</p>
+                  </section>
+
+                  <section className="opd-print-block">
+                    <h3>Follow-up & Monitoring</h3>
+                    <p><strong>Date:</strong> {prescriptionForm.followUpDate || dischargeForm.followUpDate || "As advised"} <strong>Type:</strong> Phone / OPD Visit</p>
+                    <div className="signature-line">Physician Signature</div>
+                  </section>
                 </div>
               </article>
 
@@ -1428,11 +1534,11 @@ export function OpdPage() {
                     <Button variant="secondary" onClick={() => visitWorkflowAction("requeue", "requeue visit")}>Requeue</Button>
                     <Button variant="secondary" onClick={() => visitWorkflowAction("cancel", "cancel visit")}>Cancel</Button>
                     <Button variant="secondary" onClick={() => visitWorkflowAction("reopen", "reopen visit")}>Reopen</Button>
-                    <Button onClick={completeConsultationAction} disabled={!canClinicalDocument}>Complete Visit</Button>
+                    <Button onClick={completeConsultationAction} disabled={!canClinicalDocument || !visitPayload.prescription}>Complete & Forward</Button>
                   </div>
                 </div>
                 <p className="page-copy">
-                  Use Complete when the consultation is finalized. Use Hold, Requeue, Cancel, or Reopen when the patient flow changes.
+                  Use Complete & Forward after saving the prescription. Pharmacy and reception can then process medicines, payment, and patient copy.
                 </p>
               </article>
             </>

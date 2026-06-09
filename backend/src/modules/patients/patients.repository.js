@@ -108,18 +108,15 @@ export async function findPatients(queryParams = {}) {
   const conditions = ["deleted_at IS NULL"];
   const params = [];
   let orderBy = `
-    CASE
-      WHEN patient_type = 'old' AND COALESCE(registration_number, '') ~ '^[0-9]+$' THEN 0
-      ELSE 1
-    END,
+    CASE WHEN patient_type = 'old' THEN 1 ELSE 0 END,
+    registration_date DESC NULLS LAST,
+    registration_time DESC NULLS LAST,
+    created_at DESC,
     CASE
       WHEN patient_type = 'old' AND COALESCE(registration_number, '') ~ '^[0-9]+$'
       THEN registration_number::int
       ELSE NULL
-    END ASC NULLS LAST,
-    registration_date DESC NULLS LAST,
-    registration_time DESC NULLS LAST,
-    created_at DESC
+    END ASC NULLS LAST
   `;
 
   if (search) {
@@ -231,7 +228,16 @@ export async function findPatients(queryParams = {}) {
 }
 
 export async function findPatientById(id) {
-  const result = await query("SELECT * FROM patients WHERE id = $1 AND deleted_at IS NULL", [id]);
+  const result = await query(
+    `
+    SELECT *
+    FROM patients
+    WHERE (id::text = $1 OR LOWER(uhid) = LOWER($1) OR LOWER(COALESCE(registration_number, '')) = LOWER($1))
+      AND deleted_at IS NULL
+    LIMIT 1
+    `,
+    [id]
+  );
   return toCamelPatient(result.rows[0]);
 }
 
@@ -394,6 +400,21 @@ export async function updatePatientRecord(id, patient) {
       patient.referredBy || "",
       JSON.stringify({ ...(patient.metadata || {}), idNumber: patient.idNumber || "" })
     ]
+  );
+
+  return toCamelPatient(result.rows[0]);
+}
+
+export async function softDeletePatientRecord(id) {
+  const result = await query(
+    `
+    UPDATE patients
+    SET deleted_at = NOW(), updated_at = NOW()
+    WHERE (id::text = $1 OR LOWER(uhid) = LOWER($1) OR LOWER(COALESCE(registration_number, '')) = LOWER($1))
+      AND deleted_at IS NULL
+    RETURNING *
+    `,
+    [id]
   );
 
   return toCamelPatient(result.rows[0]);

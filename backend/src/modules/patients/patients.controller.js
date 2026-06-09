@@ -1,5 +1,6 @@
 import {
   createPatient,
+  deletePatient,
   deletePatientDocument,
   getPatientDocumentFile,
   getPatientById,
@@ -9,6 +10,14 @@ import {
   uploadPatientDocument,
   updatePatient
 } from "./patients.service.js";
+
+const patientDeleteReceptionEmails = new Set(["reception@sraiims.in"]);
+
+function canDeletePatient(user = {}) {
+  return user.role === "admin" || user.role === "hr" || (
+    user.role === "reception" && patientDeleteReceptionEmails.has(String(user.email || "").toLowerCase())
+  );
+}
 
 export async function listPatientsHandler(req, res, next) {
   try {
@@ -46,6 +55,18 @@ export async function createPatientHandler(req, res, next) {
 export async function updatePatientHandler(req, res, next) {
   try {
     res.json({ item: await updatePatient(req.params.id, req.body), message: "Patient updated successfully." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deletePatientHandler(req, res, next) {
+  try {
+    if (!canDeletePatient(req.user)) {
+      return res.status(403).json({ message: "Only admin, HR, and authorized reception can delete patients." });
+    }
+
+    res.json({ item: await deletePatient(req.params.id), message: "Patient deleted successfully." });
   } catch (error) {
     next(error);
   }

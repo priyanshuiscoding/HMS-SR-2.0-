@@ -142,6 +142,7 @@ function toCamelQueueItem(row) {
     consultationPayment: row.metadata?.consultationPayment || null,
     queueStatus: row.metadata?.queueStatus || "",
     workflow: row.metadata?.workflow || null,
+    visitMetadata: row.visit_metadata || {},
     doctorName: row.doctor_name || "Unassigned",
     visitId: row.visit_id || null,
     visitStatus: row.visit_status || null
@@ -176,7 +177,8 @@ export async function listOpdQueue(date, doctorId = "") {
       a.sms_sent,
       u.full_name AS doctor_name,
       v.id AS visit_id,
-      v.status AS visit_status
+      v.status AS visit_status,
+      v.metadata AS visit_metadata
     FROM appointments a
     LEFT JOIN users u ON u.id = a.doctor_id
     LEFT JOIN opd_visits v ON v.appointment_id = a.id
@@ -242,7 +244,7 @@ export async function createVisitRecord(payload) {
   });
 }
 
-export async function updateVisitVitalsRecord(id, payload) {
+export async function updateVisitVitalsRecord(id, payload, metadata = {}) {
   const result = await query(
     `
     UPDATE opd_visits
@@ -255,6 +257,7 @@ export async function updateVisitVitalsRecord(id, payload) {
       vitals_spo2 = COALESCE($7, vitals_spo2),
       vitals_rr = COALESCE($8, vitals_rr),
       status = CASE WHEN status = 'waiting' THEN 'in_consultation' ELSE status END,
+      metadata = COALESCE(metadata, '{}'::jsonb) || $9::jsonb,
       updated_at = NOW()
     WHERE id = $1
     RETURNING *
@@ -267,7 +270,8 @@ export async function updateVisitVitalsRecord(id, payload) {
       payload.vitalsWeight ?? null,
       payload.vitalsHeight ?? null,
       payload.vitalsSpo2 ?? null,
-      payload.vitalsRr ?? null
+      payload.vitalsRr ?? null,
+      JSON.stringify(metadata)
     ]
   );
 
@@ -278,7 +282,7 @@ export async function updateVisitStatusRecord(id, status, metadata = {}) {
   const result = await query(
     `
     UPDATE opd_visits
-    SET status = $2, metadata = metadata || $3::jsonb, updated_at = NOW()
+    SET status = $2, metadata = COALESCE(metadata, '{}'::jsonb) || $3::jsonb, updated_at = NOW()
     WHERE id = $1
     RETURNING *
     `,

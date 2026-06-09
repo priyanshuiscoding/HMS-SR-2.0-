@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
-import { createPatient, getPatients } from "../../services/api.js";
+import { createPatient, deletePatient, getPatients } from "../../services/api.js";
 
 const initialForm = {
   patientType: "new",
@@ -55,6 +55,14 @@ function calculateAge(dateOfBirth) {
   return age;
 }
 
+const patientDeleteReceptionEmails = new Set(["reception@sraiims.in"]);
+
+function canDeletePatientRecord(user = {}) {
+  return user.role === "admin" || user.role === "hr" || (
+    user.role === "reception" && patientDeleteReceptionEmails.has(String(user.email || "").toLowerCase())
+  );
+}
+
 export function PatientsPage() {
   const { user } = useAuth();
   const [patients, setPatients] = useState([]);
@@ -65,6 +73,7 @@ export function PatientsPage() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [deletingPatientId, setDeletingPatientId] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   async function loadPatients(searchValue = "") {
@@ -93,6 +102,7 @@ export function PatientsPage() {
   }, [patients]);
 
   const canRegisterPatient = ["admin", "reception"].includes(user?.role);
+  const canDeletePatients = canDeletePatientRecord(user);
 
   const handleInputChange = (event) => {
     const { name, value } = event.target;
@@ -139,13 +149,39 @@ export function PatientsPage() {
     try {
       const response = await createPatient(formState);
       setSuccess(response.message);
+      setPatients((current) => [response.item, ...current.filter((patient) => patient.id !== response.item.id)]);
       setFormState(initialForm);
       setIsFormOpen(false);
-      await loadPatients(search);
     } catch (apiError) {
       setFormError(apiError.message || "Unable to register patient.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeletePatient = async (patient) => {
+    if (!canDeletePatients) {
+      setError("Only admin, HR, and authorized reception can delete patients.");
+      return;
+    }
+
+    const patientLabel = patient.registrationNumber || patient.uhid || patient.firstName || "this patient";
+    if (!window.confirm(`Delete patient ${patientLabel}?`)) {
+      return;
+    }
+
+    setDeletingPatientId(patient.id);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await deletePatient(patient.uhid || patient.id);
+      setPatients((current) => current.filter((entry) => entry.id !== patient.id));
+      setSuccess(response.message || "Patient deleted successfully.");
+    } catch (apiError) {
+      setError(apiError.message || "Unable to delete patient.");
+    } finally {
+      setDeletingPatientId("");
     }
   };
 
@@ -227,6 +263,7 @@ export function PatientsPage() {
                     <th>Mobile</th>
                     <th>City / District</th>
                     <th>Registered</th>
+                    {canDeletePatients ? <th></th> : null}
                     <th></th>
                   </tr>
                 </thead>
@@ -245,6 +282,18 @@ export function PatientsPage() {
                           View
                         </Link>
                       </td>
+                      {canDeletePatients ? (
+                        <td>
+                          <button
+                            className="table-link button-link danger-link"
+                            type="button"
+                            onClick={() => handleDeletePatient(patient)}
+                            disabled={deletingPatientId === patient.id}
+                          >
+                            {deletingPatientId === patient.id ? "Deleting..." : "Delete"}
+                          </button>
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

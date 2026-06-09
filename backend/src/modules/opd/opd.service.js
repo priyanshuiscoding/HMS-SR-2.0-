@@ -88,7 +88,7 @@ export async function getQueue(date = todayDate(), doctorId = "") {
   return listOpdQueue(date, doctorId);
 }
 
-export async function createVisit({ appointmentId }) {
+export async function createVisit({ appointmentId }, actor = {}) {
   const appointment = await getAppointmentById(appointmentId);
   const existingVisit = await findVisitByAppointmentId(appointmentId);
 
@@ -114,7 +114,13 @@ export async function createVisit({ appointmentId }) {
     vitalsSpo2: null,
     vitalsRr: null,
     status: "waiting",
-    consultationFee: CONSULTATION_FEE
+    consultationFee: CONSULTATION_FEE,
+    metadata: {
+      workflowStage: "screening",
+      receptionForwardedAt: new Date().toISOString(),
+      receptionForwardedBy: actor.sub || "",
+      forwardedTo: ["screening"]
+    }
   };
 
   const savedVisit = await createVisitRecord(visit);
@@ -143,9 +149,15 @@ export async function getVisitDetails(visitId) {
   };
 }
 
-export async function saveVitals(visitId, payload) {
+export async function saveVitals(visitId, payload, actor = {}) {
   await getVisitById(visitId);
-  const visit = await updateVisitVitalsRecord(visitId, payload);
+  const visit = await updateVisitVitalsRecord(visitId, payload, {
+    workflowStage: "doctor",
+    screeningCompletedAt: new Date().toISOString(),
+    screeningCompletedBy: actor.sub || "",
+    physicalExam: payload.physicalExam || "",
+    forwardedTo: ["doctor"]
+  });
   syncVisitMirror(visit);
   return visit;
 }
@@ -242,6 +254,13 @@ export async function savePrescription(visitId, payload, doctorId) {
   });
 
   const savedPrescription = await upsertPrescriptionRecord(prescription);
+  const savedVisit = await updateVisitStatusRecord(visitId, "in_consultation", {
+    workflowStage: "doctor",
+    prescriptionSavedAt: new Date().toISOString(),
+    prescriptionSavedBy: doctorId || visit.doctorId || "",
+    forwardedTo: ["doctor"]
+  });
+  syncVisitMirror(savedVisit);
   syncPrescriptionMirror(savedPrescription);
   return savedPrescription;
 }
@@ -329,7 +348,17 @@ export async function saveDischargeSummary(visitId, payload, doctorId) {
 
 export async function completeVisit(visitId, actor = {}) {
   const visit = await getVisitById(visitId);
+  const prescription = await findPrescriptionByVisitId(visitId);
+
+  if (!prescription) {
+    throw createError("Prescription must be saved before completing and forwarding the OPD visit.");
+  }
+
   const savedVisit = await updateVisitStatusRecord(visitId, "completed", {
+    workflowStage: "pharmacy_reception",
+    forwardedTo: ["pharmacy", "reception"],
+    doctorCompletedAt: new Date().toISOString(),
+    doctorCompletedBy: actor.sub || "",
     ...workflowMetadata({ reason: "Consultation completed" }, actor, "opd:complete")
   });
   syncVisitMirror(savedVisit);
