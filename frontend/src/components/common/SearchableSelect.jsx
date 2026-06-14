@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 
 export function SearchableSelect({
   value,
+  customValue = "",
   options = [],
   onChange,
+  onCustomValueChange,
   placeholder = "Search and select",
   emptyLabel = "No matching options",
   getOptionValue = (option) => option?.id ?? "",
@@ -20,16 +22,18 @@ export function SearchableSelect({
     () => options.find((option) => String(getOptionValue(option)) === String(value)),
     [getOptionValue, options, value]
   );
-  const selectedLabel = selectedOption ? getOptionLabel(selectedOption) : "";
+  const selectedLabel = selectedOption ? getOptionLabel(selectedOption) : customValue;
   const searchTerm = query.trim().toLowerCase();
 
   useEffect(() => {
     if (selectedOption) {
       setQuery(selectedLabel);
+    } else if (customValue) {
+      setQuery(customValue);
     } else if (!value) {
       setQuery("");
     }
-  }, [selectedLabel, selectedOption, value]);
+  }, [customValue, selectedLabel, selectedOption, value]);
 
   const filteredOptions = useMemo(() => {
     const visibleOptions = !searchTerm
@@ -45,11 +49,13 @@ export function SearchableSelect({
   }, [getOptionLabel, getOptionMeta, getSearchText, limit, options, searchTerm]);
 
   const handleInputChange = (event) => {
-    setQuery(event.target.value);
+    const nextQuery = event.target.value;
+    setQuery(nextQuery);
     setIsOpen(true);
     if (value) {
       onChange("");
     }
+    onCustomValueChange?.(nextQuery);
   };
 
   const handleSelect = (option) => {

@@ -642,6 +642,53 @@ export function PatientProfilePage() {
 
           <section className="detail-grid">
             <article className="content-card">
+              <h3>OPD vitals</h3>
+              {payload.opdVisits.length ? (
+                <div className="stack-list">
+                  {payload.opdVisits.map((visit) => (
+                    <div key={visit.id} className="quick-action">
+                      <strong>{visit.opdNumber}</strong>
+                      <div className="timeline-copy">{visit.visitDate} | {visit.status}</div>
+                      <div className="timeline-copy">
+                        BP: {visit.vitalsBp || "-"} | Pulse: {visit.vitalsPulse || "-"} | Temp: {visit.vitalsTemp || "-"} | SpO2: {visit.vitalsSpo2 || "-"}
+                      </div>
+                      <div className="timeline-copy">
+                        Height: {visit.vitalsHeight || "-"} | Weight: {visit.vitalsWeight || "-"} | RR: {visit.vitalsRr || "-"}
+                      </div>
+                      {visit.metadata?.physicalExam ? <div className="timeline-copy">Exam: {visit.metadata.physicalExam}</div> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">No OPD vitals recorded yet.</div>
+              )}
+            </article>
+
+            <article className="content-card">
+              <h3>Prakriti observations</h3>
+              {payload.assessments.length ? (
+                <div className="stack-list">
+                  {payload.assessments.map((assessment) => (
+                    <div key={assessment.id} className="quick-action">
+                      <strong>{assessment.assessmentDate}</strong>
+                      <div className="timeline-copy">Dominant dosha: {assessment.prakritiDominant || "-"}</div>
+                      <div className="timeline-copy">
+                        Vata: {assessment.prakritiVata || 0} | Pitta: {assessment.prakritiPitta || 0} | Kapha: {assessment.prakritiKapha || 0}
+                      </div>
+                      <div className="timeline-copy">Nadi: {assessment.nadiType || "-"} | Agni: {assessment.agniStatus || "-"} | Koshtha: {assessment.koshthaNature || "-"}</div>
+                      {assessment.vikritiAssessment ? <div className="timeline-copy">Vikriti: {assessment.vikritiAssessment}</div> : null}
+                      {assessment.observations ? <div className="timeline-copy">Observation: {assessment.observations}</div> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">No Prakriti observations recorded yet.</div>
+              )}
+            </article>
+          </section>
+
+          <section className="detail-grid">
+            <article className="content-card">
               <h3>Prescriptions</h3>
               {payload.prescriptions.length ? (
                 <div className="stack-list">
@@ -649,7 +696,11 @@ export function PatientProfilePage() {
                     <div key={prescription.id} className="quick-action">
                       <strong>{prescription.prescriptionNumber}</strong>
                       <div className="timeline-copy">{prescription.diagnosis}</div>
-                      <div className="timeline-copy">{prescription.medicines.map((item) => item.medicineName).join(", ")}</div>
+                      {prescription.medicines.map((item, index) => (
+                        <div className="timeline-copy" key={item.id || `${prescription.id}-${index}`}>
+                          {index + 1}. {item.medicineName || "Unnamed medicine"} | {item.dose || "-"} | {item.frequency || "-"} | {item.durationDays ? `${item.durationDays} days` : "-"}
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>

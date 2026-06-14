@@ -427,7 +427,7 @@ export async function upsertPrescriptionRecord(prescription) {
         diet_recommendations = EXCLUDED.diet_recommendations,
         follow_up_date = EXCLUDED.follow_up_date,
         is_dispensed = EXCLUDED.is_dispensed,
-        metadata = prescriptions.metadata || EXCLUDED.metadata,
+        metadata = COALESCE(prescriptions.metadata, '{}'::jsonb) || EXCLUDED.metadata,
         updated_at = NOW()
       RETURNING *
       `,

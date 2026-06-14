@@ -130,6 +130,10 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function normalizeMedicineNameInput(value) {
+  return String(value || "").replace(/^\s*\d+[\).\-\s]+/, "").trimStart();
+}
+
 function mergePrescription(prescription) {
   const base = clone(initialPrescription);
   return {
@@ -479,11 +483,12 @@ export function OpdPage() {
   const handleMedicineChange = (index, field, value) => {
     setPrescriptionForm((current) => {
       const medicines = [...current.medicines];
-      const medicine = { ...medicines[index], [field]: value };
+      const nextValue = field === "medicineName" ? normalizeMedicineNameInput(value) : value;
+      const medicine = { ...medicines[index], [field]: nextValue };
 
       if (field === "medicineId") {
         const match = masters.medicines.find((entry) => entry.id === value);
-        medicine.medicineName = match?.name || medicine.medicineName;
+        medicine.medicineName = match?.name || "";
       }
 
       medicines[index] = medicine;
@@ -1105,13 +1110,15 @@ export function OpdPage() {
                     <div className="medicine-card" key={`${medicine.id || "new"}-${index}`}>
                       <div className="form-grid medicine-grid">
                         <div className="field">
-                          <label>Medicine</label>
+                          <label>Medicine {index + 1}</label>
                           <SearchableSelect
                             value={medicine.medicineId}
+                            customValue={medicine.medicineName}
                             options={masters.medicines}
                             onChange={(value) => handleMedicineChange(index, "medicineId", value)}
+                            onCustomValueChange={(value) => handleMedicineChange(index, "medicineName", value)}
                             placeholder="Search medicine"
-                            emptyLabel="No matching medicine"
+                            emptyLabel="No master match; typed name will be saved"
                             getOptionLabel={(item) => item.name}
                             getOptionMeta={(item) => `${item.formulation || ""} ${item.category || ""}`.trim()}
                             getSearchText={(item) => [item.name, item.formulation, item.category, item.unit].filter(Boolean).join(" ")}
@@ -1420,8 +1427,22 @@ export function OpdPage() {
                       <div><strong>Pulse Rate:</strong> {vitalsForm.vitalsPulse || "-"} BPM</div>
                       <div><strong>Temp / SpO2:</strong> {vitalsForm.vitalsTemp || "-"} / {vitalsForm.vitalsSpo2 || "-"}%</div>
                       <div><strong>Height / Weight:</strong> {vitalsForm.vitalsHeight || "-"} / {vitalsForm.vitalsWeight || "-"}</div>
+                      <div><strong>Respiratory Rate:</strong> {vitalsForm.vitalsRr || "-"}</div>
                     </div>
                     <p><strong>Physical Exam:</strong> {vitalsForm.physicalExam || "-"}</p>
+                  </section>
+
+                  <section className="opd-print-block">
+                    <h3>Ayurvedic Assessment</h3>
+                    <div className="print-grid">
+                      <div><strong>Dominant Dosha:</strong> {assessmentForm.prakritiDominant || "-"}</div>
+                      <div><strong>Vata / Pitta / Kapha:</strong> {assessmentForm.prakritiVata || 0} / {assessmentForm.prakritiPitta || 0} / {assessmentForm.prakritiKapha || 0}</div>
+                      <div><strong>Nadi Type:</strong> {assessmentForm.nadiType || "-"}</div>
+                      <div><strong>Agni / Koshtha:</strong> {assessmentForm.agniStatus || "-"} / {assessmentForm.koshthaNature || "-"}</div>
+                    </div>
+                    <p><strong>Nadi Pariksha:</strong> {assessmentForm.nadiPariksha || "-"}</p>
+                    <p><strong>Vikriti:</strong> {assessmentForm.vikritiAssessment || "-"}</p>
+                    <p><strong>Observations:</strong> {assessmentForm.observations || "-"}</p>
                   </section>
 
                   <section className="opd-print-block">
@@ -1465,11 +1486,12 @@ export function OpdPage() {
                     <h3>Medicines & Formulations</h3>
                     <table className="print-table medicine-print-table">
                       <thead>
-                        <tr><th>Medicine Name</th><th>Dosage (Matra)</th><th>Frequency (Kaal)</th><th>Duration (Krama)</th></tr>
+                        <tr><th>S.No.</th><th>Medicine Name</th><th>Dosage (Matra)</th><th>Frequency (Kaal)</th><th>Duration (Krama)</th></tr>
                       </thead>
                       <tbody>
                         {prescriptionForm.medicines.map((medicine, index) => (
                           <tr key={`print-medicine-${index}`}>
+                            <td>{index + 1}</td>
                             <td>{medicine.medicineName}</td>
                             <td>{medicine.dose}</td>
                             <td>{medicine.frequency}</td>
