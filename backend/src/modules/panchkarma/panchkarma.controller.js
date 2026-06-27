@@ -3,6 +3,7 @@ import {
   createPanchkarmaSchedule,
   getPanchkarmaMasters,
   getPanchkarmaScheduleDetails,
+  listPanchkarmaRecommendations,
   getPanchkarmaSummary,
   getPanchkarmaTherapies,
   listPanchkarmaSchedules,
@@ -37,6 +38,14 @@ export async function panchkarmaSummaryHandler(_req, res, next) {
 export async function listPanchkarmaSchedulesHandler(req, res, next) {
   try {
     res.json({ items: await listPanchkarmaSchedules(req.query) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function listPanchkarmaRecommendationsHandler(req, res, next) {
+  try {
+    res.json({ items: await listPanchkarmaRecommendations(req.query) });
   } catch (error) {
     next(error);
   }

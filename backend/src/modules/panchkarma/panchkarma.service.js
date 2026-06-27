@@ -9,6 +9,7 @@ import {
   createSessionRecord,
   findSessionRecord,
   findTherapyRecord,
+  listPrescriptionPanchkarmaRecommendationRecords,
   listMaterialMedicineRecords,
   listSessionRecords,
   listTherapyRecords,
@@ -16,6 +17,22 @@ import {
   startSessionRecord,
   updateSessionStatusRecord
 } from "./panchkarma.repository.js";
+
+const therapyAliases = {
+  abhyanga: ["ABHYANGA", "SARVANG ABHYANG", "SARVANG ABHYANGA"],
+  shiroabhyanga: ["SARVANG ABHYANG", "LOCAL ABHYANGA"],
+  nasya: ["NASYA"],
+  basti: ["ANUVASAN VASTI", "KASHAYA VASTI", "BASTI"],
+  virechana: ["VIRECHANA"],
+  vamana: ["VAMANA"],
+  shirodhara: ["SIRO DHARA", "SHIRODHARA", "SIRO DHARA OIL"],
+  pizhichil: ["PIZHICHIL"],
+  kizhi: ["PODIKIZHI", "PATRA PINDA SWEDAN", "JAMBEER PINDA SWEDAN", "NAVARA KIZHI"],
+  udwartana: ["UDWARTAN"],
+  lepa: ["LEPA"],
+  swedanam: ["SARVANG SWEDAN", "SARVANGA SWEDA", "LOCAL SWEDAN", "LOCAL SWEDA"],
+  akshibasti: ["AKSHI TARPANAM", "AKSHI DHARA"]
+};
 
 function syncById(collection, item, prepend = false) {
   const index = collection.findIndex((entry) => entry.id === item.id);
@@ -38,6 +55,20 @@ function syncBillMirror(bill) {
   if (bill) {
     syncById(db.bills, bill, true);
   }
+}
+
+function normalizeKey(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function matchTherapyForProcedure(procedure, therapies = []) {
+  const normalizedProcedure = normalizeKey(procedure);
+  const aliases = therapyAliases[normalizedProcedure] || [procedure];
+  const names = aliases.map(normalizeKey);
+
+  return therapies.find((therapy) => names.includes(normalizeKey(therapy.name)))
+    || therapies.find((therapy) => normalizeKey(therapy.name).includes(normalizedProcedure) || normalizedProcedure.includes(normalizeKey(therapy.name)))
+    || null;
 }
 
 export async function loadPanchkarmaMirrorsFromDatabase() {
@@ -150,6 +181,31 @@ export async function getPanchkarmaSummary() {
   };
 }
 
+export async function listPanchkarmaRecommendations(query = {}) {
+  const [recommendations, therapies] = await Promise.all([
+    listPrescriptionPanchkarmaRecommendationRecords({
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+      patientId: query.patientId
+    }),
+    listTherapyRecords()
+  ]);
+  const status = String(query.status || "pending");
+
+  return recommendations
+    .filter((item) => (status === "all" ? true : status === "scheduled" ? item.existingSessionId : !item.existingSessionId))
+    .map((item) => {
+      const therapy = matchTherapyForProcedure(item.procedure, therapies);
+      return {
+        ...item,
+        suggestedTherapyId: therapy?.id || "",
+        suggestedTherapyName: therapy?.name || "",
+        suggestedCharge: Number(therapy?.price || 0),
+        suggestedDurationMinutes: Number(therapy?.defaultDurationMinutes || 45)
+      };
+    });
+}
+
 export async function listPanchkarmaSchedules(query = {}) {
   const search = String(query.search || "").trim().toLowerCase();
   const sessions = await listSessionRecords(query);
@@ -243,6 +299,8 @@ export async function createPanchkarmaSchedule(payload, userId) {
     createdBy: userId,
     metadata: {
       ...(payload.metadata || {}),
+      prescribedDays: payload.prescribedDays ? Number(payload.prescribedDays || 0) : 0,
+      sourceRecommendationIndex: payload.sourceRecommendationIndex ? Number(payload.sourceRecommendationIndex || 0) : 0,
       recommendedByName
     }
   });

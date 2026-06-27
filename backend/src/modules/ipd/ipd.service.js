@@ -533,11 +533,15 @@ export async function dischargeAdmission(admissionId, payload, userId) {
     dischargeNote: payload.dischargeNote,
     conditionOnDischarge: payload.conditionOnDischarge || "stable",
     advice: payload.advice || "",
+    followUpDate: payload.followUpDate || "",
+    followUpWithOpd: payload.followUpWithOpd !== false,
+    followUpWithPhone: Boolean(payload.followUpWithPhone),
     stayDays,
     roomCharge,
     extraCharge,
     dischargedBy: userId,
-    billId: bill?.id || admission.billId || ""
+    billId: bill?.id || admission.billId || "",
+    metadata: payload.metadata || {}
   };
 
   const result = await dischargeAdmissionRecord(admissionId, {

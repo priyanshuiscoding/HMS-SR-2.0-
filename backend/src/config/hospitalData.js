@@ -10,19 +10,39 @@ export const opdOperatingHours = {
 
 export const ipdWardCharges = [
   {
-    id: "ward-general",
-    ward: "General Ward",
+    id: "ward-general-male",
+    ward: "General Male Ward",
     roomType: "general",
     chargePerDay: 1500,
     packageIncludes: "Bed charges and diet only",
+    totalBeds: 10,
     perPerson: true
   },
   {
-    id: "ward-semi-private",
-    ward: "Semi Private Ward",
+    id: "ward-general-female",
+    ward: "General Female Ward",
+    roomType: "general",
+    chargePerDay: 1500,
+    packageIncludes: "Bed charges and diet only",
+    totalBeds: 6,
+    perPerson: true
+  },
+  {
+    id: "ward-semi-private-male",
+    ward: "Semi Private Male Ward",
     roomType: "semi_private",
     chargePerDay: 2500,
     packageIncludes: "Bed charges and diet only",
+    totalBeds: 5,
+    perPerson: false
+  },
+  {
+    id: "ward-semi-private-female",
+    ward: "Semi Private Female Ward",
+    roomType: "semi_private",
+    chargePerDay: 2500,
+    packageIncludes: "Bed charges and diet only",
+    totalBeds: 2,
     perPerson: false
   },
   {
@@ -31,6 +51,7 @@ export const ipdWardCharges = [
     roomType: "private",
     chargePerDay: 3500,
     packageIncludes: "Bed charges and diet only",
+    totalBeds: 4,
     perPerson: true
   }
 ];

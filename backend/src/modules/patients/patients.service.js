@@ -15,6 +15,7 @@ import {
   insertPatientDocument,
   softDeletePatientDocument
 } from "./patientDocuments.repository.js";
+import { listCertificateRecords } from "../certificates/certificates.repository.js";
 
 const MAX_PATIENT_DOCUMENT_BYTES = 8 * 1024 * 1024;
 const ALLOWED_PATIENT_DOCUMENT_TYPES = new Set(["application/pdf"]);
@@ -102,6 +103,7 @@ export async function getPatientById(id) {
 export async function getPatientHistory(id) {
   const patient = await getPatientById(id);
   const documents = await findPatientDocuments(id);
+  const certificates = await listCertificateRecords({ patientId: id });
 
   const appointmentHistory = db.appointments
     .filter((appointment) => appointment.patientId === id)
@@ -231,6 +233,14 @@ export async function getPatientHistory(id) {
       title: document.title,
       summary: `${document.documentType.replaceAll("_", " ")} PDF uploaded`,
       detail: document.notes || document.fileName
+    })),
+    ...certificates.map((certificate) => ({
+      id: `cert-${certificate.id}`,
+      type: "medical_certificate",
+      date: certificate.certificateDate,
+      title: certificate.certificateNumber,
+      summary: `${certificate.certificateType.replaceAll("_", " ")} certificate issued`,
+      detail: certificate.diagnosis || certificate.activity || certificate.treatment || "Medical certificate"
     }))
   ].sort((a, b) => b.date.localeCompare(a.date));
 
@@ -247,6 +257,7 @@ export async function getPatientHistory(id) {
     dispensations,
     payments,
     documents,
+    certificates,
     timeline
   };
 }

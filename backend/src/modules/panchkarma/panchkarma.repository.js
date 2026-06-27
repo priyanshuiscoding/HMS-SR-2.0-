@@ -94,6 +94,29 @@ function toCamelSession(row, materialsUsed = []) {
   };
 }
 
+function toCamelRecommendation(row) {
+  if (!row) return null;
+
+  return {
+    prescriptionId: row.prescription_id,
+    prescriptionNumber: row.prescription_number,
+    visitId: row.visit_id || "",
+    patientId: row.patient_id || "",
+    patientName: row.patient_name,
+    doctorId: row.doctor_id || "",
+    prescriptionDate: toIsoDate(row.prescription_date),
+    diagnosis: row.diagnosis || "",
+    rowIndex: Number(row.row_index || 0),
+    procedure: row.procedure || "",
+    frequency: row.frequency || "",
+    duration: row.duration || "",
+    durationDays: Number(row.duration_days || 0),
+    existingSessionId: row.existing_session_id || "",
+    existingScheduleNumber: row.existing_schedule_number || "",
+    existingStatus: row.existing_status || ""
+  };
+}
+
 async function loadSessionBundle(client, sessionId) {
   const sessionResult = await client.query("SELECT * FROM panchkarma_sessions WHERE id = $1", [sessionId]);
   const session = sessionResult.rows[0];
@@ -174,6 +197,65 @@ export async function listSessionRecords(filters = {}) {
 
 export async function findSessionRecord(id) {
   return withTransaction((client) => loadSessionBundle(client, id));
+}
+
+export async function listPrescriptionPanchkarmaRecommendationRecords(filters = {}) {
+  const params = [];
+  const conditions = ["COALESCE(TRIM(row_item->>'procedure'), '') <> ''"];
+
+  if (filters.dateFrom) {
+    params.push(filters.dateFrom);
+    conditions.push(`p.prescription_date >= $${params.length}`);
+  }
+  if (filters.dateTo) {
+    params.push(filters.dateTo);
+    conditions.push(`p.prescription_date <= $${params.length}`);
+  }
+  if (filters.patientId) {
+    params.push(filters.patientId);
+    conditions.push(`p.patient_id = $${params.length}`);
+  }
+
+  const result = await query(
+    `
+    SELECT
+      p.id AS prescription_id,
+      p.prescription_number,
+      p.visit_id,
+      p.patient_id,
+      p.patient_name,
+      p.doctor_id,
+      p.prescription_date,
+      p.diagnosis,
+      rows.row_index,
+      rows.row_item->>'procedure' AS procedure,
+      rows.row_item->>'frequency' AS frequency,
+      rows.row_item->>'duration' AS duration,
+      CASE
+        WHEN COALESCE(rows.row_item->>'durationDays', '') ~ '^[0-9]+$'
+          THEN (rows.row_item->>'durationDays')::int
+        ELSE 0
+      END AS duration_days,
+      s.id AS existing_session_id,
+      s.schedule_number AS existing_schedule_number,
+      s.status AS existing_status
+    FROM prescriptions p
+    CROSS JOIN LATERAL jsonb_array_elements(COALESCE(p.metadata->'therapyPlan'->'panchkarma', '[]'::jsonb))
+      WITH ORDINALITY AS rows(row_item, row_index)
+    LEFT JOIN panchkarma_sessions s
+      ON s.prescription_id = p.id
+     AND CASE
+          WHEN COALESCE(s.metadata->>'sourceRecommendationIndex', '') ~ '^[0-9]+$'
+            THEN (s.metadata->>'sourceRecommendationIndex')::int
+          ELSE 0
+        END = rows.row_index
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY p.prescription_date DESC, p.created_at DESC, rows.row_index ASC
+    `,
+    params
+  );
+
+  return result.rows.map(toCamelRecommendation);
 }
 
 export async function createSessionRecord(payload) {

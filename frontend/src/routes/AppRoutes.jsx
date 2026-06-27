@@ -4,6 +4,7 @@ import { LoginPage } from "../pages/auth/Login.jsx";
 import { AppointmentsPage } from "../pages/appointments/AppointmentsPage.jsx";
 import { BillingPage } from "../pages/billing/BillingPage.jsx";
 import { CalendarPage } from "../pages/calendar/CalendarPage.jsx";
+import { CertificatesPage } from "../pages/certificates/CertificatesPage.jsx";
 import { DashboardPage } from "../pages/dashboard/Dashboard.jsx";
 import { InventoryPage } from "../pages/inventory/InventoryPage.jsx";
 import { HrPage } from "../pages/hr/HrPage.jsx";
@@ -31,6 +32,7 @@ export function AppRoutes() {
       <Route path="/patients/:id" element={<ProtectedRoute allowedRoles={patientReadRoles}><PatientProfilePage /></ProtectedRoute>} />
       <Route path="/appointments" element={<ProtectedRoute allowedRoles={["admin", "reception", "doctor"]}><AppointmentsPage /></ProtectedRoute>} />
       <Route path="/calendar" element={<ProtectedRoute allowedRoles={["admin", "reception", "doctor", "nursing", "lab", "therapist", "pharmacy", "accounts", "hr"]}><CalendarPage /></ProtectedRoute>} />
+      <Route path="/certificates" element={<ProtectedRoute allowedRoles={["admin", "doctor", "reception"]}><CertificatesPage /></ProtectedRoute>} />
       <Route path="/opd" element={<ProtectedRoute allowedRoles={["admin", "reception", "doctor", "nursing"]}><OpdPage /></ProtectedRoute>} />
       <Route path="/billing" element={<ProtectedRoute allowedRoles={["admin", "accounts", "reception", "doctor"]}><BillingPage /></ProtectedRoute>} />
       <Route path="/ipd" element={<ProtectedRoute allowedRoles={["admin", "accounts", "reception", "doctor", "nursing"]}><IpdPage /></ProtectedRoute>} />

@@ -9,6 +9,7 @@ import {
   completePanchkarmaSession,
   createPanchkarmaSchedule,
   getPanchkarmaMasters,
+  getPanchkarmaRecommendations,
   getPanchkarmaSchedule,
   getPanchkarmaSchedules,
   getPanchkarmaSummary,
@@ -26,6 +27,10 @@ const initialScheduleForm = {
   recommendedBy: "",
   therapyRoomId: "",
   recoveryBedId: "",
+  linkedVisitId: "",
+  prescriptionId: "",
+  prescribedDays: "",
+  sourceRecommendationIndex: "",
   scheduledDate: today,
   scheduledTime: "",
   estimatedDurationMinutes: "",
@@ -69,6 +74,7 @@ export function PanchkarmaPage() {
   });
   const [filters, setFilters] = useState({ scheduledDate: today, status: "", therapistId: "" });
   const [schedules, setSchedules] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
   const [selectedSchedule, setSelectedSchedule] = useState(null);
   const [scheduleForm, setScheduleForm] = useState(initialScheduleForm);
   const [completionForm, setCompletionForm] = useState(initialCompletionForm);
@@ -77,17 +83,19 @@ export function PanchkarmaPage() {
 
   async function loadData(nextFilters = filters, selectedId = selectedSchedule?.id) {
     try {
-      const [summaryResponse, mastersResponse, patientsResponse, schedulesResponse] = await Promise.all([
+      const [summaryResponse, mastersResponse, patientsResponse, schedulesResponse, recommendationsResponse] = await Promise.all([
         getPanchkarmaSummary(),
         getPanchkarmaMasters(),
         getPatients(),
-        getPanchkarmaSchedules(nextFilters)
+        getPanchkarmaSchedules(nextFilters),
+        getPanchkarmaRecommendations({ dateFrom: nextFilters.scheduledDate, dateTo: nextFilters.scheduledDate, status: "pending" })
       ]);
 
       setSummary(summaryResponse);
       setMasters(mastersResponse);
       setPatients(patientsResponse.items);
       setSchedules(schedulesResponse.items);
+      setRecommendations(recommendationsResponse.items);
 
       const activeId = selectedId || schedulesResponse.items[0]?.id;
 
@@ -203,6 +211,71 @@ export function PanchkarmaPage() {
     } catch (apiError) {
       setError(apiError.message || "Unable to schedule Panchkarma session.");
     }
+  };
+
+  const useRecommendation = (recommendation) => {
+    setScheduleForm((current) => ({
+      ...current,
+      patientId: recommendation.patientId,
+      therapyId: recommendation.suggestedTherapyId || current.therapyId,
+      recommendedBy: recommendation.doctorId,
+      linkedVisitId: recommendation.visitId,
+      prescriptionId: recommendation.prescriptionId,
+      prescribedDays: recommendation.durationDays || "",
+      sourceRecommendationIndex: recommendation.rowIndex,
+      scheduledDate: filters.scheduledDate || today,
+      estimatedDurationMinutes: recommendation.suggestedDurationMinutes || current.estimatedDurationMinutes,
+      complaint: recommendation.diagnosis || current.complaint,
+      preparationNotes: [
+        recommendation.procedure,
+        recommendation.frequency ? `Frequency: ${recommendation.frequency}` : "",
+        recommendation.duration ? `Duration: ${recommendation.duration}` : "",
+        recommendation.durationDays ? `Days: ${recommendation.durationDays}` : ""
+      ].filter(Boolean).join(" | ")
+    }));
+    setMessage(`Loaded OPD Panchkarma suggestion for ${recommendation.patientName}.`);
+  };
+
+  const exportDailyCsv = () => {
+    const headers = [
+      "Date",
+      "Schedule No",
+      "Patient",
+      "Therapy",
+      "Therapist",
+      "Time",
+      "Status",
+      "Complaint",
+      "Execution Notes",
+      "Outcome",
+      "Follow-up",
+      "Bill No",
+      "Amount"
+    ];
+    const escapeCell = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+    const rows = schedules.map((schedule) => [
+      schedule.scheduledDate,
+      schedule.scheduleNumber,
+      schedule.patientName,
+      schedule.therapyName,
+      schedule.therapistName,
+      schedule.scheduledTime,
+      schedule.status,
+      schedule.complaint,
+      schedule.executionNotes,
+      schedule.outcome,
+      schedule.followUpAdvice,
+      schedule.bill?.billNumber || "",
+      schedule.bill?.totalAmount || schedule.billedAmount || 0
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(escapeCell).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `panchkarma-daily-report-${filters.scheduledDate || today}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleStartSession = async () => {
@@ -390,6 +463,10 @@ export function PanchkarmaPage() {
               <input name="estimatedDurationMinutes" value={scheduleForm.estimatedDurationMinutes} onChange={handleScheduleChange} />
             </div>
             <div className="field">
+              <label>Prescribed days</label>
+              <input name="prescribedDays" value={scheduleForm.prescribedDays} onChange={handleScheduleChange} />
+            </div>
+            <div className="field">
               <label>Recovery bed</label>
               <select name="recoveryBedId" value={scheduleForm.recoveryBedId} onChange={handleScheduleChange}>
                 <option value="">Optional recovery linkage</option>
@@ -438,6 +515,7 @@ export function PanchkarmaPage() {
                 </option>
               ))}
             </select>
+            <button className="secondary-button" type="button" onClick={exportDailyCsv}>Export Excel CSV</button>
           </div>
 
           <div className="queue-list">
@@ -465,6 +543,28 @@ export function PanchkarmaPage() {
             {!schedules.length ? <div className="empty-state">No Panchkarma sessions found for the selected filter.</div> : null}
           </div>
         </article>
+      </section>
+
+      <section className="content-card" style={{ marginTop: 18 }}>
+        <div className="section-header">
+          <div>
+            <div className="eyebrow">OPD Suggestions</div>
+            <h3>Panchkarma prescribed in OPD</h3>
+          </div>
+        </div>
+        <div className="stack-list compact-list">
+          {recommendations.map((item) => (
+            <div className="quick-action" key={`${item.prescriptionId}-${item.rowIndex}`}>
+              <strong>{item.patientName} - {item.procedure}</strong>
+              <div className="timeline-copy">{item.prescriptionNumber} | {item.frequency || "Frequency not set"} | {item.duration || "Duration not set"} | {item.durationDays || "-"} days</div>
+              <div className="timeline-copy">Suggested service: {item.suggestedTherapyName || "Select manually"}{item.suggestedCharge ? ` | Rs. ${formatCurrency(item.suggestedCharge)}` : ""}</div>
+              <div className="action-row" style={{ marginTop: 8 }}>
+                <Button type="button" variant="secondary" onClick={() => useRecommendation(item)}>Add Patient</Button>
+              </div>
+            </div>
+          ))}
+          {!recommendations.length ? <div className="empty-state">No pending OPD Panchkarma suggestions for the selected date.</div> : null}
+        </div>
       </section>
 
       <section className="opd-grid">
