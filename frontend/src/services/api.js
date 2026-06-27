@@ -134,7 +134,12 @@ export const createCalendarEvent = (payload) => post("/calendar/events", payload
 export const updateCalendarEvent = (id, payload) => put(`/calendar/events/${id}`, payload);
 export const deleteCalendarEvent = (id) => del(`/calendar/events/${id}`);
 
+export const getCertificates = (params = {}) => get("/certificates", params);
+export const getCertificate = (id) => get(`/certificates/${id}`);
+export const createCertificate = (payload) => post("/certificates", payload);
+
 export const getUsers = () => get("/users");
+export const getDoctors = () => get("/users/doctors");
 export const getUsersSummary = () => get("/users/summary");
 
 export const getHrOverview = (params = {}) => get("/hr/overview", params);
@@ -193,6 +198,7 @@ export const getPanchkarmaTherapies = () => get("/panchkarma/therapies");
 export const getPanchkarmaMasters = () => get("/panchkarma/masters");
 export const getPanchkarmaSummary = () => get("/panchkarma/summary");
 export const getPanchkarmaSchedules = (params = {}) => get("/panchkarma/schedule", params);
+export const getPanchkarmaRecommendations = (params = {}) => get("/panchkarma/recommendations", params);
 export const getPanchkarmaSchedule = (id) => get(`/panchkarma/schedule/${id}`);
 export const createPanchkarmaSchedule = (payload) => post("/panchkarma/schedule", payload);
 export const startPanchkarmaSession = (id, payload = {}) => post(`/panchkarma/schedule/${id}/start`, payload);

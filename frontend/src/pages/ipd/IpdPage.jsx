@@ -54,12 +54,41 @@ const initialDischargeForm = {
   conditionOnDischarge: "stable",
   dischargeNote: "",
   advice: "",
+  followUpDate: "",
+  followUpWithOpd: true,
+  followUpWithPhone: false,
   nextBedStatus: "cleaning",
   createBill: true,
   stayDays: "",
   extraCharge: "",
   extraChargeLabel: "",
-  bedNote: ""
+  bedNote: "",
+  metadata: {
+    finalDiagnoses: ["", "", ""],
+    dischargeVitals: { systolic: "", diastolic: "", pulse: "", temp: "", spo2: "", weight: "" },
+    medicinesAdministered: Array.from({ length: 5 }, () => ({ medicineName: "", dosage: "", durationDays: "", remarks: "" })),
+    yogaTherapy: [{ asanas: "", pranayama: "", sessions: "", durationMinutes: "" }],
+    panchkarmaTherapy: [
+      { procedure: "Nasya", sessions: "", durationMinutes: "", response: "" },
+      { procedure: "Virechana", sessions: "", durationMinutes: "", response: "" },
+      { procedure: "Basti (Enema)", sessions: "", durationMinutes: "", response: "" },
+      { procedure: "Vamana (Emesis)", sessions: "", durationMinutes: "", response: "" },
+      { procedure: "Shirodhara", sessions: "", durationMinutes: "", response: "" },
+      { procedure: "Abhyanga (Massage)", sessions: "", durationMinutes: "", response: "" },
+      { procedure: "Pizhichil", sessions: "", durationMinutes: "", response: "" },
+      { procedure: "Kizhi", sessions: "", durationMinutes: "", response: "" }
+    ],
+    specializedTherapy: [
+      { therapy: "Udwartana", sessions: "", durationMinutes: "", therapistSign: "" },
+      { therapy: "Lepam (Herbal Paste)", sessions: "", durationMinutes: "", therapistSign: "" },
+      { therapy: "Swedanam (Steam)", sessions: "", durationMinutes: "", therapistSign: "" },
+      { therapy: "Akshibasti (Eye)", sessions: "", durationMinutes: "", therapistSign: "" }
+    ],
+    clinicalImprovement: { overallStatus: "", symptomRelief: "", functionalStatus: "" },
+    dietAdvice: { recommendedDiet: "", foodsToInclude: "", foodsToAvoid: "" },
+    lifestyleAdvice: { yogaPranayama: "", physicalActivity: "", sleepBedTime: "", sleepWakeTime: "", sleepDurationHours: "", stressManagement: "" },
+    dischargeMedicines: Array.from({ length: 8 }, () => ({ medicineName: "", strengthRoute: "", dosage: "", duration: "", remarks: "" }))
+  }
 };
 
 const initialTherapyForm = {
@@ -76,6 +105,28 @@ const initialTherapyForm = {
 
 function currency(value) {
   return Number(value || 0).toFixed(2);
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function mergeDischargeForm(summary = null) {
+  const base = clone(initialDischargeForm);
+  if (!summary) return base;
+
+  return {
+    ...base,
+    ...summary,
+    metadata: {
+      ...base.metadata,
+      ...(summary.metadata || {}),
+      dischargeVitals: { ...base.metadata.dischargeVitals, ...(summary.metadata?.dischargeVitals || {}) },
+      clinicalImprovement: { ...base.metadata.clinicalImprovement, ...(summary.metadata?.clinicalImprovement || {}) },
+      dietAdvice: { ...base.metadata.dietAdvice, ...(summary.metadata?.dietAdvice || {}) },
+      lifestyleAdvice: { ...base.metadata.lifestyleAdvice, ...(summary.metadata?.lifestyleAdvice || {}) }
+    }
+  };
 }
 
 export function IpdPage() {
@@ -158,6 +209,27 @@ export function IpdPage() {
     setDischargeForm((current) => ({ ...current, [name]: type === "checkbox" ? checked : value }));
   };
 
+  const handleDischargeMetadataChange = (section, field, value) => {
+    setDischargeForm((current) => ({
+      ...current,
+      metadata: {
+        ...current.metadata,
+        [section]: {
+          ...(current.metadata?.[section] || {}),
+          [field]: value
+        }
+      }
+    }));
+  };
+
+  const handleDischargeArrayChange = (section, index, field, value) => {
+    setDischargeForm((current) => {
+      const rows = [...(current.metadata?.[section] || [])];
+      rows[index] = field ? { ...rows[index], [field]: value } : value;
+      return { ...current, metadata: { ...current.metadata, [section]: rows } };
+    });
+  };
+
   const handleTherapyFormChange = (event) => {
     const { name, value } = event.target;
     setTherapyForm((current) => {
@@ -189,7 +261,7 @@ export function IpdPage() {
       setSelectedAdmission(detail);
       setNoteForm(initialNoteForm);
       setVitalsForm(initialVitalsForm);
-      setDischargeForm(initialDischargeForm);
+      setDischargeForm(mergeDischargeForm(detail.dischargeSummary));
       setTherapyForm(initialTherapyForm);
       setError("");
     } catch (apiError) {
@@ -265,6 +337,17 @@ export function IpdPage() {
     }
   };
 
+  const printIpdDischarge = () => {
+    const cleanup = () => {
+      document.body.classList.remove("print-ipd-discharge");
+      window.removeEventListener("afterprint", cleanup);
+    };
+
+    document.body.classList.add("print-ipd-discharge");
+    window.addEventListener("afterprint", cleanup);
+    window.setTimeout(() => window.print(), 0);
+  };
+
   const handleScheduleTherapy = async (event) => {
     event.preventDefault();
     if (!selectedAdmission?.id) {
@@ -319,6 +402,7 @@ export function IpdPage() {
   const selectedTherapy = masters.therapies?.find((item) => item.id === therapyForm.therapyId);
   const selectedPackage = masters.treatmentPackages?.find((item) => item.id === therapyForm.packageId);
   const patientLabel = (patient) => `${patient.uhid || patient.registrationNumber || "UHID"} - ${patient.firstName || ""} ${patient.lastName || ""}`.trim();
+  const latestVitals = selectedAdmission?.vitals?.[0] || {};
 
   return (
     <DashboardLayout>
@@ -524,8 +608,11 @@ export function IpdPage() {
               </div>
 
               {selectedAdmission.dischargeSummary ? (
-                <div className="content-card inset-card" style={{ marginTop: 18 }}>
-                  <h3>Discharge Summary</h3>
+                <div className="content-card inset-card print-sheet-card" style={{ marginTop: 18 }}>
+                  <div className="section-header no-print">
+                    <div><h3>Discharge Summary</h3></div>
+                    <Button variant="secondary" onClick={printIpdDischarge}>Print Summary</Button>
+                  </div>
                   <div className="detail-list">
                     <div><strong>Date:</strong> {selectedAdmission.dischargeSummary.dischargeDate} {selectedAdmission.dischargeSummary.dischargeTime}</div>
                     <div><strong>Status:</strong> {selectedAdmission.dischargeSummary.dischargeStatus}</div>
@@ -536,6 +623,55 @@ export function IpdPage() {
                     <div><strong>Summary:</strong> {selectedAdmission.dischargeSummary.dischargeNote}</div>
                     <div><strong>Advice:</strong> {selectedAdmission.dischargeSummary.advice || "No advice recorded"}</div>
                     <div><strong>Billing link:</strong> {selectedAdmission.bill?.billNumber || "No bill created"}</div>
+                  </div>
+                  <div className="discharge-print-sheet ipd-discharge-print-sheet">
+                    <div className="print-hospital-name">SHANTI-RATNAM AYUSH INSTITUTE OF INDIAN MEDICINAL SCIENCES, LANE NO. 3, NEHANAGAR, MAKRONIA, SAGAR (M.P)</div>
+                    <div className="print-hospital-subtitle">07582357300, 8989927755, www.shantiratnam.com</div>
+                    <h2>Patient & Admission Information</h2>
+                    <div className="print-grid">
+                      <div><strong>Patient Name:</strong> {selectedAdmission.patientName}</div>
+                      <div><strong>IPD No./MRN:</strong> {selectedAdmission.admissionNumber}</div>
+                      <div><strong>DOB/Age:</strong> {selectedAdmission.patient?.dateOfBirth || selectedAdmission.patient?.ageYears || "-"}</div>
+                      <div><strong>Gender:</strong> {selectedAdmission.patient?.gender || "-"}</div>
+                      <div><strong>Contact:</strong> {selectedAdmission.patient?.phone || "-"}</div>
+                      <div><strong>Date of Admission:</strong> {selectedAdmission.admissionDate}</div>
+                      <div><strong>Date of Discharge:</strong> {selectedAdmission.dischargeSummary.dischargeDate}</div>
+                      <div><strong>Length of Stay:</strong> {selectedAdmission.dischargeSummary.stayDays} days</div>
+                      <div><strong>Ward/Room:</strong> {selectedAdmission.room?.ward || "-"} / {selectedAdmission.room?.roomNumber || "-"}</div>
+                      <div><strong>Consulting Physician:</strong> {selectedAdmission.doctor?.fullName || "-"}</div>
+                    </div>
+                    <h2>Reason for Hospitalization & Final Diagnosis</h2>
+                    <p><strong>Chief Complaint:</strong> {selectedAdmission.reasonForAdmission || "-"}</p>
+                    <ol>{(selectedAdmission.dischargeSummary.metadata?.finalDiagnoses || []).filter(Boolean).map((item, index) => <li key={`final-dx-${index}`}>{item}</li>)}</ol>
+                    <h2>Clinical Course During Hospitalization</h2>
+                    <p>{selectedAdmission.dischargeSummary.dischargeNote || "-"}</p>
+                    <h2>Vital Signs at Discharge</h2>
+                    <div className="print-grid">
+                      <div><strong>BP:</strong> {selectedAdmission.dischargeSummary.metadata?.dischargeVitals?.systolic || latestVitals.bp || "-"} / {selectedAdmission.dischargeSummary.metadata?.dischargeVitals?.diastolic || ""}</div>
+                      <div><strong>Pulse:</strong> {selectedAdmission.dischargeSummary.metadata?.dischargeVitals?.pulse || latestVitals.pulse || "-"} bpm</div>
+                      <div><strong>Temp/SPO2:</strong> {selectedAdmission.dischargeSummary.metadata?.dischargeVitals?.temp || latestVitals.temp || "-"} / {selectedAdmission.dischargeSummary.metadata?.dischargeVitals?.spo2 || latestVitals.spo2 || "-"}%</div>
+                      <div><strong>Weight:</strong> {selectedAdmission.dischargeSummary.metadata?.dischargeVitals?.weight || latestVitals.weight || "-"} kg</div>
+                    </div>
+                    <h2>Ayurvedic Medicines Administered</h2>
+                    <table className="print-table"><thead><tr><th>Medicine Name</th><th>Dosage</th><th>Duration (Days)</th><th>Remarks</th></tr></thead><tbody>{(selectedAdmission.dischargeSummary.metadata?.medicinesAdministered || []).map((row, index) => <tr key={`admin-med-${index}`}><td>{row.medicineName}</td><td>{row.dosage}</td><td>{row.durationDays}</td><td>{row.remarks}</td></tr>)}</tbody></table>
+                    <h2>Yoga & Pranayama Therapy Provided During Hospitalization</h2>
+                    <table className="print-table"><thead><tr><th>Yoga Asanas Taught</th><th>Pranayama Techniques</th><th>Sessions Conducted</th></tr></thead><tbody>{(selectedAdmission.dischargeSummary.metadata?.yogaTherapy || []).map((row, index) => <tr key={`yoga-${index}`}><td>{row.asanas}</td><td>{row.pranayama}</td><td>{row.sessions} sessions, {row.durationMinutes} min/session</td></tr>)}</tbody></table>
+                    <h2>Panchakarma Therapies Administered</h2>
+                    <table className="print-table"><thead><tr><th>Procedure</th><th>No. of Sessions</th><th>Duration/Session</th><th>Response</th></tr></thead><tbody>{(selectedAdmission.dischargeSummary.metadata?.panchkarmaTherapy || []).map((row, index) => <tr key={`pk-${index}`}><td>{row.procedure}</td><td>{row.sessions}</td><td>{row.durationMinutes} min</td><td>{row.response}</td></tr>)}</tbody></table>
+                    <h2>Clinical Improvement & Response to Treatment</h2>
+                    <p><strong>Overall Status:</strong> {selectedAdmission.dischargeSummary.metadata?.clinicalImprovement?.overallStatus || selectedAdmission.dischargeSummary.conditionOnDischarge}</p>
+                    <p><strong>Symptom Relief:</strong> {selectedAdmission.dischargeSummary.metadata?.clinicalImprovement?.symptomRelief || "-"}</p>
+                    <p><strong>Functional Status:</strong> {selectedAdmission.dischargeSummary.metadata?.clinicalImprovement?.functionalStatus || "-"}</p>
+                    <h2>Dietary & Lifestyle Advice at Discharge</h2>
+                    <p><strong>Recommended Diet:</strong> {selectedAdmission.dischargeSummary.metadata?.dietAdvice?.recommendedDiet || "-"}</p>
+                    <p><strong>Foods to Include:</strong> {selectedAdmission.dischargeSummary.metadata?.dietAdvice?.foodsToInclude || "-"}</p>
+                    <p><strong>Foods to Avoid:</strong> {selectedAdmission.dischargeSummary.metadata?.dietAdvice?.foodsToAvoid || "-"}</p>
+                    <p><strong>Lifestyle:</strong> {selectedAdmission.dischargeSummary.advice || "-"}</p>
+                    <h2>Discharge Medications & Continuation</h2>
+                    <table className="print-table"><thead><tr><th>Medicine Name</th><th>Strength & Route</th><th>Dosage</th><th>Duration</th><th>Remarks</th></tr></thead><tbody>{(selectedAdmission.dischargeSummary.metadata?.dischargeMedicines || []).map((row, index) => <tr key={`dc-med-${index}`}><td>{row.medicineName}</td><td>{row.strengthRoute}</td><td>{row.dosage}</td><td>{row.duration}</td><td>{row.remarks}</td></tr>)}</tbody></table>
+                    <h2>Follow-up & Monitoring Plan</h2>
+                    <p><strong>Follow-up Date:</strong> {selectedAdmission.dischargeSummary.followUpDate || "As advised"} <strong>Follow-up with:</strong> {selectedAdmission.dischargeSummary.followUpWithOpd ? "OPD " : ""}{selectedAdmission.dischargeSummary.followUpWithPhone ? "Phone" : ""}</p>
+                    <div className="signature-line">Consulting Physician Signature</div>
                   </div>
                 </div>
               ) : null}
@@ -654,11 +790,75 @@ export function IpdPage() {
                 <div className="field"><label>Status</label><select name="dischargeStatus" value={dischargeForm.dischargeStatus} onChange={handleDischargeFormChange}>{masters.dischargeStatuses.map((status) => (<option key={status} value={status}>{status}</option>))}</select></div>
                 <div className="field"><label>Condition</label><input name="conditionOnDischarge" value={dischargeForm.conditionOnDischarge} onChange={handleDischargeFormChange} /></div>
                 <div className="field"><label>Stay days override</label><input name="stayDays" value={dischargeForm.stayDays} onChange={handleDischargeFormChange} /></div>
+                <div className="field"><label>Follow-up date</label><input type="date" name="followUpDate" value={dischargeForm.followUpDate} onChange={handleDischargeFormChange} /></div>
                 <div className="field"><label>Bed status after discharge</label><select name="nextBedStatus" value={dischargeForm.nextBedStatus} onChange={handleDischargeFormChange}><option value="cleaning">cleaning</option><option value="available">available</option><option value="maintenance">maintenance</option></select></div>
                 <div className="field"><label>Extra charge</label><input name="extraCharge" value={dischargeForm.extraCharge} onChange={handleDischargeFormChange} /></div>
                 <div className="field"><label>Extra charge label</label><input name="extraChargeLabel" value={dischargeForm.extraChargeLabel} onChange={handleDischargeFormChange} /></div>
+                {dischargeForm.metadata.finalDiagnoses.map((diagnosis, index) => (
+                  <div className="field field-span-2" key={`final-diagnosis-${index}`}><label>Final diagnosis {index + 1}</label><input value={diagnosis} onChange={(event) => handleDischargeArrayChange("finalDiagnoses", index, "", event.target.value)} /></div>
+                ))}
+                <div className="field"><label>Discharge BP systolic</label><input value={dischargeForm.metadata.dischargeVitals.systolic} onChange={(event) => handleDischargeMetadataChange("dischargeVitals", "systolic", event.target.value)} /></div>
+                <div className="field"><label>Discharge BP diastolic</label><input value={dischargeForm.metadata.dischargeVitals.diastolic} onChange={(event) => handleDischargeMetadataChange("dischargeVitals", "diastolic", event.target.value)} /></div>
+                <div className="field"><label>Pulse</label><input value={dischargeForm.metadata.dischargeVitals.pulse} onChange={(event) => handleDischargeMetadataChange("dischargeVitals", "pulse", event.target.value)} /></div>
+                <div className="field"><label>Temp</label><input value={dischargeForm.metadata.dischargeVitals.temp} onChange={(event) => handleDischargeMetadataChange("dischargeVitals", "temp", event.target.value)} /></div>
+                <div className="field"><label>SPO2</label><input value={dischargeForm.metadata.dischargeVitals.spo2} onChange={(event) => handleDischargeMetadataChange("dischargeVitals", "spo2", event.target.value)} /></div>
+                <div className="field"><label>Weight</label><input value={dischargeForm.metadata.dischargeVitals.weight} onChange={(event) => handleDischargeMetadataChange("dischargeVitals", "weight", event.target.value)} /></div>
                 <div className="field field-span-2"><label>Discharge summary</label><input name="dischargeNote" value={dischargeForm.dischargeNote} onChange={handleDischargeFormChange} /></div>
                 <div className="field field-span-2"><label>Advice</label><input name="advice" value={dischargeForm.advice} onChange={handleDischargeFormChange} /></div>
+                <div className="field"><label>Overall clinical status</label><input value={dischargeForm.metadata.clinicalImprovement.overallStatus} onChange={(event) => handleDischargeMetadataChange("clinicalImprovement", "overallStatus", event.target.value)} /></div>
+                <div className="field"><label>Symptom relief</label><select value={dischargeForm.metadata.clinicalImprovement.symptomRelief} onChange={(event) => handleDischargeMetadataChange("clinicalImprovement", "symptomRelief", event.target.value)}><option value="">Select</option><option value="complete">complete</option><option value="significant">significant</option><option value="moderate">moderate</option><option value="minimal">minimal</option></select></div>
+                <div className="field"><label>Functional status</label><select value={dischargeForm.metadata.clinicalImprovement.functionalStatus} onChange={(event) => handleDischargeMetadataChange("clinicalImprovement", "functionalStatus", event.target.value)}><option value="">Select</option><option value="normal">normal</option><option value="improved">improved</option><option value="partially_improved">partially improved</option><option value="no_change">no change</option></select></div>
+                <div className="field"><label>Recommended diet</label><input value={dischargeForm.metadata.dietAdvice.recommendedDiet} onChange={(event) => handleDischargeMetadataChange("dietAdvice", "recommendedDiet", event.target.value)} /></div>
+                <div className="field"><label>Foods to include</label><input value={dischargeForm.metadata.dietAdvice.foodsToInclude} onChange={(event) => handleDischargeMetadataChange("dietAdvice", "foodsToInclude", event.target.value)} /></div>
+                <div className="field"><label>Foods to avoid</label><input value={dischargeForm.metadata.dietAdvice.foodsToAvoid} onChange={(event) => handleDischargeMetadataChange("dietAdvice", "foodsToAvoid", event.target.value)} /></div>
+                <div className="field field-span-2">
+                  <label>Medicines administered</label>
+                  <div className="medicine-stack">
+                    {dischargeForm.metadata.medicinesAdministered.map((row, index) => (
+                      <div className="medicine-card" key={`administered-${index}`}>
+                        <div className="form-grid">
+                          <div className="field"><label>Medicine</label><input value={row.medicineName} onChange={(event) => handleDischargeArrayChange("medicinesAdministered", index, "medicineName", event.target.value)} /></div>
+                          <div className="field"><label>Dosage</label><input value={row.dosage} onChange={(event) => handleDischargeArrayChange("medicinesAdministered", index, "dosage", event.target.value)} /></div>
+                          <div className="field"><label>Days</label><input value={row.durationDays} onChange={(event) => handleDischargeArrayChange("medicinesAdministered", index, "durationDays", event.target.value)} /></div>
+                          <div className="field"><label>Remarks</label><input value={row.remarks} onChange={(event) => handleDischargeArrayChange("medicinesAdministered", index, "remarks", event.target.value)} /></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="field field-span-2">
+                  <label>Panchkarma therapies administered</label>
+                  <div className="medicine-stack">
+                    {dischargeForm.metadata.panchkarmaTherapy.map((row, index) => (
+                      <div className="medicine-card" key={`discharge-pk-${index}`}>
+                        <div className="form-grid">
+                          <div className="field"><label>Procedure</label><input value={row.procedure} onChange={(event) => handleDischargeArrayChange("panchkarmaTherapy", index, "procedure", event.target.value)} /></div>
+                          <div className="field"><label>Sessions</label><input value={row.sessions} onChange={(event) => handleDischargeArrayChange("panchkarmaTherapy", index, "sessions", event.target.value)} /></div>
+                          <div className="field"><label>Minutes/session</label><input value={row.durationMinutes} onChange={(event) => handleDischargeArrayChange("panchkarmaTherapy", index, "durationMinutes", event.target.value)} /></div>
+                          <div className="field"><label>Response</label><input value={row.response} onChange={(event) => handleDischargeArrayChange("panchkarmaTherapy", index, "response", event.target.value)} /></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="field field-span-2">
+                  <label>Discharge medicines</label>
+                  <div className="medicine-stack">
+                    {dischargeForm.metadata.dischargeMedicines.map((row, index) => (
+                      <div className="medicine-card" key={`discharge-med-${index}`}>
+                        <div className="form-grid">
+                          <div className="field"><label>Medicine</label><input value={row.medicineName} onChange={(event) => handleDischargeArrayChange("dischargeMedicines", index, "medicineName", event.target.value)} /></div>
+                          <div className="field"><label>Strength & route</label><input value={row.strengthRoute} onChange={(event) => handleDischargeArrayChange("dischargeMedicines", index, "strengthRoute", event.target.value)} /></div>
+                          <div className="field"><label>Dosage</label><input value={row.dosage} onChange={(event) => handleDischargeArrayChange("dischargeMedicines", index, "dosage", event.target.value)} /></div>
+                          <div className="field"><label>Duration</label><input value={row.duration} onChange={(event) => handleDischargeArrayChange("dischargeMedicines", index, "duration", event.target.value)} /></div>
+                          <div className="field field-span-2"><label>Remarks</label><input value={row.remarks} onChange={(event) => handleDischargeArrayChange("dischargeMedicines", index, "remarks", event.target.value)} /></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <label className="checkbox-chip"><input type="checkbox" name="followUpWithOpd" checked={dischargeForm.followUpWithOpd} onChange={handleDischargeFormChange} /> Follow-up OPD</label>
+                <label className="checkbox-chip"><input type="checkbox" name="followUpWithPhone" checked={dischargeForm.followUpWithPhone} onChange={handleDischargeFormChange} /> Follow-up phone</label>
                 <div className="field field-span-2"><label>Bed note</label><input name="bedNote" value={dischargeForm.bedNote} onChange={handleDischargeFormChange} /></div>
                 <label className="checkbox-chip field-span-2"><input type="checkbox" name="createBill" checked={dischargeForm.createBill} onChange={handleDischargeFormChange} /> Create IPD bill on discharge</label>
                 <div className="field field-span-2"><Button type="submit">Discharge Patient</Button></div>

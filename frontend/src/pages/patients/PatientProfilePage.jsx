@@ -603,6 +603,47 @@ export function PatientProfilePage() {
           <section className="content-card">
             <div className="section-header">
               <div>
+                <div className="eyebrow">Certificates</div>
+                <h3>Medical certificates</h3>
+              </div>
+              <Link className="inline-link" to="/certificates">
+                Issue certificate
+              </Link>
+            </div>
+
+            {payload.certificates?.length ? (
+              <div className="table-shell">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Certificate</th>
+                      <th>Type</th>
+                      <th>Date</th>
+                      <th>Doctor</th>
+                      <th>Purpose / diagnosis</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payload.certificates.map((certificate) => (
+                      <tr key={certificate.id}>
+                        <td>{certificate.certificateNumber}</td>
+                        <td>{certificate.certificateType.replaceAll("_", " ")}</td>
+                        <td>{certificate.certificateDate}</td>
+                        <td>{certificate.doctorName}</td>
+                        <td>{certificate.diagnosis || certificate.activity || certificate.treatment || "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state">No medical certificates have been issued for this patient yet.</div>
+            )}
+          </section>
+
+          <section className="content-card">
+            <div className="section-header">
+              <div>
                 <div className="eyebrow">Appointments</div>
                 <h3>Appointment history</h3>
               </div>

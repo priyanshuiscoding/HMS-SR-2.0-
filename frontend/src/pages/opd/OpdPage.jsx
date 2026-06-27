@@ -75,10 +75,10 @@ const initialPrescription = {
     therapyPlan: {
       yoga: [{ asanas: "Surya Namaskar, Tadasana, Bhujangasana", pranayama: "Anulom-Vilom, Bhastrika", durationMinutes: "" }],
       panchkarma: [
-        { procedure: "Abhyanga", frequency: "", duration: "" },
-        { procedure: "Shiroabhyanga", frequency: "", duration: "" },
-        { procedure: "Nasya", frequency: "", duration: "" },
-        { procedure: "Basti", frequency: "", duration: "" }
+        { procedure: "Abhyanga", frequency: "", duration: "", durationDays: "" },
+        { procedure: "Shiroabhyanga", frequency: "", duration: "", durationDays: "" },
+        { procedure: "Nasya", frequency: "", duration: "", durationDays: "" },
+        { procedure: "Basti", frequency: "", duration: "", durationDays: "" }
       ],
       specialized: [
         { therapy: "Shirodhara", sessions: "", duration: "" },
@@ -1203,6 +1203,7 @@ export function OpdPage() {
                         <label>{row.procedure}</label>
                         <input value={row.frequency} placeholder="Frequency" onChange={(event) => handleTherapyRowChange("panchkarma", index, "frequency", event.target.value)} />
                         <input value={row.duration} placeholder="Duration" onChange={(event) => handleTherapyRowChange("panchkarma", index, "duration", event.target.value)} />
+                        <input value={row.durationDays || ""} placeholder="No. of days" onChange={(event) => handleTherapyRowChange("panchkarma", index, "durationDays", event.target.value)} />
                       </div>
                     ))}
                     {prescriptionForm.metadata.therapyPlan.specialized.map((row, index) => (
@@ -1510,10 +1511,10 @@ export function OpdPage() {
                     ))}
                     <h4>Therapeutic Panchkarma & Massage Services</h4>
                     <table className="print-table">
-                      <thead><tr><th>Service</th><th>Frequency</th><th>Duration</th></tr></thead>
+                      <thead><tr><th>Service</th><th>Frequency</th><th>Duration</th><th>No. of Days</th></tr></thead>
                       <tbody>
                         {prescriptionForm.metadata.therapyPlan.panchkarma.map((row, index) => (
-                          <tr key={`print-panchkarma-${index}`}><td>{row.procedure}</td><td>{row.frequency}</td><td>{row.duration}</td></tr>
+                          <tr key={`print-panchkarma-${index}`}><td>{row.procedure}</td><td>{row.frequency}</td><td>{row.duration}</td><td>{row.durationDays || ""}</td></tr>
                         ))}
                       </tbody>
                     </table>

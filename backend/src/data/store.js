@@ -36,10 +36,13 @@ const meeraLabOrderId = createId();
 const meeraBillId = createId();
 const meeraDispenseId = createId();
 const meeraPaymentId = createId();
-const deluxeRoomId = createId();
 const panchkarmaRoomId = createId();
-const generalWardRoomId = createId();
-const generalWardBedTwoId = createId();
+const generalMaleWardRoomId = createId();
+const generalFemaleWardRoomId = createId();
+const semiPrivateMaleWardRoomId = createId();
+const semiPrivateFemaleWardRoomId = createId();
+const privateWardRoomId = createId();
+const generalMaleWardBedTwoId = createId();
 const rajeshAdmissionId = createId();
 const abhyangaTherapyId = panchkarmaTherapyRates.find((therapy) => therapy.name === "SARVANG ABHYANG")?.id || "therapy-001";
 const patraPindaTherapyId = panchkarmaTherapyRates.find((therapy) => therapy.name === "PATRA PINDA SWEDAN")?.id || "therapy-031";
@@ -50,6 +53,26 @@ const rajeshTherapyScheduleId = createId();
 const generalWardCharge = ipdWardCharges.find((ward) => ward.roomType === "general")?.chargePerDay || 1500;
 const semiPrivateWardCharge = ipdWardCharges.find((ward) => ward.roomType === "semi_private")?.chargePerDay || 2500;
 const privateWardCharge = ipdWardCharges.find((ward) => ward.roomType === "private")?.chargePerDay || 3500;
+
+function createWardBeds(roomId, prefix, totalBeds, options = {}) {
+  return Array.from({ length: totalBeds }, (_, index) => {
+    const bedIndex = index + 1;
+    const occupied = options.occupiedBedNumber === bedIndex;
+
+    return {
+      id: occupied && options.occupiedBedId ? options.occupiedBedId : createId(),
+      roomId,
+      bedNumber: `${prefix}-${String(bedIndex).padStart(2, "0")}`,
+      bedLabel: `Bed ${bedIndex}`,
+      status: occupied ? "occupied" : "available",
+      patientId: occupied ? options.patientId || null : null,
+      patientName: occupied ? options.patientName || "" : "",
+      assignedAt: occupied ? options.assignedAt || "" : "",
+      expectedDischargeDate: occupied ? options.expectedDischargeDate || "" : "",
+      note: occupied ? options.note || "" : ""
+    };
+  });
+}
 
 export const db = {
   patients: [
@@ -374,16 +397,6 @@ export const db = {
   ],
   rooms: [
     {
-      id: deluxeRoomId,
-      roomNumber: "P-101",
-      ward: "Private Ward",
-      roomType: "private",
-      floor: "First Floor",
-      chargePerDay: privateWardCharge,
-      nursingStation: "North Wing",
-      notes: "Package includes bed charges and diet only."
-    },
-    {
       id: panchkarmaRoomId,
       roomNumber: "PK-201",
       ward: "Panchkarma Therapy",
@@ -394,29 +407,57 @@ export const db = {
       notes: "Suitable for supervised therapy recovery."
     },
     {
-      id: generalWardRoomId,
-      roomNumber: "GW-001",
-      ward: "General Ward",
+      id: generalMaleWardRoomId,
+      roomNumber: "GMW-001",
+      ward: "General Male Ward",
       roomType: "general",
       floor: "Ground Floor",
       chargePerDay: generalWardCharge,
-      nursingStation: "Main Ward",
-      notes: "Package includes bed charges and diet only."
+      nursingStation: "General Ward Station",
+      notes: "10-bed general male ward. Package includes bed charges and diet only."
+    },
+    {
+      id: generalFemaleWardRoomId,
+      roomNumber: "GFW-001",
+      ward: "General Female Ward",
+      roomType: "general",
+      floor: "Ground Floor",
+      chargePerDay: generalWardCharge,
+      nursingStation: "General Ward Station",
+      notes: "6-bed general female ward. Package includes bed charges and diet only."
+    },
+    {
+      id: semiPrivateMaleWardRoomId,
+      roomNumber: "SPMW-001",
+      ward: "Semi Private Male Ward",
+      roomType: "semi_private",
+      floor: "First Floor",
+      chargePerDay: semiPrivateWardCharge,
+      nursingStation: "Semi Private Ward Station",
+      notes: "5-bed semi-private male ward. Package includes bed charges and diet only."
+    },
+    {
+      id: semiPrivateFemaleWardRoomId,
+      roomNumber: "SPFW-001",
+      ward: "Semi Private Female Ward",
+      roomType: "semi_private",
+      floor: "First Floor",
+      chargePerDay: semiPrivateWardCharge,
+      nursingStation: "Semi Private Ward Station",
+      notes: "2-bed semi-private female ward. Package includes bed charges and diet only."
+    },
+    {
+      id: privateWardRoomId,
+      roomNumber: "PR-001",
+      ward: "Private Ward",
+      roomType: "private",
+      floor: "First Floor",
+      chargePerDay: privateWardCharge,
+      nursingStation: "Private Ward Station",
+      notes: "4 private beds. Package includes bed charges and diet only."
     }
   ],
   beds: [
-    {
-      id: createId(),
-      roomId: deluxeRoomId,
-      bedNumber: "A-101-1",
-      bedLabel: "Bed 1",
-      status: "available",
-      patientId: null,
-      patientName: "",
-      assignedAt: "",
-      expectedDischargeDate: "",
-      note: ""
-    },
     {
       id: createId(),
       roomId: panchkarmaRoomId,
@@ -429,30 +470,19 @@ export const db = {
       expectedDischargeDate: "",
       note: ""
     },
-    {
-      id: createId(),
-      roomId: generalWardRoomId,
-      bedNumber: "GW-001-1",
-      bedLabel: "Bed 1",
-      status: "cleaning",
-      patientId: null,
-      patientName: "",
-      assignedAt: "",
-      expectedDischargeDate: "",
-      note: "Cleaning in progress after morning discharge."
-    },
-    {
-      id: generalWardBedTwoId,
-      roomId: generalWardRoomId,
-      bedNumber: "GW-001-2",
-      bedLabel: "Bed 2",
-      status: "occupied",
+    ...createWardBeds(generalMaleWardRoomId, "GMW", 10, {
+      occupiedBedNumber: 2,
+      occupiedBedId: generalMaleWardBedTwoId,
       patientId: rajeshPatientId,
       patientName: "Rajesh Patel",
       assignedAt: `${today}T08:15:00`,
       expectedDischargeDate: `${currentYear()}-03-25`,
       note: "Short observation stay."
-    }
+    }),
+    ...createWardBeds(generalFemaleWardRoomId, "GFW", 6),
+    ...createWardBeds(semiPrivateMaleWardRoomId, "SPMW", 5),
+    ...createWardBeds(semiPrivateFemaleWardRoomId, "SPFW", 2),
+    ...createWardBeds(privateWardRoomId, "PR", 4)
   ],
   ipdAdmissions: [
     {
@@ -460,8 +490,8 @@ export const db = {
       admissionNumber: `IPD-${currentYear()}-00001`,
       patientId: rajeshPatientId,
       patientName: "Rajesh Patel",
-      roomId: generalWardRoomId,
-      bedId: generalWardBedTwoId,
+      roomId: generalMaleWardRoomId,
+      bedId: generalMaleWardBedTwoId,
       attendingDoctorId: doctorLookup[2]?.id || doctorLookup[0]?.id,
       admissionDate: today,
       admissionTime: "08:15",

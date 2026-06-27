@@ -4,6 +4,7 @@ import { authorize } from "../../middleware/rbac.js";
 import {
   completePanchkarmaSessionHandler,
   createPanchkarmaScheduleHandler,
+  listPanchkarmaRecommendationsHandler,
   listPanchkarmaSchedulesHandler,
   panchkarmaWorkflowActionHandler,
   panchkarmaMastersHandler,
@@ -34,6 +35,11 @@ panchkarmaRouter.get(
   "/schedule",
   authorize(["admin", "doctor", "reception", "therapist", "accounts"]),
   listPanchkarmaSchedulesHandler
+);
+panchkarmaRouter.get(
+  "/recommendations",
+  authorize(["admin", "doctor", "reception", "therapist", "accounts"]),
+  listPanchkarmaRecommendationsHandler
 );
 panchkarmaRouter.get(
   "/schedule/:id",

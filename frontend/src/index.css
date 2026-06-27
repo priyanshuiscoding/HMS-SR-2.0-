@@ -1360,6 +1360,10 @@ textarea {
   border-left: 5px solid rgba(111, 87, 174, 0.6);
 }
 
+.timeline-block.medical_certificate {
+  border-left: 5px solid rgba(31, 79, 143, 0.75);
+}
+
 .badge-row {
   display: flex;
   flex-wrap: wrap;
@@ -1482,6 +1486,143 @@ textarea {
   font-weight: 700;
 }
 
+.certificates-hero {
+  margin-bottom: 18px;
+}
+
+.certificates-layout {
+  display: grid;
+  grid-template-columns: minmax(380px, 0.82fr) minmax(520px, 1.18fr);
+  gap: 18px;
+  align-items: start;
+  min-width: 0;
+}
+
+.certificate-preview-card {
+  overflow: auto;
+}
+
+.certificates-history-card {
+  margin-top: 18px;
+}
+
+.certificate-print-sheet {
+  width: 190mm;
+  max-width: 100%;
+  min-height: 260mm;
+  margin: 0 auto;
+  padding: 12mm 14mm;
+  border: 1px solid rgba(32, 32, 32, 0.14);
+  background: #ffffff;
+  color: #202020;
+  box-shadow: 0 16px 38px rgba(16, 55, 92, 0.12);
+  font-family: "Times New Roman", Times, serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.certificate-letterhead-row {
+  display: grid;
+  grid-template-columns: 94px 1fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.certificate-logo {
+  width: 94px;
+  height: auto;
+}
+
+.certificate-letterhead {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.certificate-divider {
+  display: block;
+  width: 100%;
+  height: 10px;
+  object-fit: fill;
+  margin: 14px 0 28px;
+}
+
+.certificate-print-sheet h1 {
+  margin: 0 0 22px;
+  color: #202020;
+  font-size: 20px;
+  text-align: center;
+  text-decoration: underline;
+  letter-spacing: 0;
+}
+
+.certificate-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+  margin-bottom: 34px;
+}
+
+.certificate-body-copy {
+  min-height: 88mm;
+  font-size: 16px;
+}
+
+.certificate-body-copy p {
+  margin: 0 0 16px;
+}
+
+.certificate-check-grid {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 18px 22px;
+}
+
+.certificate-check-grid .selected {
+  font-weight: 700;
+}
+
+.certificate-signature-block {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: 28px;
+}
+
+.certificate-signature-block p {
+  margin: 4px 0;
+}
+
+.certificate-qr-placeholder {
+  display: grid;
+  width: 92px;
+  height: 92px;
+  place-items: center;
+  border: 1px dashed rgba(32, 32, 32, 0.55);
+  color: #202020;
+  font-size: 11px;
+  text-align: center;
+}
+
+.certificate-verification {
+  margin-top: 28px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(32, 32, 32, 0.24);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.certificate-verification p {
+  margin: 4px 0;
+}
+
+.certificate-empty-preview {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: auto;
+}
+
 @media print {
   .sidebar,
   .navbar,
@@ -1576,6 +1717,46 @@ textarea {
     border-top: 1px solid rgba(32, 32, 32, 0.18);
   }
 
+  body.print-ipd-discharge .sidebar,
+  body.print-ipd-discharge .navbar,
+  body.print-ipd-discharge .hero-panel,
+  body.print-ipd-discharge .stat-grid,
+  body.print-ipd-discharge .workspace-grid,
+  body.print-ipd-discharge .opd-grid > .content-card > :not(.print-sheet-card),
+  body.print-ipd-discharge .consultation-column,
+  body.print-ipd-discharge .print-sheet-card > :not(.ipd-discharge-print-sheet) {
+    display: none !important;
+  }
+
+  body.print-ipd-discharge .dashboard-shell,
+  body.print-ipd-discharge .main-panel,
+  body.print-ipd-discharge .opd-grid,
+  body.print-ipd-discharge .content-card,
+  body.print-ipd-discharge .print-sheet-card {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    background: #ffffff !important;
+  }
+
+  body.print-ipd-discharge .ipd-discharge-print-sheet {
+    display: grid !important;
+    width: 190mm;
+    max-width: 100%;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #202020 !important;
+    font-size: 10.5px;
+    line-height: 1.35;
+  }
+
   body.print-appointment-receipt .dashboard-shell,
   body.print-appointment-receipt .main-panel {
     display: block !important;
@@ -1597,6 +1778,40 @@ textarea {
     box-shadow: none !important;
     page-break-inside: avoid;
   }
+
+  body.print-medical-certificate .sidebar,
+  body.print-medical-certificate .navbar,
+  body.print-medical-certificate .hero-panel,
+  body.print-medical-certificate .certificates-layout > .content-card:first-child,
+  body.print-medical-certificate .certificates-history-card,
+  body.print-medical-certificate .certificate-preview-card > .section-header {
+    display: none !important;
+  }
+
+  body.print-medical-certificate .dashboard-shell,
+  body.print-medical-certificate .main-panel,
+  body.print-medical-certificate .certificates-layout,
+  body.print-medical-certificate .certificate-preview-card {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+  }
+
+  body.print-medical-certificate .certificate-print-sheet {
+    width: 190mm;
+    max-width: 100%;
+    min-height: auto;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    color: #202020 !important;
+    page-break-inside: avoid;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -1606,6 +1821,7 @@ textarea {
   .stat-grid,
   .workspace-grid,
   .detail-grid,
+  .certificates-layout,
   .opd-grid {
     grid-template-columns: 1fr;
   }
@@ -1706,6 +1922,10 @@ textarea {
   .timeline-block {
     grid-template-columns: 1fr;
   }
+
+  .certificate-preview-card {
+    overflow-x: auto;
+  }
 }
 
 @media (max-width: 720px) {
@@ -1780,6 +2000,23 @@ textarea {
 
   .patient-form-modal-grid {
     padding-right: 0;
+  }
+
+  .certificate-print-sheet {
+    padding: 16px;
+  }
+
+  .certificate-letterhead-row,
+  .certificate-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .certificate-logo {
+    width: 76px;
+  }
+
+  .certificate-signature-block {
+    flex-direction: column;
   }
 }
 
