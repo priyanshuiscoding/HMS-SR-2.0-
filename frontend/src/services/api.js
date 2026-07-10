@@ -107,6 +107,7 @@ async function downloadRequest(path) {
 }
 
 export const loginRequest = (payload) => post("/auth/login", payload);
+export const getCurrentUser = () => get("/auth/me");
 export const getSystemOverview = () => get("/system/overview");
 
 export const getPatients = (search = "") => get("/patients", search ? { search } : {});
@@ -141,6 +142,8 @@ export const createCertificate = (payload) => post("/certificates", payload);
 export const getUsers = () => get("/users");
 export const getDoctors = () => get("/users/doctors");
 export const getUsersSummary = () => get("/users/summary");
+export const getModuleCatalog = () => get("/users/module-catalog");
+export const updateUserModuleAccess = (id, modules) => put(`/users/${id}/module-access`, { modules });
 
 export const getHrOverview = (params = {}) => get("/hr/overview", params);
 export const getHrEmployees = (params = {}) => get("/hr/employees", params);

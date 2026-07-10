@@ -7,7 +7,9 @@ import {
   deleteUserHandler,
   departmentsListHandler,
   doctorsListHandler,
+  moduleCatalogHandler,
   therapistsListHandler,
+  updateModuleAccessHandler,
   updateUserHandler,
   userDetailsHandler,
   usersListHandler,
@@ -34,6 +36,8 @@ const userUpdateSchema = {
 usersRouter.get("/", authorize(["admin", "hr"]), usersListHandler);
 usersRouter.post("/", authorize(["admin"]), validateBody(userCreateSchema), createUserHandler);
 usersRouter.get("/summary", authorize(["admin", "hr"]), usersSummaryHandler);
+usersRouter.get("/module-catalog", authorize(["admin"]), moduleCatalogHandler);
+usersRouter.put("/:id/module-access", authorize(["admin"]), userIdParam, updateModuleAccessHandler);
 usersRouter.get("/doctors", authorize(["admin", "reception", "doctor"]), doctorsListHandler);
 usersRouter.get("/therapists", authorize(["admin", "reception", "doctor"]), therapistsListHandler);
 usersRouter.get("/departments", authorize(["admin", "reception", "doctor", "hr"]), departmentsListHandler);

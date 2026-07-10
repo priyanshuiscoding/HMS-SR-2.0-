@@ -339,7 +339,10 @@ async function seedPanchkarmaTherapies(client) {
 async function seedRoomsAndBeds(client) {
   for (const room of db.rooms) {
     const beds = db.beds.filter((bed) => bed.roomId === room.id);
-    await client.query(
+    // Rooms may already exist from migration 013 (with their own generated ids).
+    // Capture the actual persisted id via RETURNING so bed rows reference a real
+    // room_id whether the room was newly inserted here or updated on conflict.
+    const roomResult = await client.query(
       `
       INSERT INTO rooms (
         id, room_number, room_type, floor, ward, total_beds, daily_rate, nursing_station, notes, metadata
@@ -356,6 +359,7 @@ async function seedRoomsAndBeds(client) {
         notes = EXCLUDED.notes,
         metadata = EXCLUDED.metadata,
         updated_at = NOW()
+      RETURNING id
       `,
       [
         stableUuid(`room:${room.roomNumber}`),
@@ -370,6 +374,8 @@ async function seedRoomsAndBeds(client) {
         JSON.stringify({ sourceId: room.id })
       ]
     );
+
+    const roomId = roomResult.rows[0].id;
 
     for (const bed of beds) {
       await client.query(
@@ -391,7 +397,7 @@ async function seedRoomsAndBeds(client) {
         `,
         [
           stableUuid(`bed:${bed.bedNumber}`),
-          stableUuid(`room:${room.roomNumber}`),
+          roomId,
           bed.bedNumber,
           bed.bedLabel || "",
           bed.status || "available",

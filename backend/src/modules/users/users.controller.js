@@ -1,11 +1,13 @@
 import { getDepartments } from "../../data/store.js";
 import {
   createUser,
+  getModuleCatalog,
   getUsersSummaryFromDatabase,
   getUserById,
   listDoctors,
   listTherapists,
   listUsers,
+  setUserModuleAccess,
   softDeleteUser,
   updateUser
 } from "./users.service.js";
@@ -77,6 +79,25 @@ export async function deleteUserHandler(req, res, next) {
 export function departmentsListHandler(_req, res, next) {
   try {
     res.json({ items: getDepartments() });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export function moduleCatalogHandler(_req, res, next) {
+  try {
+    res.json({ items: getModuleCatalog() });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function updateModuleAccessHandler(req, res, next) {
+  try {
+    res.json({
+      item: await setUserModuleAccess(req.params.id, req.body.modules),
+      message: "Module access updated successfully."
+    });
   } catch (error) {
     next(error);
   }

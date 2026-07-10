@@ -2,6 +2,17 @@ import { query, withTransaction } from "../../config/postgres.js";
 import { toIsoDate, toTime } from "../../utils/dateTime.js";
 import { nullableUuid } from "../../utils/ids.js";
 
+// Numeric vitals columns are INTEGER/NUMERIC in Postgres. Blank form fields arrive
+// as "" (not null), which the DB rejects with "invalid input syntax". Coerce any
+// empty/undefined value to null so COALESCE keeps the existing value.
+function nullableNumber(value) {
+  if (value === "" || value === null || value === undefined) {
+    return null;
+  }
+
+  return value;
+}
+
 export function toCamelVisit(row) {
   if (!row) return null;
 
@@ -264,13 +275,13 @@ export async function updateVisitVitalsRecord(id, payload, metadata = {}) {
     `,
     [
       id,
-      payload.vitalsBp ?? null,
-      payload.vitalsPulse ?? null,
-      payload.vitalsTemp ?? null,
-      payload.vitalsWeight ?? null,
-      payload.vitalsHeight ?? null,
-      payload.vitalsSpo2 ?? null,
-      payload.vitalsRr ?? null,
+      payload.vitalsBp === "" ? null : payload.vitalsBp ?? null,
+      nullableNumber(payload.vitalsPulse),
+      nullableNumber(payload.vitalsTemp),
+      nullableNumber(payload.vitalsWeight),
+      nullableNumber(payload.vitalsHeight),
+      nullableNumber(payload.vitalsSpo2),
+      nullableNumber(payload.vitalsRr),
       JSON.stringify(metadata)
     ]
   );

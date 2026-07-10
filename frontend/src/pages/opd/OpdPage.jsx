@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/common/Button.jsx";
 import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
+import { Toast } from "../../components/common/Toast.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import {
@@ -18,6 +19,8 @@ import {
   savePrescription,
   updateOpdVisitWorkflow
 } from "../../services/api.js";
+
+const opdTabs = ["Vitals", "Assessment", "Prescription", "Lab Orders", "Billing", "Printable Rx", "Complete"];
 
 const initialVitals = {
   vitalsBp: "",
@@ -261,6 +264,7 @@ export function OpdPage() {
   const [error, setError] = useState("");
   const [labOrderForm, setLabOrderForm] = useState(initialLabOrder);
   const [billingForm, setBillingForm] = useState(initialBilling);
+  const [activeOpdTab, setActiveOpdTab] = useState("Vitals");
 
   async function loadQueue(doctorId = filterDoctorId) {
     try {
@@ -276,6 +280,7 @@ export function OpdPage() {
       const response = await getOpdVisit(visitId);
       setSelectedQueueItem(queueItem);
       setVisitPayload(response);
+      setActiveOpdTab("Vitals");
       setVitalsForm({
         vitalsBp: response.visit.vitalsBp || "",
         vitalsPulse: response.visit.vitalsPulse || "",
@@ -501,6 +506,17 @@ export function OpdPage() {
       ...current,
       medicines: [...current.medicines, { ...emptyMedicine }]
     }));
+  };
+
+  const removeMedicineRow = (index) => {
+    setPrescriptionForm((current) => {
+      // Never leave zero rows: clear the last remaining medicine instead of deleting it.
+      if (current.medicines.length <= 1) {
+        return { ...current, medicines: [{ ...emptyMedicine }] };
+      }
+
+      return { ...current, medicines: current.medicines.filter((_, i) => i !== index) };
+    });
   };
 
   const saveVitalsAction = async () => {
@@ -740,6 +756,11 @@ export function OpdPage() {
 
   return (
     <DashboardLayout>
+      <div className="toast-stack">
+        <Toast message={message} type="success" onClose={() => setMessage("")} />
+        <Toast message={error} type="error" onClose={() => setError("")} />
+      </div>
+{/* 
       <section className="hero-panel logo-hero">
         <div className="eyebrow">OPD Consultation</div>
         <h2>Reception, screening, doctor, pharmacy, and print in one OPD flow.</h2>
@@ -747,7 +768,7 @@ export function OpdPage() {
           Reception forwards the OPD form to screening, screening records vitals and examination, and the doctor
           completes the prescription before pharmacy and reception handle medicines, payment, and patient copy.
         </p>
-      </section>
+      </section> */}
 
       <section className="stat-grid compact-stat-grid">
         <article className="stat-card">
@@ -772,67 +793,8 @@ export function OpdPage() {
         </article>
       </section>
 
-      <section className="opd-grid">
-        <aside className="content-card opd-queue-panel">
-          <div className="section-header">
-            <div>
-              <div className="eyebrow">Queue Board</div>
-              <h3>Doctor-wise OPD queue</h3>
-            </div>
-          </div>
-
-          <div className="toolbar">
-            <select value={filterDoctorId} onChange={handleDoctorFilter}>
-              <option value="">All doctors</option>
-              {masters.doctors.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctor.fullName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="queue-list">
-            {queue.map((item) => (
-              <div
-                key={item.id}
-                className={`queue-item selectable-card${
-                  selectedQueueItem?.id === item.id ? " selected-card" : ""
-                }`}
-              >
-                <div>
-                  <strong>Token {item.tokenNumber}</strong>
-                  <div className="timeline-copy">{item.patientName}</div>
-                  <div className="timeline-copy">{item.doctorName}</div>
-                  <div className="timeline-copy">{item.appointmentTime} - {item.department}</div>
-                  <div className="timeline-copy">{workflowStageLabels[workflowStageForQueueItem(item)] || "Reception entry"}</div>
-                </div>
-                <div className="queue-actions">
-                  <span className={`status-pill ${item.visitStatus || item.status}`}>
-                    {item.visitStatus || item.status}
-                  </span>
-                  <Button variant="secondary" onClick={() => startConsultation(item)} disabled={!item.visitId && !canStartVisit}>
-                    {item.visitId ? "Open" : "Start"}
-                  </Button>
-                </div>
-              </div>
-            ))}
-
-            {!queue.length ? <div className="empty-state">No OPD queue items for the selected doctor today.</div> : null}
-          </div>
-
-          <div className="content-card inset-card opd-hours-card">
-            <h3>OPD hours and charge</h3>
-            <div className="detail-list">
-              <div><strong>Mon-Sat:</strong> {masters.operatingHours?.mondayToSaturday?.map((slot) => slot.label).join(", ") || "Not set"}</div>
-              <div><strong>Sunday:</strong> {masters.operatingHours?.sunday?.map((slot) => slot.label).join(", ") || "Not set"}</div>
-              <div><strong>Consultation:</strong> Rs. {masters.consultationFee || 0}</div>
-            </div>
-          </div>
-        </aside>
-
-        <section className="consultation-column">
-          <article className="content-card opd-workspace-card">
+      <section className="opd-grid opd-top-grid">
+        <article className="content-card opd-workspace-card">
             <div className="section-header">
               <div>
                 <div className="eyebrow">Consultation Workspace</div>
@@ -842,25 +804,44 @@ export function OpdPage() {
               </div>
             </div>
 
-            {error ? <div className="error-text">{error}</div> : null}
-            {message ? <div className="success-text">{message}</div> : null}
 
             {visitPayload ? (
-              <div className="detail-grid opd-summary-grid">
+              <div className="opd-summary-grid">
                 <article className="content-card inset-card">
                   <h3>Visit snapshot</h3>
-                  <div className="detail-list">
-                    <div><strong>OPD number:</strong> {visitPayload.visit.opdNumber}</div>
-                    <div><strong>Doctor:</strong> {visitPayload.doctorName}</div>
-                    <div><strong>Date:</strong> {visitPayload.visit.visitDate}</div>
-                    <div><strong>Chief complaint:</strong> {visitPayload.visit.chiefComplaint || "General consultation"}</div>
-                    <div><strong>Status:</strong> {visitPayload.visit.status}</div>
-                    <div><strong>Workflow:</strong> {workflowStageLabels[workflowStageForVisit(visitPayload.visit)] || "Reception entry"}</div>
-                    <div><strong>Fee:</strong> Rs. {visitPayload.visit.consultationFee}</div>
+                  <div className="opd-snapshot-list">
+                    <div className="opd-snapshot-item">
+                      <span className="opd-snapshot-label">OPD Number</span>
+                      <span className="opd-snapshot-value">{visitPayload.visit.opdNumber}</span>
+                    </div>
+                    <div className="opd-snapshot-item">
+                      <span className="opd-snapshot-label">Doctor</span>
+                      <span className="opd-snapshot-value">{visitPayload.doctorName}</span>
+                    </div>
+                    <div className="opd-snapshot-item">
+                      <span className="opd-snapshot-label">Date</span>
+                      <span className="opd-snapshot-value">{visitPayload.visit.visitDate}</span>
+                    </div>
+                    <div className="opd-snapshot-item">
+                      <span className="opd-snapshot-label">Chief Complaint</span>
+                      <span className="opd-snapshot-value">{visitPayload.visit.chiefComplaint || "General consultation"}</span>
+                    </div>
+                    <div className="opd-snapshot-item">
+                      <span className="opd-snapshot-label">Status</span>
+                      <span className="opd-snapshot-value">{visitPayload.visit.status}</span>
+                    </div>
+                    {/* <div className="opd-snapshot-item">
+                      <span className="opd-snapshot-label">Workflow</span>
+                      <span className="opd-snapshot-value">{workflowStageLabels[workflowStageForVisit(visitPayload.visit)] || "Reception entry"}</span>
+                    </div>
+                    <div className="opd-snapshot-item">
+                      <span className="opd-snapshot-label">Fee</span>
+                      <span className="opd-snapshot-value">Rs. {visitPayload.visit.consultationFee}</span>
+                    </div> */}
                   </div>
                 </article>
 
-                <article className="content-card inset-card">
+                {/* <article className="content-card inset-card">
                   <h3>Quick actions</h3>
                   <div className="quick-actions">
                     <div className="quick-action">
@@ -877,7 +858,7 @@ export function OpdPage() {
                       </div>
                     </div>
                   </div>
-                </article>
+                </article> */}
               </div>
             ) : (
               <div className="empty-state">
@@ -886,8 +867,69 @@ export function OpdPage() {
             )}
           </article>
 
+          <aside className="content-card opd-queue-panel opd-top-queue">
+            <div className="section-header queue-header">
+              <div>
+                <div className="eyebrow">Queue Board</div>
+                <h3>Doctor-wise OPD queue</h3>
+              </div>
+              <select className="queue-doctor-filter" value={filterDoctorId} onChange={handleDoctorFilter}>
+                <option value="">All doctors</option>
+                {masters.doctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.fullName}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="queue-list">
+              {queue.map((item) => (
+                <div
+                  key={item.id}
+                  className={`queue-item selectable-card${
+                    selectedQueueItem?.id === item.id ? " selected-card" : ""
+                  }`}
+                >
+                  <div>
+                    <strong>Token {item.tokenNumber}</strong>
+                    <div className="timeline-copy">{item.patientName}</div>
+                    <div className="timeline-copy">{item.doctorName}</div>
+                    <div className="timeline-copy">{item.appointmentTime} - {item.department}</div>
+                    <div className="timeline-copy">{workflowStageLabels[workflowStageForQueueItem(item)] || "Reception entry"}</div>
+                  </div>
+                  <div className="queue-actions">
+                    <span className={`status-pill ${item.visitStatus || item.status}`}>
+                      {item.visitStatus || item.status}
+                    </span>
+                    <Button variant="secondary" onClick={() => startConsultation(item)} disabled={!item.visitId && !canStartVisit}>
+                      {item.visitId ? "Open" : "Start"}
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
+              {!queue.length ? <div className="empty-state">No OPD queue items for the selected doctor today.</div> : null}
+            </div>
+          </aside>
+
+          <section className="consultation-column opd-panels-column">
           {visitPayload ? (
             <>
+              <div className="opd-tabs">
+                {opdTabs.map((tab) => (
+                  <button
+                    className={activeOpdTab === tab ? "active" : ""}
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveOpdTab(tab)}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+
+              {activeOpdTab === "Vitals" ? (
               <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
@@ -932,7 +974,9 @@ export function OpdPage() {
                   </div>
                 </div>
               </article>
+              ) : null}
 
+              {activeOpdTab === "Assessment" ? (
               <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
@@ -1005,7 +1049,9 @@ export function OpdPage() {
                   </div>
                 </div>
               </article>
+              ) : null}
 
+              {activeOpdTab === "Prescription" ? (
               <article className="content-card compact-form-card prescription-card">
                 <div className="section-header">
                   <div>
@@ -1108,9 +1154,22 @@ export function OpdPage() {
                 <div className="medicine-stack">
                   {prescriptionForm.medicines.map((medicine, index) => (
                     <div className="medicine-card" key={`${medicine.id || "new"}-${index}`}>
+                      <div className="medicine-card-head">
+                        <span className="medicine-card-title">Medicine {index + 1}</span>
+                        <button
+                          type="button"
+                          className="medicine-remove"
+                          onClick={() => removeMedicineRow(index)}
+                          disabled={!canClinicalDocument}
+                          aria-label={`Remove medicine ${index + 1}`}
+                          title="Remove medicine"
+                        >
+                          &times;
+                        </button>
+                      </div>
                       <div className="form-grid medicine-grid">
                         <div className="field">
-                          <label>Medicine {index + 1}</label>
+                          <label>Medicine name</label>
                           <SearchableSelect
                             value={medicine.medicineId}
                             customValue={medicine.medicineName}
@@ -1187,6 +1246,12 @@ export function OpdPage() {
                   ))}
                 </div>
 
+                <div className="medicine-add-row">
+                  <Button variant="secondary" onClick={addMedicineRow} disabled={!canClinicalDocument}>
+                    + Add medicine
+                  </Button>
+                </div>
+
                 <div className="form-subsection">
                   <h4>Therapy, diet, lifestyle, and investigations</h4>
                   <div className="form-grid therapy-grid">
@@ -1248,7 +1313,9 @@ export function OpdPage() {
                   </div>
                 </div>
               </article>
+              ) : null}
 
+              {activeOpdTab === "Lab Orders" ? (
               <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
@@ -1298,7 +1365,9 @@ export function OpdPage() {
                   </div>
                 ) : null}
               </article>
+              ) : null}
 
+              {activeOpdTab === "Billing" ? (
               <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
@@ -1349,7 +1418,9 @@ export function OpdPage() {
                   </div>
                 ) : null}
               </article>
+              ) : null}
 
+              {activeOpdTab === "Printable Rx" ? (
               <article className="content-card print-sheet-card">
                 <div className="section-header no-print">
                   <div>
@@ -1545,7 +1616,9 @@ export function OpdPage() {
                   </section>
                 </div>
               </article>
+              ) : null}
 
+              {activeOpdTab === "Complete" ? (
               <article className="content-card">
                 <div className="section-header">
                   <div>
@@ -1564,6 +1637,7 @@ export function OpdPage() {
                   Use Complete & Forward after saving the prescription. Pharmacy and reception can then process medicines, payment, and patient copy.
                 </p>
               </article>
+              ) : null}
             </>
           ) : null}
         </section>
