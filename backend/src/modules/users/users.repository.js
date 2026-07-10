@@ -16,6 +16,7 @@ function toCamelUser(row) {
     phone: row.phone || "",
     passwordHash: row.password_hash,
     role: row.role,
+    grantedModules: Array.isArray(row.granted_modules) ? row.granted_modules : [],
     department: row.department || "",
     title: row.metadata?.title || row.designation || row.department || "",
     designation: row.designation || "",
@@ -260,6 +261,42 @@ export async function updateUserRecord(id, payload) {
 
 export async function updateUserPasswordHash(id, passwordHash) {
   await query("UPDATE users SET password_hash = $2, updated_at = NOW() WHERE id = $1", [id, passwordHash]);
+}
+
+// Lightweight lookup used by the per-request access middleware. Deliberately avoids
+// the work_schedules join so it stays cheap on the hot path.
+export async function getUserAccessById(id) {
+  const result = await query(
+    "SELECT id, role, is_active, granted_modules FROM users WHERE id = $1 AND deleted_at IS NULL",
+    [id]
+  );
+
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    role: row.role,
+    isActive: row.is_active,
+    grantedModules: Array.isArray(row.granted_modules) ? row.granted_modules : []
+  };
+}
+
+export async function updateUserModuleAccessRecord(id, grantedModules) {
+  const result = await query(
+    `
+    UPDATE users
+    SET granted_modules = $2::jsonb, updated_at = NOW()
+    WHERE id = $1 AND deleted_at IS NULL
+    RETURNING *
+    `,
+    [id, JSON.stringify(grantedModules)]
+  );
+
+  return publicUser(toCamelUser(result.rows[0]));
 }
 
 export async function softDeleteUserRecord(id) {

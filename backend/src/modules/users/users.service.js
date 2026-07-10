@@ -1,4 +1,4 @@
-import { roles } from "../../config/constants.js";
+import { accessModules, roles, sanitizeGrantedModules } from "../../config/constants.js";
 import { createError } from "../../utils/errors.js";
 import {
   createUserRecord,
@@ -6,6 +6,7 @@ import {
   findUserById,
   publicUsers,
   softDeleteUserRecord,
+  updateUserModuleAccessRecord,
   updateUserRecord
 } from "./users.repository.js";
 
@@ -105,6 +106,20 @@ export async function updateUser(id, payload = {}) {
 
 export function softDeleteUser(id) {
   return softDeleteUserRecord(id);
+}
+
+export function getModuleCatalog() {
+  return accessModules;
+}
+
+export async function setUserModuleAccess(id, modules) {
+  await ensureUserExists(id, { includeInactive: true });
+
+  if (modules !== undefined && !Array.isArray(modules)) {
+    throw createError("Modules must be provided as an array.");
+  }
+
+  return updateUserModuleAccessRecord(id, sanitizeGrantedModules(modules));
 }
 
 export function listDoctors() {

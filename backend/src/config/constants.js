@@ -13,6 +13,44 @@ export const roles = {
   HR: "hr"
 };
 
+// Modules an admin can grant a user access to, on top of their base role.
+// `key` MUST match the API mount segment in routes/index.js (used by authorize()).
+// `path` is the matching frontend route (kept here so the catalog is the single
+// source of truth shared by backend enforcement and the admin UI).
+export const accessModules = [
+  { key: "patients", label: "Patients", path: "/patients" },
+  { key: "appointments", label: "Appointments", path: "/appointments" },
+  { key: "calendar", label: "Calendar", path: "/calendar" },
+  { key: "certificates", label: "Certificates", path: "/certificates" },
+  { key: "opd", label: "OPD", path: "/opd" },
+  { key: "ipd", label: "IPD", path: "/ipd" },
+  { key: "billing", label: "Billing", path: "/billing" },
+  { key: "panchkarma", label: "Panchkarma", path: "/panchkarma" },
+  { key: "rooms", label: "Rooms & Beds", path: "/rooms" },
+  { key: "lab", label: "Laboratory", path: "/laboratory" },
+  { key: "pharmacy", label: "Pharmacy", path: "/pharmacy" },
+  { key: "inventory", label: "Inventory", path: "/inventory" },
+  { key: "hr", label: "HR", path: "/hr" },
+  { key: "reports", label: "Reports", path: "/reports" },
+  { key: "users", label: "User Management", path: "/users" }
+];
+
+export const accessModuleKeys = accessModules.map((module) => module.key);
+
+export function sanitizeGrantedModules(modules) {
+  if (!Array.isArray(modules)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      modules
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter((value) => accessModuleKeys.includes(value))
+    )
+  );
+}
+
 const departmentOptions = [
   "Administration",
   "Clinical Department",

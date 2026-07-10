@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
+import { Button } from "../../components/common/Button.jsx";
 import { StatCard } from "../../components/common/StatCard.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
-import { getUsers, getUsersSummary } from "../../services/api.js";
+import { useAuth } from "../../hooks/useAuth.js";
+import { getModuleCatalog, getUsers, getUsersSummary, updateUserModuleAccess } from "../../services/api.js";
 
 function titleize(value) {
   return String(value || "")
@@ -13,12 +15,21 @@ function titleize(value) {
 }
 
 export function UsersPage() {
+  const { user: currentUser } = useAuth();
+  const isAdmin = currentUser?.role === "admin";
+
   const [users, setUsers] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [moduleCatalog, setModuleCatalog] = useState([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
   const [error, setError] = useState("");
+
+  const [editingUserId, setEditingUserId] = useState("");
+  const [draftModules, setDraftModules] = useState([]);
+  const [savingAccess, setSavingAccess] = useState(false);
+  const [accessMessage, setAccessMessage] = useState("");
 
   useEffect(() => {
     async function loadUsersDirectory() {
@@ -30,10 +41,19 @@ export function UsersPage() {
       } catch (apiError) {
         setError(apiError.message || "Unable to load employee directory.");
       }
+
+      if (isAdmin) {
+        try {
+          const catalogResponse = await getModuleCatalog();
+          setModuleCatalog(catalogResponse.items || []);
+        } catch {
+          // Non-fatal: the directory still renders without the access editor.
+        }
+      }
     }
 
     loadUsersDirectory();
-  }, []);
+  }, [isAdmin]);
 
   const roles = useMemo(
     () => Array.from(new Set(users.map((user) => user.role))).sort((left, right) => left.localeCompare(right)),
@@ -42,6 +62,11 @@ export function UsersPage() {
   const departments = useMemo(
     () => Array.from(new Set(users.map((user) => user.department))).sort((left, right) => left.localeCompare(right)),
     [users]
+  );
+
+  const moduleLabels = useMemo(
+    () => Object.fromEntries(moduleCatalog.map((module) => [module.key, module.label])),
+    [moduleCatalog]
   );
 
   const filteredUsers = useMemo(() => {
@@ -61,6 +86,46 @@ export function UsersPage() {
   }, [departmentFilter, roleFilter, search, users]);
 
   const topDepartments = summary?.departmentsList?.slice(0, 4) || [];
+  const columnCount = isAdmin ? 7 : 6;
+
+  const startEditAccess = (user) => {
+    setEditingUserId(user.id);
+    setDraftModules(Array.isArray(user.grantedModules) ? user.grantedModules : []);
+    setAccessMessage("");
+    setError("");
+  };
+
+  const cancelEditAccess = () => {
+    setEditingUserId("");
+    setDraftModules([]);
+  };
+
+  const toggleDraftModule = (moduleKey) => {
+    setDraftModules((current) =>
+      current.includes(moduleKey) ? current.filter((key) => key !== moduleKey) : [...current, moduleKey]
+    );
+  };
+
+  const saveAccess = async (user) => {
+    setSavingAccess(true);
+    setError("");
+    setAccessMessage("");
+
+    try {
+      const response = await updateUserModuleAccess(user.id, draftModules);
+      const grantedModules = response.item?.grantedModules || [];
+      setUsers((current) =>
+        current.map((entry) => (entry.id === user.id ? { ...entry, grantedModules } : entry))
+      );
+      setAccessMessage(`Module access updated for ${user.fullName}.`);
+      setEditingUserId("");
+      setDraftModules([]);
+    } catch (apiError) {
+      setError(apiError.message || "Unable to update module access.");
+    } finally {
+      setSavingAccess(false);
+    }
+  };
 
   return (
     <DashboardLayout>
@@ -69,7 +134,8 @@ export function UsersPage() {
         <h2>Hospital employee records imported into the HMS admin workspace.</h2>
         <p>
           This directory is now seeded from your Excel employee list and shared with the doctor masters used in
-          appointments and OPD. Admin can review staffing, department placement, and role coverage from one place.
+          appointments and OPD. Admin can review staffing, department placement, role coverage, and grant extra module
+          access from one place.
         </p>
       </section>
 
@@ -116,6 +182,7 @@ export function UsersPage() {
           </div>
 
           {error ? <div className="error-text">{error}</div> : null}
+          {accessMessage ? <div className="success-text">{accessMessage}</div> : null}
 
           {!filteredUsers.length ? (
             <div className="empty-state">No employees matched the current filters.</div>
@@ -130,34 +197,94 @@ export function UsersPage() {
                     <th>Designation</th>
                     <th>Schedule</th>
                     <th>Contact</th>
+                    {isAdmin ? <th>Module Access</th> : null}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredUsers.map((user) => (
-                    <tr key={user.id}>
-                      <td>
-                        <strong>{user.fullName}</strong>
-                        <div className="muted-text">{user.employeeId}</div>
-                        <div className="muted-text">{user.email}</div>
-                      </td>
-                      <td>{user.department}</td>
-                      <td>
-                        <span className="status-pill waiting">{titleize(user.role)}</span>
-                      </td>
-                      <td>{user.designation || user.title || "Not specified"}</td>
-                      <td>
-                        {user.workSchedules?.length ? (
-                          user.workSchedules.map((schedule, index) => (
-                            <div className="muted-text" key={`${user.id}-schedule-${index}`}>
-                              {schedule.workingTime} | Break: {schedule.breakTime || "N/A"} | Off: {schedule.weekOff || "N/A"}
+                    <Fragment key={user.id}>
+                      <tr>
+                        <td>
+                          <strong>{user.fullName}</strong>
+                          <div className="muted-text">{user.employeeId}</div>
+                          <div className="muted-text">{user.email}</div>
+                        </td>
+                        <td>{user.department}</td>
+                        <td>
+                          <span className="status-pill waiting">{titleize(user.role)}</span>
+                        </td>
+                        <td>{user.designation || user.title || "Not specified"}</td>
+                        <td>
+                          {user.workSchedules?.length ? (
+                            user.workSchedules.map((schedule, index) => (
+                              <div className="muted-text" key={`${user.id}-schedule-${index}`}>
+                                {schedule.workingTime} | Break: {schedule.breakTime || "N/A"} | Off: {schedule.weekOff || "N/A"}
+                              </div>
+                            ))
+                          ) : (
+                            <span className="muted-text">Not available</span>
+                          )}
+                        </td>
+                        <td>{user.phone || "Not available"}</td>
+                        {isAdmin ? (
+                          <td>
+                            {user.grantedModules?.length ? (
+                              <div className="badge-row">
+                                {user.grantedModules.map((moduleKey) => (
+                                  <span className="alert-badge" key={`${user.id}-${moduleKey}`}>
+                                    {moduleLabels[moduleKey] || titleize(moduleKey)}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="muted-text">Base role only</span>
+                            )}
+                            <div style={{ marginTop: 8 }}>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => (editingUserId === user.id ? cancelEditAccess() : startEditAccess(user))}
+                              >
+                                {editingUserId === user.id ? "Close" : "Manage access"}
+                              </Button>
                             </div>
-                          ))
-                        ) : (
-                          <span className="muted-text">Not available</span>
-                        )}
-                      </td>
-                      <td>{user.phone || "Not available"}</td>
-                    </tr>
+                          </td>
+                        ) : null}
+                      </tr>
+                      {isAdmin && editingUserId === user.id ? (
+                        <tr>
+                          <td colSpan={columnCount}>
+                            <div className="access-editor">
+                              <div className="eyebrow">Grant module access to {user.fullName}</div>
+                              <p className="muted-text">
+                                Select the modules this user can open in addition to their base role. Changes apply on
+                                their next request; unchecking a module revokes it.
+                              </p>
+                              <div className="access-editor-grid">
+                                {moduleCatalog.map((module) => (
+                                  <label className="access-editor-option" key={`${user.id}-opt-${module.key}`}>
+                                    <input
+                                      type="checkbox"
+                                      checked={draftModules.includes(module.key)}
+                                      onChange={() => toggleDraftModule(module.key)}
+                                    />
+                                    <span>{module.label}</span>
+                                  </label>
+                                ))}
+                              </div>
+                              <div className="toolbar" style={{ marginTop: 12 }}>
+                                <Button type="button" disabled={savingAccess} onClick={() => saveAccess(user)}>
+                                  {savingAccess ? "Saving..." : "Save access"}
+                                </Button>
+                                <Button type="button" variant="secondary" disabled={savingAccess} onClick={cancelEditAccess}>
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

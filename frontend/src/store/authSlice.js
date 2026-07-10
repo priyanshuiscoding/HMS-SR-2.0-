@@ -29,6 +29,15 @@ const authSlice = createSlice({
       window.localStorage.setItem("hms-auth", JSON.stringify(nextState));
       return nextState;
     },
+    setUser(state, action) {
+      if (!state.isAuthenticated) {
+        return state;
+      }
+
+      const nextState = { ...state, user: action.payload };
+      window.localStorage.setItem("hms-auth", JSON.stringify(nextState));
+      return nextState;
+    },
     clearAuth() {
       window.localStorage.removeItem("hms-auth");
       return {
@@ -41,6 +50,6 @@ const authSlice = createSlice({
   }
 });
 
-export const { setAuth, clearAuth } = authSlice.actions;
+export const { setAuth, setUser, clearAuth } = authSlice.actions;
 export const selectAuth = (state) => state.auth;
 export default authSlice.reducer;
