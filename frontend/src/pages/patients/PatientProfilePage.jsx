@@ -714,7 +714,7 @@ export function PatientProfilePage() {
                       <strong>{assessment.assessmentDate}</strong>
                       <div className="timeline-copy">Dominant dosha: {assessment.prakritiDominant || "-"}</div>
                       <div className="timeline-copy">
-                        Vata: {assessment.prakritiVata || 0} | Pitta: {assessment.prakritiPitta || 0} | Kapha: {assessment.prakritiKapha || 0}
+                        Vata: {assessment.prakritiVata || "-"} | Pitta: {assessment.prakritiPitta || "-"} | Kapha: {assessment.prakritiKapha || "-"}
                       </div>
                       <div className="timeline-copy">Nadi: {assessment.nadiType || "-"} | Agni: {assessment.agniStatus || "-"} | Koshtha: {assessment.koshthaNature || "-"}</div>
                       {assessment.vikritiAssessment ? <div className="timeline-copy">Vikriti: {assessment.vikritiAssessment}</div> : null}

@@ -2,10 +2,10 @@ import { query, withTransaction } from "../../config/postgres.js";
 import { toIsoDate, toTime } from "../../utils/dateTime.js";
 import { nullableUuid } from "../../utils/ids.js";
 
-// Numeric vitals columns are INTEGER/NUMERIC in Postgres. Blank form fields arrive
-// as "" (not null), which the DB rejects with "invalid input syntax". Coerce any
-// empty/undefined value to null so COALESCE keeps the existing value.
-function nullableNumber(value) {
+// Vitals are stored as free text so units typed by staff ("96bpm", "16/min") are
+// preserved. Blank form fields arrive as "" (not null); coerce any empty/undefined
+// value to null so an absent field keeps whatever is already stored.
+function nullableText(value) {
   if (value === "" || value === null || value === undefined) {
     return null;
   }
@@ -50,9 +50,9 @@ function toCamelAssessment(row) {
     visitId: row.visit_id,
     doctorId: row.doctor_id || "",
     assessmentDate: toIsoDate(row.assessment_date),
-    prakritiVata: row.prakriti_vata ?? 0,
-    prakritiPitta: row.prakriti_pitta ?? 0,
-    prakritiKapha: row.prakriti_kapha ?? 0,
+    prakritiVata: row.prakriti_vata ?? "",
+    prakritiPitta: row.prakriti_pitta ?? "",
+    prakritiKapha: row.prakriti_kapha ?? "",
     prakritiDominant: row.prakriti_dominant || "",
     nadiPariksha: row.nadi_pariksha || "",
     nadiType: row.nadi_type || "",
@@ -256,32 +256,37 @@ export async function createVisitRecord(payload) {
 }
 
 export async function updateVisitVitalsRecord(id, payload, metadata = {}) {
+  // Only overwrite a vital when the caller actually sends that field: an explicit
+  // blank clears it, while an absent field keeps whatever is already stored. Using
+  // COALESCE here treated "" (a cleared field) as "keep old value", so corrections
+  // back to blank never saved.
+  const has = (key) => Object.prototype.hasOwnProperty.call(payload, key);
   const result = await query(
     `
     UPDATE opd_visits
     SET
-      vitals_bp = COALESCE($2, vitals_bp),
-      vitals_pulse = COALESCE($3, vitals_pulse),
-      vitals_temp = COALESCE($4, vitals_temp),
-      vitals_weight = COALESCE($5, vitals_weight),
-      vitals_height = COALESCE($6, vitals_height),
-      vitals_spo2 = COALESCE($7, vitals_spo2),
-      vitals_rr = COALESCE($8, vitals_rr),
+      vitals_bp = CASE WHEN $3 THEN $2 ELSE vitals_bp END,
+      vitals_pulse = CASE WHEN $5 THEN $4 ELSE vitals_pulse END,
+      vitals_temp = CASE WHEN $7 THEN $6 ELSE vitals_temp END,
+      vitals_weight = CASE WHEN $9 THEN $8 ELSE vitals_weight END,
+      vitals_height = CASE WHEN $11 THEN $10 ELSE vitals_height END,
+      vitals_spo2 = CASE WHEN $13 THEN $12 ELSE vitals_spo2 END,
+      vitals_rr = CASE WHEN $15 THEN $14 ELSE vitals_rr END,
       status = CASE WHEN status = 'waiting' THEN 'in_consultation' ELSE status END,
-      metadata = COALESCE(metadata, '{}'::jsonb) || $9::jsonb,
+      metadata = COALESCE(metadata, '{}'::jsonb) || $16::jsonb,
       updated_at = NOW()
     WHERE id = $1
     RETURNING *
     `,
     [
       id,
-      payload.vitalsBp === "" ? null : payload.vitalsBp ?? null,
-      nullableNumber(payload.vitalsPulse),
-      nullableNumber(payload.vitalsTemp),
-      nullableNumber(payload.vitalsWeight),
-      nullableNumber(payload.vitalsHeight),
-      nullableNumber(payload.vitalsSpo2),
-      nullableNumber(payload.vitalsRr),
+      payload.vitalsBp === "" ? null : payload.vitalsBp ?? null, has("vitalsBp"),
+      nullableText(payload.vitalsPulse), has("vitalsPulse"),
+      nullableText(payload.vitalsTemp), has("vitalsTemp"),
+      nullableText(payload.vitalsWeight), has("vitalsWeight"),
+      nullableText(payload.vitalsHeight), has("vitalsHeight"),
+      nullableText(payload.vitalsSpo2), has("vitalsSpo2"),
+      nullableText(payload.vitalsRr), has("vitalsRr"),
       JSON.stringify(metadata)
     ]
   );
@@ -351,9 +356,9 @@ export async function upsertAssessmentRecord(assessment) {
       assessment.visitId,
       assessment.doctorId || null,
       assessment.assessmentDate,
-      assessment.prakritiVata ?? 0,
-      assessment.prakritiPitta ?? 0,
-      assessment.prakritiKapha ?? 0,
+      assessment.prakritiVata ?? "",
+      assessment.prakritiPitta ?? "",
+      assessment.prakritiKapha ?? "",
       assessment.prakritiDominant || "",
       assessment.nadiPariksha || "",
       assessment.nadiType || "",
@@ -655,9 +660,9 @@ export async function upsertSeedAssessment(client, assessment) {
       assessment.visitId || null,
       assessment.doctorId || null,
       assessment.assessmentDate,
-      assessment.prakritiVata ?? 0,
-      assessment.prakritiPitta ?? 0,
-      assessment.prakritiKapha ?? 0,
+      assessment.prakritiVata ?? "",
+      assessment.prakritiPitta ?? "",
+      assessment.prakritiKapha ?? "",
       assessment.prakritiDominant || "",
       assessment.nadiPariksha || "",
       assessment.nadiType || "",
