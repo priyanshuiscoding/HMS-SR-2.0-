@@ -3,6 +3,7 @@ import { Router } from "express";
 import { authorize } from "../../middleware/rbac.js";
 import {
   dailyOpdReportHandler,
+  dashboardSummaryHandler,
   ipdCensusReportHandler,
   labWorkloadReportHandler,
   panchkarmaStatsReportHandler,
@@ -13,6 +14,7 @@ import {
 
 const reportsRouter = Router();
 
+reportsRouter.get("/dashboard-summary", authorize(["admin"]), dashboardSummaryHandler);
 reportsRouter.get("/overview", authorize(["admin", "doctor", "accounts"]), reportsOverviewHandler);
 reportsRouter.get("/daily-opd", authorize(["admin", "doctor", "reception"]), dailyOpdReportHandler);
 reportsRouter.get("/ipd-census", authorize(["admin", "doctor", "accounts", "nursing", "reception"]), ipdCensusReportHandler);
