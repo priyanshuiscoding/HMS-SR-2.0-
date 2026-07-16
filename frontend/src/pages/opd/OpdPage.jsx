@@ -33,10 +33,42 @@ const initialVitals = {
   physicalExam: ""
 };
 
+const vitalsDraftKey = (visitId) => `hms-opd-vitals-draft-${visitId}`;
+
+function readVitalsDraft(visitId) {
+  try {
+    const raw = window.localStorage.getItem(vitalsDraftKey(visitId));
+    return raw ? { ...initialVitals, ...JSON.parse(raw) } : null;
+  } catch (storageError) {
+    return null;
+  }
+}
+
+// Drafting is best-effort: a full or unavailable localStorage must never block vitals entry.
+function writeVitalsDraft(visitId, form) {
+  try {
+    window.localStorage.setItem(vitalsDraftKey(visitId), JSON.stringify(form));
+  } catch (storageError) {
+    /* ignore */
+  }
+}
+
+function clearVitalsDraft(visitId) {
+  try {
+    window.localStorage.removeItem(vitalsDraftKey(visitId));
+  } catch (storageError) {
+    /* ignore */
+  }
+}
+
+function sameVitals(left, right) {
+  return Object.keys(initialVitals).every((field) => (left[field] || "") === (right[field] || ""));
+}
+
 const initialAssessment = {
-  prakritiVata: 0,
-  prakritiPitta: 0,
-  prakritiKapha: 0,
+  prakritiVata: "",
+  prakritiPitta: "",
+  prakritiKapha: "",
   prakritiDominant: "",
   nadiPariksha: "",
   nadiType: "Vataja",
@@ -256,6 +288,7 @@ export function OpdPage() {
   const [selectedQueueItem, setSelectedQueueItem] = useState(null);
   const [visitPayload, setVisitPayload] = useState(null);
   const [vitalsForm, setVitalsForm] = useState(initialVitals);
+  const [pendingVitalsDraft, setPendingVitalsDraft] = useState(null);
   const [assessmentForm, setAssessmentForm] = useState(initialAssessment);
   const [prescriptionForm, setPrescriptionForm] = useState(initialPrescription);
   const [dischargeForm, setDischargeForm] = useState(initialDischargeSummary);
@@ -281,7 +314,7 @@ export function OpdPage() {
       setSelectedQueueItem(queueItem);
       setVisitPayload(response);
       setActiveOpdTab("Vitals");
-      setVitalsForm({
+      const savedVitals = {
         vitalsBp: response.visit.vitalsBp || "",
         vitalsPulse: response.visit.vitalsPulse || "",
         vitalsTemp: response.visit.vitalsTemp || "",
@@ -290,7 +323,18 @@ export function OpdPage() {
         vitalsSpo2: response.visit.vitalsSpo2 || "",
         vitalsRr: response.visit.vitalsRr || "",
         physicalExam: response.visit.metadata?.physicalExam || ""
-      });
+      };
+      setVitalsForm(savedVitals);
+
+      const draft = readVitalsDraft(visitId);
+      if (draft && !sameVitals(draft, savedVitals)) {
+        setPendingVitalsDraft(draft);
+      } else {
+        if (draft) {
+          clearVitalsDraft(visitId);
+        }
+        setPendingVitalsDraft(null);
+      }
       setAssessmentForm({
         ...initialAssessment,
         ...(response.assessment || {})
@@ -362,10 +406,30 @@ export function OpdPage() {
   };
 
   const handleVitalsChange = (event) => {
-    setVitalsForm((current) => ({
-      ...current,
-      [event.target.name]: event.target.value
-    }));
+    const nextVitals = { ...vitalsForm, [event.target.name]: event.target.value };
+    setVitalsForm(nextVitals);
+
+    if (visitPayload?.visit?.id) {
+      writeVitalsDraft(visitPayload.visit.id, nextVitals);
+    }
+  };
+
+  const restoreVitalsDraft = () => {
+    if (!pendingVitalsDraft) {
+      return;
+    }
+
+    setVitalsForm(pendingVitalsDraft);
+    setPendingVitalsDraft(null);
+    setMessage("Restored the unsaved vitals draft. Review the values, then Save & Forward.");
+  };
+
+  const discardVitalsDraft = () => {
+    if (visitPayload?.visit?.id) {
+      clearVitalsDraft(visitPayload.visit.id);
+    }
+
+    setPendingVitalsDraft(null);
   };
 
   const handleAssessmentChange = (event) => {
@@ -532,6 +596,8 @@ export function OpdPage() {
     setError("");
     try {
       await saveOpdVitals(visitPayload.visit.id, vitalsForm);
+      clearVitalsDraft(visitPayload.visit.id);
+      setPendingVitalsDraft(null);
       await loadVisit(visitPayload.visit.id, selectedQueueItem);
       await loadQueue(filterDoctorId);
       setMessage("Screening saved vitals and physical examination, then forwarded the OPD form to doctor.");
@@ -938,6 +1004,22 @@ export function OpdPage() {
                   </div>
                   <Button onClick={saveVitalsAction} disabled={!canSaveVitals}>Save & Forward</Button>
                 </div>
+
+                {pendingVitalsDraft ? (
+                  <div className="draft-banner">
+                    <div>
+                      <strong>Unsaved vitals draft found</strong>
+                      <p>
+                        Vitals were typed for this visit but never saved, possibly due to a power cut or a closed
+                        browser. Restore them, or discard to keep the currently saved values.
+                      </p>
+                    </div>
+                    <div className="draft-banner-actions">
+                      <Button onClick={restoreVitalsDraft}>Restore draft</Button>
+                      <Button variant="secondary" onClick={discardVitalsDraft}>Discard</Button>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="form-grid vitals-grid">
                   <div className="field">
@@ -1508,7 +1590,7 @@ export function OpdPage() {
                     <h3>Ayurvedic Assessment</h3>
                     <div className="print-grid">
                       <div><strong>Dominant Dosha:</strong> {assessmentForm.prakritiDominant || "-"}</div>
-                      <div><strong>Vata / Pitta / Kapha:</strong> {assessmentForm.prakritiVata || 0} / {assessmentForm.prakritiPitta || 0} / {assessmentForm.prakritiKapha || 0}</div>
+                      <div><strong>Vata / Pitta / Kapha:</strong> {assessmentForm.prakritiVata || "-"} / {assessmentForm.prakritiPitta || "-"} / {assessmentForm.prakritiKapha || "-"}</div>
                       <div><strong>Nadi Type:</strong> {assessmentForm.nadiType || "-"}</div>
                       <div><strong>Agni / Koshtha:</strong> {assessmentForm.agniStatus || "-"} / {assessmentForm.koshthaNature || "-"}</div>
                     </div>

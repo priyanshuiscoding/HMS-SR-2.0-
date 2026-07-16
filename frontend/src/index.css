@@ -1088,6 +1088,33 @@ textarea {
   border-bottom: 1px solid rgba(16, 55, 92, 0.08);
 }
 
+.draft-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 16px 0 4px;
+  padding: 14px 16px;
+  border: 1px solid rgba(214, 158, 46, 0.35);
+  border-left: 4px solid #d69e2e;
+  border-radius: 10px;
+  background: rgba(214, 158, 46, 0.08);
+}
+
+.draft-banner p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #5a6b7d;
+  max-width: 60ch;
+}
+
+.draft-banner-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .clinical-form-grid {
   grid-template-columns: repeat(2, minmax(220px, 1fr));
 }
