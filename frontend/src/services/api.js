@@ -254,6 +254,7 @@ export const dischargeRoomBed = (roomId, bedId, payload) => post(`/rooms/${roomI
 export const updateRoomBedStatus = (roomId, bedId, payload) => put(`/rooms/${roomId}/beds/${bedId}/status`, payload);
 export const updatePanchkarmaWorkflow = (id, payload) => put(`/panchkarma/schedule/${id}/workflow`, payload);
 
+export const getDashboardSummary = (params = {}) => get("/reports/dashboard-summary", params);
 export const getReportsOverview = (params = {}) => get("/reports/overview", params);
 export const getDailyOpdReport = (params = {}) => get("/reports/daily-opd", params);
 export const getIpdCensusReport = (params = {}) => get("/reports/ipd-census", params);

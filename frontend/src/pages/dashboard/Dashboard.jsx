@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { StatCard } from "../../components/common/StatCard.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
-import { getSystemOverview } from "../../services/api.js";
+import { getDashboardSummary, getSystemOverview } from "../../services/api.js";
+import { formatCurrency } from "../../utils/format.js";
 
 const timeline = [
   {
@@ -41,6 +42,8 @@ const quickActions = [
 export function DashboardPage() {
   const { user } = useAuth();
   const [overview, setOverview] = useState(null);
+  const [summary, setSummary] = useState(null);
+  const isAdmin = user?.role === "admin";
 
   useEffect(() => {
     async function loadOverview() {
@@ -55,6 +58,24 @@ export function DashboardPage() {
     loadOverview();
   }, []);
 
+  useEffect(() => {
+    if (!isAdmin) {
+      setSummary(null);
+      return;
+    }
+
+    async function loadSummary() {
+      try {
+        const response = await getDashboardSummary();
+        setSummary(response);
+      } catch {
+        setSummary(null);
+      }
+    }
+
+    loadSummary();
+  }, [isAdmin]);
+
   return (
     <DashboardLayout>
       <section className="hero-panel">
@@ -66,6 +87,33 @@ export function DashboardPage() {
           and inventory control, with a working billing desk for payments and invoices.
         </p>
       </section>
+
+      {isAdmin && summary ? (
+        <section className="content-card">
+          <div className="section-header">
+            <div>
+              <div className="eyebrow">Today's Summary</div>
+              <h3>Operations for {summary.date}</h3>
+            </div>
+          </div>
+          <div className="stat-grid">
+            <StatCard label="Total OPD Patients" value={String(summary.opdPatients)} note="OPD visits today" />
+            <StatCard label="Total IPD Patients" value={String(summary.ipdPatients)} note="Currently admitted" />
+            <StatCard label="New Registrations" value={String(summary.newRegistrations)} note="Registered today" />
+            <StatCard label="Follow-up Patients" value={String(summary.followUpPatients)} note="Follow-up appointments" />
+            <StatCard label="Today's Appointments" value={String(summary.todaysAppointments)} note="Excludes cancelled" />
+            <StatCard label="Discharged Patients" value={String(summary.dischargedPatients)} note="Discharged today" />
+            <StatCard label="Emergency Cases" value={String(summary.emergencyCases)} note="Emergency appointments" />
+            <StatCard label="Total Revenue Today" value={`Rs. ${formatCurrency(summary.revenueToday)}`} note="Billed today" />
+            <StatCard label="Pending Payments" value={`Rs. ${formatCurrency(summary.pendingPayments)}`} note="Total outstanding" />
+            <StatCard
+              label="Collection Today"
+              value={`Rs. ${formatCurrency(summary.collectedToday)}`}
+              note={`Cash ${formatCurrency(summary.collectionByMode?.cash)} · UPI ${formatCurrency(summary.collectionByMode?.upi)} · Card ${formatCurrency(summary.collectionByMode?.card)}`}
+            />
+          </div>
+        </section>
+      ) : null}
 
       <section className="stat-grid">
         <StatCard label="Phase" value="06" note="Billing desk and payments live" />
