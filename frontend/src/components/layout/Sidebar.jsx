@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import brandLogo from "../../assets/certificates/shanti-ratnam-logo-full.png";
 
 const primaryLinks = [
   { label: "Dashboard", to: "/" },
@@ -38,12 +39,10 @@ export function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand-mark">
-        <div className="brand-mark-badge">SR</div>
-        <div>
-          <div style={{ fontSize: 12, opacity: 0.65, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-            White - Blue - Saffron
-          </div>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>SR-AIIMS HMS</div>
+        <img src={brandLogo} alt="Shanti Ratnam" className="brand-mark-badge" />
+        <div className="brand-mark-text">
+          <div className="brand-mark-title">SR-AIIMS HMS</div>
+          {/* <div className="brand-mark-subtitle">Hospital Management</div> */}
         </div>
       </div>
 

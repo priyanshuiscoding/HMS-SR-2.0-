@@ -284,14 +284,36 @@ textarea {
 }
 
 .brand-mark-badge {
-  display: grid;
-  width: 54px;
-  height: 54px;
-  place-items: center;
-  border-radius: 18px;
-  background: linear-gradient(145deg, #ffffff, #dcecff);
-  color: var(--color-blue);
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: 16px;
+  background: #ffffff;
+  object-fit: cover;
+  padding: 0;
+  box-shadow: 0 6px 18px rgba(15, 40, 80, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.brand-mark-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand-mark-title {
+  font-size: 20px;
   font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+
+.brand-mark-subtitle {
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.7;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .sidebar-section-title {
@@ -1656,6 +1678,72 @@ textarea {
 
 .certificate-check-grid .selected {
   font-weight: 700;
+}
+
+.certificate-category-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 4px;
+  border: 1px solid rgba(16, 55, 92, 0.1);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.certificate-category-tab {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.certificate-category-tab:hover {
+  color: var(--color-ink);
+}
+
+.certificate-category-tab.active {
+  background: linear-gradient(135deg, var(--color-blue), #4468c7 88%);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(16, 55, 92, 0.18);
+}
+
+.certificate-preformatted {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.section-header-actions {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.certificate-draft-ribbon {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: -4px 0 14px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(244, 165, 42, 0.16),
+    rgba(244, 165, 42, 0.16) 10px,
+    rgba(244, 165, 42, 0.28) 10px,
+    rgba(244, 165, 42, 0.28) 20px
+  );
+  color: #8a5a00;
+  font-family: system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
 }
 
 .certificate-signature-block {
