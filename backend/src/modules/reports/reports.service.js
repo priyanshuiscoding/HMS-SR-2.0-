@@ -1,6 +1,7 @@
 import { todayDate } from "../../utils/dateTime.js";
 import {
   getDailyOpdReadModel,
+  getDashboardSummaryReadModel,
   getIpdCensusReadModel,
   getLabWorkloadReadModel,
   getOverviewReadModel,
@@ -24,6 +25,16 @@ export async function getReportsOverview(query = {}) {
   return {
     ...range,
     ...overview
+  };
+}
+
+export async function getDashboardSummary(query = {}) {
+  const reportDate = query.date || todayDate();
+  const summary = await getDashboardSummaryReadModel(reportDate);
+
+  return {
+    date: reportDate,
+    ...summary
   };
 }
 

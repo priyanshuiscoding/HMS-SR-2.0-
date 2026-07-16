@@ -8,7 +8,89 @@ import {
   listCertificateRecords
 } from "./certificates.repository.js";
 
-const certificateTypes = new Set(["fitness", "sick_leave", "insurance"]);
+const certificateTypes = new Set([
+  "fitness",
+  "sick_leave",
+  "insurance",
+  "birth",
+  "death",
+  "disability",
+  "treatment",
+  "panchakarma",
+  "medical_records",
+  "wound",
+  "post_mortem",
+  "mlc",
+  "accident_wound"
+]);
+
+const medicoLegalTypes = new Set(["wound", "post_mortem", "mlc", "accident_wound"]);
+
+const patientCentricTypes = new Set([
+  "birth",
+  "death",
+  "disability",
+  "treatment",
+  "panchakarma",
+  "medical_records"
+]);
+
+function buildPatientCentricMetadata(payload) {
+  return {
+    // Birth
+    childName: normalizeText(payload.childName),
+    babySex: normalizeText(payload.babySex),
+    birthDateTime: payload.birthDateTime || null,
+    placeOfBirth: normalizeText(payload.placeOfBirth),
+    fatherName: normalizeText(payload.fatherName),
+    motherName: normalizeText(payload.motherName),
+    birthWeight: normalizeText(payload.birthWeight),
+    deliveryType: normalizeText(payload.deliveryType),
+    // Death
+    deathDateTime: payload.deathDateTime || null,
+    placeOfDeath: normalizeText(payload.placeOfDeath),
+    informantName: normalizeText(payload.informantName),
+    causeOfDeath: normalizeText(payload.causeOfDeath),
+    // Disability
+    disabilityType: normalizeText(payload.disabilityType),
+    disabilityPercentage: normalizeText(payload.disabilityPercentage),
+    disabilityStatus: normalizeText(payload.disabilityStatus),
+    boardMembers: normalizeText(payload.boardMembers),
+    reassessmentDate: payload.reassessmentDate || null,
+    // Treatment
+    admissionType: normalizeText(payload.admissionType),
+    therapiesAdministered: normalizeText(payload.therapiesAdministered),
+    // Panchakarma
+    panchakarmaTherapies: normalizeText(payload.panchakarmaTherapies),
+    courseFrom: payload.courseFrom || null,
+    courseTo: payload.courseTo || null,
+    numberOfSessions: normalizeText(payload.numberOfSessions),
+    medicinesUsed: normalizeText(payload.medicinesUsed),
+    // Copy of medical records
+    recordsProvided: normalizeText(payload.recordsProvided),
+    periodFrom: payload.periodFrom || null,
+    periodTo: payload.periodTo || null,
+    purpose: normalizeText(payload.purpose),
+    numberOfPages: normalizeText(payload.numberOfPages),
+    requestedBy: normalizeText(payload.requestedBy)
+  };
+}
+
+function buildMedicoLegalMetadata(payload) {
+  return {
+    policeStation: normalizeText(payload.policeStation),
+    mlcNumber: normalizeText(payload.mlcNumber),
+    broughtBy: normalizeText(payload.broughtBy),
+    incidentDate: payload.incidentDate || null,
+    incidentPlace: normalizeText(payload.incidentPlace),
+    examinationDateTime: payload.examinationDateTime || null,
+    injuryDetails: normalizeText(payload.injuryDetails),
+    natureOfInjury: normalizeText(payload.natureOfInjury),
+    weaponType: normalizeText(payload.weaponType),
+    causeOfDeath: normalizeText(payload.causeOfDeath),
+    identificationMarks: normalizeText(payload.identificationMarks)
+  };
+}
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -137,7 +219,9 @@ export async function createCertificate(payload, createdBy) {
       createdNewPatient,
       source: "medical_certificates",
       patientAddress: normalizeText(payload.patientAddress),
-      notes: normalizeText(payload.notes)
+      notes: normalizeText(payload.notes),
+      ...(medicoLegalTypes.has(certificateType) ? { medicoLegal: buildMedicoLegalMetadata(payload) } : {}),
+      ...(patientCentricTypes.has(certificateType) ? { patientCentric: buildPatientCentricMetadata(payload) } : {})
     }
   };
 
@@ -151,6 +235,46 @@ export async function createCertificate(payload, createdBy) {
 
   if (certificateType === "insurance" && (!certificate.admissionDate || !certificate.dischargeDate || !certificate.diagnosis || !certificate.treatment)) {
     throw createError("Admission date, discharge date, diagnosis, and treatment are required for insurance certificates.");
+  }
+
+  if (medicoLegalTypes.has(certificateType)) {
+    const medicoLegal = certificate.metadata.medicoLegal;
+
+    if (certificateType === "post_mortem" && !medicoLegal.causeOfDeath) {
+      throw createError("Cause of death is required for post mortem certificates.");
+    }
+
+    if (certificateType !== "post_mortem" && !medicoLegal.injuryDetails) {
+      throw createError("Injury / incident details are required for medico-legal certificates.");
+    }
+  }
+
+  if (patientCentricTypes.has(certificateType)) {
+    const patientCentric = certificate.metadata.patientCentric;
+
+    if (certificateType === "birth" && !patientCentric.birthDateTime) {
+      throw createError("Date and time of birth is required for birth certificates.");
+    }
+
+    if (certificateType === "death" && (!patientCentric.deathDateTime || !patientCentric.causeOfDeath)) {
+      throw createError("Date of death and cause of death are required for death certificates.");
+    }
+
+    if (certificateType === "disability" && (!patientCentric.disabilityType || !certificate.diagnosis)) {
+      throw createError("Disability type and diagnosis are required for disability certificates.");
+    }
+
+    if (certificateType === "treatment" && (!certificate.diagnosis || !certificate.treatment)) {
+      throw createError("Diagnosis and treatment details are required for treatment certificates.");
+    }
+
+    if (certificateType === "panchakarma" && !patientCentric.panchakarmaTherapies) {
+      throw createError("Panchakarma therapy details are required for Panchakarma certificates.");
+    }
+
+    if (certificateType === "medical_records" && !patientCentric.recordsProvided) {
+      throw createError("List of records provided is required for a copy of medical records.");
+    }
   }
 
   return insertCertificateRecord(certificate);

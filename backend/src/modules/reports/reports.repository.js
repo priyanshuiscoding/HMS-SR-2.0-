@@ -29,6 +29,96 @@ export async function getOverviewReadModel({ dateFrom, dateTo }) {
   };
 }
 
+export async function getDashboardSummaryReadModel(reportDate) {
+  const [opd, ipd, registrations, appointments, revenue, modes] = await Promise.all([
+    query(
+      "SELECT COUNT(*)::int AS count FROM opd_visits WHERE visit_date = $1",
+      [reportDate]
+    ),
+    query(
+      `
+      SELECT
+        (SELECT COUNT(*)::int FROM ipd_admissions WHERE status = 'active') AS active_ipd,
+        (
+          SELECT COUNT(*)::int
+          FROM ipd_admissions
+          WHERE status = 'discharged'
+            AND COALESCE(discharge_summary->>'dischargeDate', '') = $1::text
+        ) AS discharged_today
+      `,
+      [reportDate]
+    ),
+    query(
+      "SELECT COUNT(*)::int AS count FROM patients WHERE registration_date = $1 AND deleted_at IS NULL",
+      [reportDate]
+    ),
+    query(
+      `
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE type = 'new')::int AS new_visits,
+        COUNT(*) FILTER (WHERE type = 'follow_up')::int AS follow_up,
+        COUNT(*) FILTER (WHERE type = 'emergency')::int AS emergency
+      FROM appointments
+      WHERE appointment_date = $1 AND status <> 'cancelled'
+      `,
+      [reportDate]
+    ),
+    query(
+      `
+      SELECT
+        (SELECT COALESCE(SUM(total_amount), 0) FROM bills WHERE bill_date = $1) AS revenue_today,
+        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payment_date::date = $1) AS collected_today,
+        (
+          SELECT COALESCE(SUM(GREATEST(b.total_amount - GREATEST(COALESCE(p.paid, 0) - COALESCE(r.refunded, 0), 0), 0)), 0)
+          FROM bills b
+          LEFT JOIN (SELECT bill_id, SUM(amount) AS paid FROM payments GROUP BY bill_id) p ON p.bill_id = b.id
+          LEFT JOIN (SELECT bill_id, SUM(amount) AS refunded FROM refunds GROUP BY bill_id) r ON r.bill_id = b.id
+        ) AS pending_total
+      `,
+      [reportDate]
+    ),
+    query(
+      `
+      SELECT payment_mode, COALESCE(SUM(amount), 0) AS amount
+      FROM payments
+      WHERE payment_date::date = $1
+      GROUP BY payment_mode
+      `,
+      [reportDate]
+    )
+  ]);
+
+  const ipdRow = firstRow(ipd);
+  const apptRow = firstRow(appointments);
+  const revenueRow = firstRow(revenue);
+
+  const collectionByMode = { cash: 0, upi: 0, card: 0, other: 0 };
+  for (const row of modes.rows) {
+    const mode = String(row.payment_mode || "").toLowerCase();
+    const amount = toNumber(row.amount);
+    if (mode === "cash" || mode === "upi" || mode === "card") {
+      collectionByMode[mode] += amount;
+    } else {
+      collectionByMode.other += amount;
+    }
+  }
+
+  return {
+    opdPatients: Number(firstRow(opd).count || 0),
+    ipdPatients: Number(ipdRow.active_ipd || 0),
+    dischargedPatients: Number(ipdRow.discharged_today || 0),
+    newRegistrations: Number(firstRow(registrations).count || 0),
+    todaysAppointments: Number(apptRow.total || 0),
+    followUpPatients: Number(apptRow.follow_up || 0),
+    emergencyCases: Number(apptRow.emergency || 0),
+    revenueToday: toNumber(revenueRow.revenue_today),
+    collectedToday: toNumber(revenueRow.collected_today),
+    pendingPayments: toNumber(revenueRow.pending_total),
+    collectionByMode
+  };
+}
+
 export async function getDailyOpdReadModel(reportDate) {
   const [summaryResult, byDoctorResult, itemResult] = await Promise.all([
     query(

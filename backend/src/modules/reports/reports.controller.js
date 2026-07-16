@@ -1,5 +1,6 @@
 import {
   getDailyOpdReport,
+  getDashboardSummary,
   getIpdCensusReport,
   getLabWorkloadReport,
   getPharmacySalesReport,
@@ -7,6 +8,14 @@ import {
   getReportsOverview,
   getRevenueReport
 } from "./reports.service.js";
+
+export async function dashboardSummaryHandler(req, res, next) {
+  try {
+    res.json(await getDashboardSummary(req.query));
+  } catch (error) {
+    next(error);
+  }
+}
 
 export async function reportsOverviewHandler(req, res, next) {
   try {
