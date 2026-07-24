@@ -243,6 +243,7 @@ export async function createAppointment(payload, bookedBy) {
   let patientAge = payload.patientAge ? Number(payload.patientAge) : null;
   let patientGender = payload.patientGender || "";
   let patientMobile = payload.patientMobile || "";
+  let patientAddress = String(payload.patientAddress || "").trim();
 
   if (hasExistingPatient) {
     const patient = await getPatientById(patientId);
@@ -250,6 +251,9 @@ export async function createAppointment(payload, bookedBy) {
     patientAge = calculatePatientAge(patient);
     patientGender = patient.gender || "";
     patientMobile = patient.phone || "";
+    patientAddress = patient.address || [patient.houseStreet, patient.areaVillage, patient.cityDistrict || patient.city]
+      .filter(Boolean)
+      .join(", ");
   } else {
     if (!patientName || !patientName.trim()) {
       throw createError("Patient name is required for new booking.");
@@ -284,7 +288,8 @@ export async function createAppointment(payload, bookedBy) {
     source: BOOKING_SOURCES.includes(payload.source) ? payload.source : "Reception",
     smsSent: false,
     metadata: {
-      consultationPayment: normalizeConsultationPayment(payload)
+      consultationPayment: normalizeConsultationPayment(payload),
+      ...(patientAddress ? { patientAddress } : {})
     }
   };
 

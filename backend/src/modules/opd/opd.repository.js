@@ -82,6 +82,8 @@ function toCamelPrescription(row, medicines = []) {
     samprapti: row.samprapti || "",
     chikitsaSutra: row.chikitsa_sutra || "",
     dietRecommendations: row.diet_recommendations || "",
+    dietToTake: Array.isArray(row.diet_to_take) ? row.diet_to_take : [],
+    dietToAvoid: Array.isArray(row.diet_to_avoid) ? row.diet_to_avoid : [],
     followUpDate: toIsoDate(row.follow_up_date),
     isDispensed: Boolean(row.is_dispensed),
     medicines,
@@ -411,6 +413,42 @@ export async function listDischargeSummaryRecords() {
   return result.rows.map(toCamelDischargeSummary);
 }
 
+function toCamelDietItem(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    nameHi: row.name_hi || "",
+    appliesTo: row.applies_to,
+    source: row.source || "seed"
+  };
+}
+
+export async function listDietItemRecords() {
+  const result = await query(
+    "SELECT id, name, name_hi, applies_to, source FROM diet_items WHERE is_active ORDER BY name"
+  );
+
+  return result.rows.map(toCamelDietItem);
+}
+
+// Used when a doctor types an item that is not in the master list yet. The
+// unique index is on (lower(name), applies_to), so a repeat of the same typed
+// name resolves to the existing row instead of creating a duplicate.
+export async function findOrCreateDietItemRecord({ name, appliesTo }) {
+  const result = await query(
+    `
+    INSERT INTO diet_items (name, applies_to, source)
+    VALUES ($1, $2, 'custom')
+    ON CONFLICT (lower(name), applies_to) DO UPDATE
+      SET is_active = true, updated_at = NOW()
+    RETURNING id, name, name_hi, applies_to, source
+    `,
+    [name, appliesTo]
+  );
+
+  return toCamelDietItem(result.rows[0]);
+}
+
 export async function upsertPrescriptionRecord(prescription) {
   return withTransaction(async (client) => {
     let prescriptionNumber = prescription.prescriptionNumber;
@@ -425,9 +463,9 @@ export async function upsertPrescriptionRecord(prescription) {
       INSERT INTO prescriptions (
         id, prescription_number, patient_id, patient_name, doctor_id, visit_id, prescription_date,
         diagnosis, diagnosis_ayurvedic, nidana, samprapti, chikitsa_sutra, diet_recommendations,
-        follow_up_date, is_dispensed, metadata
+        diet_to_take, diet_to_avoid, follow_up_date, is_dispensed, metadata
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15::jsonb, $16, $17, $18::jsonb)
       ON CONFLICT (prescription_number) DO UPDATE
       SET
         patient_id = EXCLUDED.patient_id,
@@ -441,6 +479,8 @@ export async function upsertPrescriptionRecord(prescription) {
         samprapti = EXCLUDED.samprapti,
         chikitsa_sutra = EXCLUDED.chikitsa_sutra,
         diet_recommendations = EXCLUDED.diet_recommendations,
+        diet_to_take = EXCLUDED.diet_to_take,
+        diet_to_avoid = EXCLUDED.diet_to_avoid,
         follow_up_date = EXCLUDED.follow_up_date,
         is_dispensed = EXCLUDED.is_dispensed,
         metadata = COALESCE(prescriptions.metadata, '{}'::jsonb) || EXCLUDED.metadata,
@@ -461,6 +501,8 @@ export async function upsertPrescriptionRecord(prescription) {
         prescription.samprapti || "",
         prescription.chikitsaSutra || "",
         prescription.dietRecommendations || "",
+        JSON.stringify(prescription.dietToTake || []),
+        JSON.stringify(prescription.dietToAvoid || []),
         prescription.followUpDate || null,
         prescription.isDispensed || false,
         JSON.stringify(prescription.metadata || {})

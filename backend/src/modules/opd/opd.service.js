@@ -16,9 +16,11 @@ import {
   findAssessmentByVisitId,
   findDischargeSummaryByVisitId,
   findPrescriptionByVisitId,
+  findOrCreateDietItemRecord,
   findVisitByAppointmentId,
   findVisitById,
   listAssessmentRecords,
+  listDietItemRecords,
   listOpdQueue,
   listPrescriptionRecords,
   listVisitRecords,
@@ -199,6 +201,72 @@ export async function saveAssessment(visitId, payload, doctorId) {
   return savedAssessment;
 }
 
+const DIET_ITEM_NAME_MAX = 120;
+
+// Resolve every incoming selection against the diet master. Entries carrying a
+// known id map straight through; anything else is treated as a name the doctor
+// typed and is added to the master (tagged 'custom') so it is suggested next
+// time. Returns null when the payload carries neither list, leaving whatever is
+// stored untouched.
+async function resolveDietSelections(payload) {
+  const hasTake = Array.isArray(payload.dietToTake);
+  const hasAvoid = Array.isArray(payload.dietToAvoid);
+
+  if (!hasTake && !hasAvoid) {
+    return null;
+  }
+
+  const master = await listDietItemRecords();
+  const masterById = new Map(master.map((item) => [String(item.id), item]));
+
+  async function resolve(selections, side) {
+    const excludedSide = side === "take" ? "avoid" : "take";
+    // Name lookup is scoped to this side so a typed item does not silently bind
+    // to a same-named entry belonging to the other list.
+    const masterByName = new Map(
+      master
+        .filter((item) => item.appliesTo !== excludedSide)
+        .map((item) => [item.name.trim().toLowerCase(), item])
+    );
+
+    const resolved = [];
+    const seen = new Set();
+
+    for (const selection of selections || []) {
+      const existing = masterById.get(String(selection?.id ?? selection));
+      let item = existing && existing.appliesTo !== excludedSide ? existing : null;
+
+      if (!item) {
+        const typedName = String(selection?.name ?? "").trim().slice(0, DIET_ITEM_NAME_MAX);
+
+        if (!typedName) {
+          continue;
+        }
+
+        item = masterByName.get(typedName.toLowerCase());
+
+        if (!item) {
+          item = await findOrCreateDietItemRecord({ name: typedName, appliesTo: side });
+          masterByName.set(item.name.trim().toLowerCase(), item);
+          masterById.set(String(item.id), item);
+        }
+      }
+
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        resolved.push({ id: item.id, name: item.name, nameHi: item.nameHi });
+      }
+    }
+
+    return resolved;
+  }
+
+  return {
+    take: hasTake ? await resolve(payload.dietToTake, "take") : null,
+    avoid: hasAvoid ? await resolve(payload.dietToAvoid, "avoid") : null
+  };
+}
+
 export async function savePrescription(visitId, payload, doctorId) {
   const visit = await getVisitById(visitId);
   let prescription = await findPrescriptionByVisitId(visitId);
@@ -206,6 +274,8 @@ export async function savePrescription(visitId, payload, doctorId) {
   if (!payload.diagnosis) {
     throw createError("Diagnosis is required to save a prescription.");
   }
+
+  const dietSelections = await resolveDietSelections(payload);
 
   if (!prescription) {
     prescription = {
@@ -232,7 +302,9 @@ export async function savePrescription(visitId, payload, doctorId) {
     nidana: payload.nidana || "",
     samprapti: payload.samprapti || "",
     chikitsaSutra: payload.chikitsaSutra || "",
-    dietRecommendations: payload.dietRecommendations || "",
+    dietRecommendations: payload.dietRecommendations ?? prescription.dietRecommendations ?? "",
+    dietToTake: dietSelections?.take ?? prescription.dietToTake ?? [],
+    dietToAvoid: dietSelections?.avoid ?? prescription.dietToAvoid ?? [],
     followUpDate: payload.followUpDate || "",
     metadata: {
       ...(prescription.metadata || {}),
@@ -263,6 +335,21 @@ export async function savePrescription(visitId, payload, doctorId) {
   syncVisitMirror(savedVisit);
   syncPrescriptionMirror(savedPrescription);
   return savedPrescription;
+}
+
+// Discharge advice used to be seeded from the free-text diet field; fold the
+// picked diet lists in so the summary still carries the dietary plan.
+export function dietAdviceText(prescription) {
+  const take = (prescription?.dietToTake || []).map((item) => item.name).join(", ");
+  const avoid = (prescription?.dietToAvoid || []).map((item) => item.name).join(", ");
+
+  return [
+    prescription?.dietRecommendations || "",
+    take ? `Diet to take: ${take}` : "",
+    avoid ? `Diet to avoid: ${avoid}` : ""
+  ]
+    .filter(Boolean)
+    .join(" | ");
 }
 
 function therapyRowsFromPrescription(prescription, key) {
@@ -338,7 +425,7 @@ export async function saveDischargeSummary(visitId, payload, doctorId) {
     clinicalCourse: payload.clinicalCourse ?? summary.clinicalCourse ?? "",
     finalDiagnosis: payload.finalDiagnosis ?? prescription.diagnosis ?? "",
     conditionOnDischarge: payload.conditionOnDischarge ?? summary.conditionOnDischarge ?? "stable",
-    advice: payload.advice ?? prescription.dietRecommendations ?? "",
+    advice: payload.advice ?? dietAdviceText(prescription),
     followUpDate: payload.followUpDate ?? prescription.followUpDate ?? "",
     metadata
   });
@@ -468,11 +555,16 @@ export async function referVisitToIpd(visitId, payload, userId) {
 
 export async function getOpdMasters() {
   const labMasters = await getLabMasters();
+  const dietItems = await listDietItemRecords();
 
   return {
     doctors: await listDoctors(),
     medicines: getMedicineMasters(),
     labTests: labMasters.tests,
+    dietItems: {
+      take: dietItems.filter((item) => item.appliesTo !== "avoid"),
+      avoid: dietItems.filter((item) => item.appliesTo !== "take")
+    },
     nadiTypes: ["Vataja", "Pittaja", "Kaphaja", "Mixed"],
     agniStatuses: ["sama", "vishama", "tikshna", "manda"],
     koshthaTypes: ["mridu", "madhyama", "krura"],

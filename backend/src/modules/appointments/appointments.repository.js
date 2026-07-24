@@ -14,6 +14,7 @@ function toCamelAppointment(row) {
     patientAge: row.patient_age,
     patientGender: row.patient_gender || "",
     patientMobile: row.patient_mobile || "",
+    patientAddress: row.metadata?.patientAddress || "",
     doctorId: row.doctor_id || "",
     appointmentDate: toIsoDate(row.appointment_date),
     appointmentTime: toTime(row.appointment_time),

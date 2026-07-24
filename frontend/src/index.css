@@ -1160,6 +1160,73 @@ textarea {
   padding: 14px;
 }
 
+.multi-select-picker {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.multi-select-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.multi-select-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid rgba(16, 55, 92, 0.12);
+  border-radius: 999px;
+  background: rgba(237, 245, 255, 0.9);
+  color: var(--color-ink);
+  font-size: 13px;
+}
+
+.multi-select-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(16, 55, 92, 0.12);
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.multi-select-chip button:hover:not(:disabled) {
+  background: rgba(16, 55, 92, 0.24);
+}
+
+.multi-select-chip button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.multi-select-empty {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.multi-select-create strong {
+  color: var(--color-primary, #10375c);
+}
+
+.multi-select-chip.is-new {
+  border-style: dashed;
+  background: rgba(255, 247, 230, 0.9);
+}
+
 .patients-registry-full-card {
   display: flex;
   flex-direction: column;

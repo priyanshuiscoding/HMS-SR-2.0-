@@ -21,6 +21,7 @@ const initialForm = {
   patientAge: "",
   patientGender: "",
   patientMobile: "",
+  patientAddress: "",
   doctorId: "",
   appointmentDate: new Date().toISOString().slice(0, 10),
   appointmentTime: "",
@@ -183,7 +184,8 @@ export function AppointmentsPage() {
         patientName: selectedPatient ? "" : current.patientName,
         patientAge: selectedPatient ? "" : current.patientAge,
         patientGender: selectedPatient ? "" : current.patientGender,
-        patientMobile: selectedPatient ? "" : current.patientMobile
+        patientMobile: selectedPatient ? "" : current.patientMobile,
+        patientAddress: selectedPatient ? "" : current.patientAddress
       }));
       return;
     }
@@ -211,7 +213,8 @@ export function AppointmentsPage() {
       patientName: "",
       patientAge: "",
       patientGender: "",
-      patientMobile: ""
+      patientMobile: "",
+      patientAddress: ""
     }));
   };
 
@@ -423,6 +426,10 @@ export function AppointmentsPage() {
                 <div className="field field-span-2">
                   <label>Mobile</label>
                   <input name="patientMobile" value={formState.patientMobile} onChange={handleFormChange} minLength={10} required />
+                </div>
+                <div className="field field-span-2">
+                  <label>Address</label>
+                  <input name="patientAddress" value={formState.patientAddress} onChange={handleFormChange} placeholder="Optional" />
                 </div>
               </>
             ) : null}
