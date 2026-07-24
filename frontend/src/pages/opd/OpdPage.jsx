@@ -120,7 +120,7 @@ const initialPrescription = {
       ],
       specialized: [
         { therapy: "Shirodhara", sessions: "", duration: "" },
-        { therapy: "Kizhi", sessions: "", duration: "" },
+        { therapy: "Kizhi/Swedan ", sessions: "", duration: "" },
         { therapy: "Udwarthana", sessions: "", duration: "" }
       ]
     },
@@ -1410,7 +1410,7 @@ export function OpdPage() {
                         <input value={row.duration} placeholder="Duration" onChange={(event) => handleTherapyRowChange("specialized", index, "duration", event.target.value)} />
                       </div>
                     ))}
-                    <div className="field">
+                    {/* <div className="field">
                       <label>Recommended diet</label>
                       <input value={prescriptionForm.metadata.dietPlan.recommendedDiet} onChange={(event) => handlePrescriptionMetadataChange("dietPlan", "recommendedDiet", event.target.value)} />
                     </div>
@@ -1421,7 +1421,7 @@ export function OpdPage() {
                     <div className="field">
                       <label>Foods to avoid</label>
                       <input value={prescriptionForm.metadata.dietPlan.foodsToAvoid} onChange={(event) => handlePrescriptionMetadataChange("dietPlan", "foodsToAvoid", event.target.value)} />
-                    </div>
+                    </div> */}
                     <div className="field">
                       <label>Exercise type</label>
                       <input value={prescriptionForm.metadata.lifestylePlan.activityType} onChange={(event) => handlePrescriptionMetadataChange("lifestylePlan", "activityType", event.target.value)} />
