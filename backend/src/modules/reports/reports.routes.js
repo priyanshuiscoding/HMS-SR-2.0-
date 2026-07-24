@@ -1,7 +1,8 @@
 import { Router } from "express";
 
-import { authorize } from "../../middleware/rbac.js";
+import { authorize, authorizeRolesOnly } from "../../middleware/rbac.js";
 import {
+  dailyHospitalReportsHandler,
   dailyOpdReportHandler,
   dashboardSummaryHandler,
   ipdCensusReportHandler,
@@ -14,7 +15,12 @@ import {
 
 const reportsRouter = Router();
 
-reportsRouter.get("/dashboard-summary", authorize(["admin"]), dashboardSummaryHandler);
+reportsRouter.get(
+  "/dashboard-summary",
+  authorize(["admin", "reception", "doctor", "pharmacy", "lab", "therapist", "nursing", "housekeeping", "accounts", "hr"]),
+  dashboardSummaryHandler
+);
+reportsRouter.get("/daily-hospital", authorizeRolesOnly(["admin", "hr"]), dailyHospitalReportsHandler);
 reportsRouter.get("/overview", authorize(["admin", "doctor", "accounts"]), reportsOverviewHandler);
 reportsRouter.get("/daily-opd", authorize(["admin", "doctor", "reception"]), dailyOpdReportHandler);
 reportsRouter.get("/ipd-census", authorize(["admin", "doctor", "accounts", "nursing", "reception"]), ipdCensusReportHandler);

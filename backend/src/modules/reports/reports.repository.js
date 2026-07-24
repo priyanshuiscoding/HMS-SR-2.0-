@@ -9,6 +9,57 @@ function firstRow(result) {
   return result.rows[0] || {};
 }
 
+function toReportDate(value) {
+  if (!value) return "";
+  if (!(value instanceof Date)) return String(value).slice(0, 10);
+
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function toDailyHospitalReport(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    date: toReportDate(row.report_date),
+    opdPatients: Number(row.opd_patients || 0),
+    ipdPatients: Number(row.ipd_patients || 0),
+    ipdAdmissions: Number(row.ipd_admissions || 0),
+    newRegistrations: Number(row.new_registrations || 0),
+    followUpPatients: Number(row.follow_up_patients || 0),
+    todaysAppointments: Number(row.appointments || 0),
+    dischargedPatients: Number(row.discharged_patients || 0),
+    emergencyCases: Number(row.emergency_cases || 0),
+    panchkarmaSessions: Number(row.panchkarma_sessions || 0),
+    labOrders: Number(row.lab_orders || 0),
+    pharmacyDispensations: Number(row.pharmacy_dispensations || 0),
+    billsGenerated: Number(row.bills_generated || 0),
+    revenueToday: toNumber(row.revenue_amount),
+    collectedToday: toNumber(row.collected_amount),
+    pendingPayments: toNumber(row.pending_amount),
+    collectionByMode: {
+      cash: toNumber(row.cash_collection),
+      upi: toNumber(row.upi_collection),
+      card: toNumber(row.card_collection),
+      other: toNumber(row.other_collection)
+    },
+    employees: {
+      total: Number(row.employees_total || 0),
+      present: Number(row.employees_present || 0),
+      absent: Number(row.employees_absent || 0),
+      onLeave: Number(row.employees_on_leave || 0),
+      halfDay: Number(row.employees_half_day || 0)
+    },
+    metadata: row.metadata || {},
+    capturedAt: row.captured_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 export async function getOverviewReadModel({ dateFrom, dateTo }) {
   const [opd, ipd, bills, payments, lab, panchkarma] = await Promise.all([
     query("SELECT COUNT(*)::int AS count FROM opd_visits WHERE visit_date BETWEEN $1 AND $2", [dateFrom, dateTo]),
@@ -30,93 +81,169 @@ export async function getOverviewReadModel({ dateFrom, dateTo }) {
 }
 
 export async function getDashboardSummaryReadModel(reportDate) {
-  const [opd, ipd, registrations, appointments, revenue, modes] = await Promise.all([
-    query(
-      "SELECT COUNT(*)::int AS count FROM opd_visits WHERE visit_date = $1",
-      [reportDate]
+  return upsertDailyHospitalReportRecord(reportDate);
+}
+
+export async function upsertDailyHospitalReportRecord(reportDate, executeQuery = query) {
+  const result = await executeQuery(
+    `
+    WITH payment_totals AS (
+      SELECT bill_id, SUM(amount) AS paid FROM payments GROUP BY bill_id
     ),
-    query(
-      `
-      SELECT
-        (SELECT COUNT(*)::int FROM ipd_admissions WHERE status = 'active') AS active_ipd,
-        (
-          SELECT COUNT(*)::int
-          FROM ipd_admissions
-          WHERE status = 'discharged'
-            AND COALESCE(discharge_summary->>'dischargeDate', '') = $1::text
-        ) AS discharged_today
-      `,
-      [reportDate]
+    refund_totals AS (
+      SELECT bill_id, SUM(amount) AS refunded FROM refunds GROUP BY bill_id
     ),
-    query(
-      "SELECT COUNT(*)::int AS count FROM patients WHERE registration_date = $1 AND deleted_at IS NULL",
-      [reportDate]
+    current_pending AS (
+      SELECT COALESCE(
+        SUM(GREATEST(b.total_amount - GREATEST(COALESCE(p.paid, 0) - COALESCE(r.refunded, 0), 0), 0)),
+        0
+      ) AS amount
+      FROM bills b
+      LEFT JOIN payment_totals p ON p.bill_id = b.id
+      LEFT JOIN refund_totals r ON r.bill_id = b.id
     ),
-    query(
-      `
-      SELECT
-        COUNT(*)::int AS total,
-        COUNT(*) FILTER (WHERE type = 'new')::int AS new_visits,
-        COUNT(*) FILTER (WHERE type = 'follow_up')::int AS follow_up,
-        COUNT(*) FILTER (WHERE type = 'emergency')::int AS emergency
+    emergency_patients AS (
+      SELECT COALESCE(patient_id::text, id::text) AS case_key
       FROM appointments
-      WHERE appointment_date = $1 AND status <> 'cancelled'
-      `,
-      [reportDate]
+      WHERE appointment_date = $1 AND status <> 'cancelled' AND type = 'emergency'
+      UNION
+      SELECT COALESCE(patient_id::text, id::text) AS case_key
+      FROM ipd_admissions
+      WHERE admission_date = $1 AND status <> 'cancelled' AND admission_source = 'emergency'
     ),
-    query(
-      `
-      SELECT
-        (SELECT COALESCE(SUM(total_amount), 0) FROM bills WHERE bill_date = $1) AS revenue_today,
-        (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payment_date::date = $1) AS collected_today,
-        (
-          SELECT COALESCE(SUM(GREATEST(b.total_amount - GREATEST(COALESCE(p.paid, 0) - COALESCE(r.refunded, 0), 0), 0)), 0)
-          FROM bills b
-          LEFT JOIN (SELECT bill_id, SUM(amount) AS paid FROM payments GROUP BY bill_id) p ON p.bill_id = b.id
-          LEFT JOIN (SELECT bill_id, SUM(amount) AS refunded FROM refunds GROUP BY bill_id) r ON r.bill_id = b.id
-        ) AS pending_total
-      `,
-      [reportDate]
-    ),
-    query(
-      `
-      SELECT payment_mode, COALESCE(SUM(amount), 0) AS amount
-      FROM payments
-      WHERE payment_date::date = $1
-      GROUP BY payment_mode
-      `,
-      [reportDate]
+    employees_on_leave AS (
+      SELECT a.user_id
+      FROM staff_attendance a
+      JOIN users u ON u.id = a.user_id
+      WHERE a.attendance_date = $1 AND a.status = 'leave' AND u.deleted_at IS NULL AND u.is_active = true
+      UNION
+      SELECT l.user_id
+      FROM hr_leave_requests l
+      JOIN users u ON u.id = l.user_id
+      WHERE l.status = 'approved'
+        AND $1::date BETWEEN l.start_date AND l.end_date
+        AND u.deleted_at IS NULL
+        AND u.is_active = true
     )
-  ]);
+    INSERT INTO daily_hospital_reports (
+      report_date, opd_patients, ipd_patients, ipd_admissions, new_registrations,
+      follow_up_patients, appointments, discharged_patients, emergency_cases,
+      panchkarma_sessions, lab_orders, pharmacy_dispensations, bills_generated,
+      revenue_amount, collected_amount, pending_amount,
+      cash_collection, upi_collection, card_collection, other_collection,
+      employees_total, employees_present, employees_absent, employees_on_leave, employees_half_day,
+      metadata, captured_at
+    )
+    SELECT
+      $1::date,
+      (SELECT COUNT(*)::int FROM opd_visits WHERE visit_date = $1 AND status <> 'cancelled'),
+      (SELECT COUNT(*)::int FROM ipd_admissions WHERE status = 'active'),
+      (SELECT COUNT(*)::int FROM ipd_admissions WHERE admission_date = $1 AND status <> 'cancelled'),
+      (SELECT COUNT(*)::int FROM patients WHERE registration_date = $1 AND deleted_at IS NULL),
+      (SELECT COUNT(*)::int FROM appointments WHERE appointment_date = $1 AND status <> 'cancelled' AND type = 'follow_up'),
+      (SELECT COUNT(*)::int FROM appointments WHERE appointment_date = $1 AND status <> 'cancelled'),
+      (
+        SELECT COUNT(*)::int
+        FROM ipd_admissions
+        WHERE status = 'discharged' AND COALESCE(discharge_summary->>'dischargeDate', '') = $1::text
+      ),
+      (SELECT COUNT(*)::int FROM emergency_patients),
+      (SELECT COUNT(*)::int FROM panchkarma_sessions WHERE scheduled_date = $1 AND status <> 'cancelled'),
+      (SELECT COUNT(*)::int FROM lab_orders WHERE order_date = $1 AND status <> 'cancelled'),
+      (SELECT COUNT(*)::int FROM dispensations WHERE dispensed_date::date = $1 AND status = 'completed'),
+      (SELECT COUNT(*)::int FROM bills WHERE bill_date = $1),
+      (SELECT COALESCE(SUM(total_amount), 0) FROM bills WHERE bill_date = $1),
+      (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payment_date::date = $1),
+      (SELECT amount FROM current_pending),
+      (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payment_date::date = $1 AND LOWER(payment_mode) = 'cash'),
+      (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payment_date::date = $1 AND LOWER(payment_mode) = 'upi'),
+      (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payment_date::date = $1 AND LOWER(payment_mode) = 'card'),
+      (
+        SELECT COALESCE(SUM(amount), 0)
+        FROM payments
+        WHERE payment_date::date = $1 AND LOWER(payment_mode) NOT IN ('cash', 'upi', 'card')
+      ),
+      (SELECT COUNT(*)::int FROM users WHERE deleted_at IS NULL AND is_active = true),
+      (
+        SELECT COUNT(*)::int
+        FROM staff_attendance a JOIN users u ON u.id = a.user_id
+        WHERE a.attendance_date = $1 AND a.status = 'present' AND u.deleted_at IS NULL AND u.is_active = true
+      ),
+      (
+        SELECT COUNT(*)::int
+        FROM staff_attendance a JOIN users u ON u.id = a.user_id
+        WHERE a.attendance_date = $1 AND a.status = 'absent' AND u.deleted_at IS NULL AND u.is_active = true
+      ),
+      (SELECT COUNT(*)::int FROM employees_on_leave),
+      (
+        SELECT COUNT(*)::int
+        FROM staff_attendance a JOIN users u ON u.id = a.user_id
+        WHERE a.attendance_date = $1 AND a.status = 'half_day' AND u.deleted_at IS NULL AND u.is_active = true
+      ),
+      jsonb_build_object('source', 'live_hms_transactions', 'version', 1),
+      NOW()
+    ON CONFLICT (report_date) DO UPDATE
+    SET opd_patients = EXCLUDED.opd_patients,
+        ipd_patients = EXCLUDED.ipd_patients,
+        ipd_admissions = EXCLUDED.ipd_admissions,
+        new_registrations = EXCLUDED.new_registrations,
+        follow_up_patients = EXCLUDED.follow_up_patients,
+        appointments = EXCLUDED.appointments,
+        discharged_patients = EXCLUDED.discharged_patients,
+        emergency_cases = EXCLUDED.emergency_cases,
+        panchkarma_sessions = EXCLUDED.panchkarma_sessions,
+        lab_orders = EXCLUDED.lab_orders,
+        pharmacy_dispensations = EXCLUDED.pharmacy_dispensations,
+        bills_generated = EXCLUDED.bills_generated,
+        revenue_amount = EXCLUDED.revenue_amount,
+        collected_amount = EXCLUDED.collected_amount,
+        pending_amount = EXCLUDED.pending_amount,
+        cash_collection = EXCLUDED.cash_collection,
+        upi_collection = EXCLUDED.upi_collection,
+        card_collection = EXCLUDED.card_collection,
+        other_collection = EXCLUDED.other_collection,
+        employees_total = EXCLUDED.employees_total,
+        employees_present = EXCLUDED.employees_present,
+        employees_absent = EXCLUDED.employees_absent,
+        employees_on_leave = EXCLUDED.employees_on_leave,
+        employees_half_day = EXCLUDED.employees_half_day,
+        metadata = daily_hospital_reports.metadata || EXCLUDED.metadata,
+        captured_at = NOW()
+    RETURNING *
+    `,
+    [reportDate]
+  );
 
-  const ipdRow = firstRow(ipd);
-  const apptRow = firstRow(appointments);
-  const revenueRow = firstRow(revenue);
+  return toDailyHospitalReport(result.rows[0]);
+}
 
-  const collectionByMode = { cash: 0, upi: 0, card: 0, other: 0 };
-  for (const row of modes.rows) {
-    const mode = String(row.payment_mode || "").toLowerCase();
-    const amount = toNumber(row.amount);
-    if (mode === "cash" || mode === "upi" || mode === "card") {
-      collectionByMode[mode] += amount;
-    } else {
-      collectionByMode.other += amount;
-    }
+export async function listDailyHospitalReportRecords({ dateFrom, dateTo, limit = 31 } = {}) {
+  const params = [];
+  const conditions = ["1 = 1"];
+
+  if (dateFrom) {
+    params.push(dateFrom);
+    conditions.push(`report_date >= $${params.length}`);
   }
 
-  return {
-    opdPatients: Number(firstRow(opd).count || 0),
-    ipdPatients: Number(ipdRow.active_ipd || 0),
-    dischargedPatients: Number(ipdRow.discharged_today || 0),
-    newRegistrations: Number(firstRow(registrations).count || 0),
-    todaysAppointments: Number(apptRow.total || 0),
-    followUpPatients: Number(apptRow.follow_up || 0),
-    emergencyCases: Number(apptRow.emergency || 0),
-    revenueToday: toNumber(revenueRow.revenue_today),
-    collectedToday: toNumber(revenueRow.collected_today),
-    pendingPayments: toNumber(revenueRow.pending_total),
-    collectionByMode
-  };
+  if (dateTo) {
+    params.push(dateTo);
+    conditions.push(`report_date <= $${params.length}`);
+  }
+
+  params.push(Math.min(Math.max(Number(limit) || 31, 1), 366));
+  const result = await query(
+    `
+    SELECT *
+    FROM daily_hospital_reports
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY report_date DESC
+    LIMIT $${params.length}
+    `,
+    params
+  );
+
+  return result.rows.map(toDailyHospitalReport);
 }
 
 export async function getDailyOpdReadModel(reportDate) {

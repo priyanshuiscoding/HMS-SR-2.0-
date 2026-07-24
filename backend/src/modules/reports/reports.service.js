@@ -4,11 +4,15 @@ import {
   getDashboardSummaryReadModel,
   getIpdCensusReadModel,
   getLabWorkloadReadModel,
+  listDailyHospitalReportRecords,
   getOverviewReadModel,
   getPanchkarmaStatsReadModel,
   getPharmacySalesReadModel,
-  getRevenueReadModel
+  getRevenueReadModel,
+  upsertDailyHospitalReportRecord
 } from "./reports.repository.js";
+
+const dashboardFinancialRoles = new Set(["admin", "hr", "reception"]);
 
 function getDateRange(query = {}) {
   const today = todayDate();
@@ -28,13 +32,47 @@ export async function getReportsOverview(query = {}) {
   };
 }
 
-export async function getDashboardSummary(query = {}) {
-  const reportDate = query.date || todayDate();
-  const summary = await getDashboardSummaryReadModel(reportDate);
+export function buildDashboardSummaryResponse(reportDate, summary, user = {}) {
+  const canViewFinancials = dashboardFinancialRoles.has(user.role);
 
   return {
     date: reportDate,
-    ...summary
+    updatedAt: summary.capturedAt,
+    opdPatients: summary.opdPatients,
+    ipdPatients: summary.ipdPatients,
+    newRegistrations: summary.newRegistrations,
+    followUpPatients: summary.followUpPatients,
+    todaysAppointments: summary.todaysAppointments,
+    dischargedPatients: summary.dischargedPatients,
+    emergencyCases: summary.emergencyCases,
+    permissions: {
+      financials: canViewFinancials
+    },
+    ...(canViewFinancials
+      ? {
+          revenueToday: summary.revenueToday,
+          collectedToday: summary.collectedToday,
+          pendingPayments: summary.pendingPayments,
+          collectionByMode: summary.collectionByMode
+        }
+      : {})
+  };
+}
+
+export async function getDashboardSummary(query = {}, user = {}) {
+  const reportDate = query.date || todayDate();
+  const summary = await getDashboardSummaryReadModel(reportDate);
+  return buildDashboardSummaryResponse(reportDate, summary, user);
+}
+
+export async function getDailyHospitalReports(query = {}) {
+  await upsertDailyHospitalReportRecord(todayDate());
+  return {
+    items: await listDailyHospitalReportRecords({
+      dateFrom: query.dateFrom,
+      dateTo: query.dateTo,
+      limit: query.limit
+    })
   };
 }
 

@@ -230,6 +230,7 @@ export const createPurchaseOrder = (payload) => post("/inventory/purchase-orders
 export const receiveInventoryStock = (payload) => post("/inventory/receive", payload);
 
 export const getIpdSummary = () => get("/ipd/summary");
+export const getIpdBedDashboard = () => get("/ipd/bed-dashboard");
 export const getIpdCensus = () => get("/ipd/census");
 export const getIpdMasters = () => get("/ipd/masters");
 export const getIpdAdmissions = (params = {}) => get("/ipd/admissions", params);
@@ -255,6 +256,7 @@ export const updateRoomBedStatus = (roomId, bedId, payload) => put(`/rooms/${roo
 export const updatePanchkarmaWorkflow = (id, payload) => put(`/panchkarma/schedule/${id}/workflow`, payload);
 
 export const getDashboardSummary = (params = {}) => get("/reports/dashboard-summary", params);
+export const getDailyHospitalReports = (params = {}) => get("/reports/daily-hospital", params);
 export const getReportsOverview = (params = {}) => get("/reports/overview", params);
 export const getDailyOpdReport = (params = {}) => get("/reports/daily-opd", params);
 export const getIpdCensusReport = (params = {}) => get("/reports/ipd-census", params);

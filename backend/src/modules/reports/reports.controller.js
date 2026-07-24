@@ -1,5 +1,6 @@
 import {
   getDailyOpdReport,
+  getDailyHospitalReports,
   getDashboardSummary,
   getIpdCensusReport,
   getLabWorkloadReport,
@@ -11,7 +12,17 @@ import {
 
 export async function dashboardSummaryHandler(req, res, next) {
   try {
-    res.json(await getDashboardSummary(req.query));
+    res.set("Cache-Control", "no-store");
+    res.json(await getDashboardSummary(req.query, req.user));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function dailyHospitalReportsHandler(req, res, next) {
+  try {
+    res.set("Cache-Control", "no-store");
+    res.json(await getDailyHospitalReports(req.query));
   } catch (error) {
     next(error);
   }

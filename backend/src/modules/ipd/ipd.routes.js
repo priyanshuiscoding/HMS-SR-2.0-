@@ -10,6 +10,7 @@ import {
   admitPatientHandler,
   admissionWorkflowActionHandler,
   dischargeAdmissionHandler,
+  ipdBedDashboardHandler,
   ipdCensusHandler,
   ipdMastersHandler,
   ipdSummaryHandler,
@@ -22,6 +23,7 @@ const ipdRouter = Router();
 
 ipdRouter.get("/masters", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), ipdMastersHandler);
 ipdRouter.get("/summary", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), ipdSummaryHandler);
+ipdRouter.get("/bed-dashboard", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), ipdBedDashboardHandler);
 ipdRouter.get("/census", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), ipdCensusHandler);
 ipdRouter.get("/admissions", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), listAdmissionsHandler);
 ipdRouter.get("/admissions/:id", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), admissionDetailsHandler);

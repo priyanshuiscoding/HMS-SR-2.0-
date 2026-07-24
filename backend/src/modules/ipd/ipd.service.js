@@ -176,6 +176,75 @@ export async function getIpdSummary() {
   };
 }
 
+function roomSearchText(room) {
+  return [room.roomNumber, room.ward, room.roomType, room.metadata?.category, room.metadata?.roomCategory]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+}
+
+function summarizeBedCategory(rooms, beds, matchesRoom) {
+  const matchingRooms = rooms.filter(matchesRoom);
+  const roomIds = new Set(matchingRooms.map((room) => room.id));
+  const matchingBeds = beds.filter((bed) => roomIds.has(bed.roomId));
+
+  return {
+    totalRooms: matchingRooms.length,
+    totalBeds: matchingBeds.length,
+    occupiedBeds: matchingBeds.filter((bed) => bed.status === "occupied").length,
+    availableBeds: matchingBeds.filter((bed) => bed.status === "available").length
+  };
+}
+
+function buildBedDashboard(snapshot) {
+  const occupiedBeds = snapshot.beds.filter((bed) => bed.status === "occupied").length;
+  const availableBeds = snapshot.beds.filter((bed) => bed.status === "available").length;
+  const maleWard = summarizeBedCategory(
+    snapshot.rooms,
+    snapshot.beds,
+    (room) => /\bmale\b/.test(roomSearchText(room)) && !/\bfemale\b/.test(roomSearchText(room))
+  );
+  const femaleWard = summarizeBedCategory(
+    snapshot.rooms,
+    snapshot.beds,
+    (room) => /\bfemale\b/.test(roomSearchText(room))
+  );
+  const deluxeRooms = summarizeBedCategory(
+    snapshot.rooms,
+    snapshot.beds,
+    (room) => /\b(deluxe|private|suite)\b/.test(roomSearchText(room))
+  );
+  const icu = summarizeBedCategory(
+    snapshot.rooms,
+    snapshot.beds,
+    (room) => /\bicu\b|intensive care/.test(roomSearchText(room))
+  );
+
+  return {
+    updatedAt: nowIso(),
+    summary: {
+      totalBeds: snapshot.beds.length,
+      occupiedBeds,
+      availableBeds,
+      blockedBeds: snapshot.beds.filter((bed) => ["cleaning", "maintenance"].includes(bed.status)).length,
+      occupancyPercent: snapshot.beds.length ? Math.round((occupiedBeds / snapshot.beds.length) * 100) : 0
+    },
+    bedCategories: {
+      maleWard,
+      femaleWard,
+      deluxeRooms,
+      icu
+    }
+  };
+}
+
+export async function getIpdBedDashboard() {
+  const snapshot = await getRoomAndBedSnapshot();
+  syncRoomAndBedMirrors(snapshot);
+  return buildBedDashboard(snapshot);
+}
+
 export async function getIpdCensus() {
   const [activeAdmissions, snapshot] = await Promise.all([
     listActiveAdmissionRecords(),
@@ -183,6 +252,7 @@ export async function getIpdCensus() {
   ]);
   syncRoomAndBedMirrors(snapshot);
 
+  const bedDashboard = buildBedDashboard(snapshot);
   const enrichedAdmissions = await Promise.all(activeAdmissions.map(enrichAdmission));
   const roomCensus = snapshot.rooms
     .map((room) => {
@@ -207,13 +277,12 @@ export async function getIpdCensus() {
 
   return {
     date: todayDate(),
+    updatedAt: bedDashboard.updatedAt,
     summary: {
       activeAdmissions: activeAdmissions.length,
-      totalBeds: snapshot.beds.length,
-      occupiedBeds: snapshot.beds.filter((bed) => bed.status === "occupied").length,
-      availableBeds: snapshot.beds.filter((bed) => bed.status === "available").length,
-      blockedBeds: snapshot.beds.filter((bed) => ["cleaning", "maintenance"].includes(bed.status)).length
+      ...bedDashboard.summary
     },
+    bedCategories: bedDashboard.bedCategories,
     activePatients: enrichedAdmissions.map((entry) => ({
       admissionId: entry.id,
       admissionNumber: entry.admissionNumber,

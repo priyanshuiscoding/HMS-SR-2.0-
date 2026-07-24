@@ -491,7 +491,15 @@ export async function loadIpdRelatedRecords() {
 export async function getRoomAndBedSnapshot() {
   const [roomsResult, bedsResult] = await Promise.all([
     query("SELECT * FROM rooms WHERE deleted_at IS NULL AND is_active = true ORDER BY room_number ASC"),
-    query("SELECT * FROM beds ORDER BY bed_number ASC")
+    query(
+      `
+      SELECT beds.*
+      FROM beds
+      JOIN rooms ON rooms.id = beds.room_id
+      WHERE rooms.deleted_at IS NULL AND rooms.is_active = true
+      ORDER BY beds.bed_number ASC
+      `
+    )
   ]);
 
   return {

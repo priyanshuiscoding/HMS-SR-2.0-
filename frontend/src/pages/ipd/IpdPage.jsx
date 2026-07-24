@@ -10,8 +10,8 @@ import {
   dischargeIpdAdmission,
   getIpdAdmission,
   getIpdAdmissions,
+  getIpdBedDashboard,
   getIpdMasters,
-  getIpdSummary,
   getPatients,
   scheduleIpdTherapy,
   updateIpdAdmissionWorkflow
@@ -129,8 +129,54 @@ function mergeDischargeForm(summary = null) {
   };
 }
 
+function BedDashboardIcon({ type }) {
+  if (type === "availability") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m5 12 4 4L19 6" />
+      </svg>
+    );
+  }
+
+  if (type === "occupancy") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="8" r="3" />
+        <path d="M5.5 19c.8-4 3-6 6.5-6s5.7 2 6.5 6" />
+      </svg>
+    );
+  }
+
+  if (type === "percentage") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 17 17 7" />
+        <circle cx="7.5" cy="7.5" r="2" />
+        <circle cx="16.5" cy="16.5" r="2" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 18v-7m18 7v-5a2 2 0 0 0-2-2H9v7M3 14h18M6 11V7h5a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
+function categoryNote(category, emptyLabel) {
+  if (!category?.totalBeds) {
+    return emptyLabel;
+  }
+
+  const roomLabel = `${category.totalRooms} ${category.totalRooms === 1 ? "room" : "rooms"}`;
+  return `${category.availableBeds} available · ${category.occupiedBeds} occupied · ${roomLabel}`;
+}
+
 export function IpdPage() {
-  const [summary, setSummary] = useState(null);
+  const [census, setCensus] = useState(null);
+  const [dashboardRefreshing, setDashboardRefreshing] = useState(false);
+  const [dashboardError, setDashboardError] = useState("");
   const [admissions, setAdmissions] = useState([]);
   const [patients, setPatients] = useState([]);
   const [masters, setMasters] = useState({ doctors: [], admissionSources: [], noteCategories: [], dischargeStatuses: [], wardCharges: [], rooms: [], treatmentPackages: [], therapies: [], therapists: [], therapyRooms: [] });
@@ -146,14 +192,15 @@ export function IpdPage() {
 
   async function loadData(nextFilters = filters, selectedId = selectedAdmission?.id) {
     try {
-      const [summaryResponse, admissionsResponse, mastersResponse, patientsResponse] = await Promise.all([
-        getIpdSummary(),
+      const [censusResponse, admissionsResponse, mastersResponse, patientsResponse] = await Promise.all([
+        getIpdBedDashboard(),
         getIpdAdmissions(nextFilters),
         getIpdMasters(),
         getPatients()
       ]);
 
-      setSummary(summaryResponse);
+      setCensus(censusResponse);
+      setDashboardError("");
       setAdmissions(admissionsResponse.items);
       setMasters(mastersResponse);
       setPatients(patientsResponse.items);
@@ -172,8 +219,45 @@ export function IpdPage() {
     }
   }
 
+  async function refreshBedDashboard({ silent = false } = {}) {
+    if (!silent) {
+      setDashboardRefreshing(true);
+    }
+
+    try {
+      setCensus(await getIpdBedDashboard());
+      setDashboardError("");
+    } catch (apiError) {
+      setDashboardError(apiError.message || "Live bed data is temporarily unavailable.");
+    } finally {
+      if (!silent) {
+        setDashboardRefreshing(false);
+      }
+    }
+  }
+
   useEffect(() => {
     loadData({ status: "active", search: "" });
+
+    const refreshInterval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshBedDashboard({ silent: true });
+      }
+    }, 10000);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshBedDashboard({ silent: true });
+      }
+    };
+
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      window.clearInterval(refreshInterval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, []);
 
   const roomOptions = useMemo(() => masters.rooms || [], [masters.rooms]);
@@ -391,14 +475,26 @@ export function IpdPage() {
     }
   };
 
-  const stats = summary || {
-    totalAdmissions: 0,
-    activeAdmissions: 0,
-    dischargedAdmissions: 0,
-    todayAdmissions: 0,
-    pendingDischarges: 0,
-    activeRooms: 0
+  const bedSummary = census?.summary || {
+    totalBeds: 0,
+    occupiedBeds: 0,
+    availableBeds: 0,
+    occupancyPercent: 0
   };
+  const bedCategories = census?.bedCategories || {};
+  const dashboardCards = [
+    { label: "Total Beds", value: bedSummary.totalBeds, note: "Configured inpatient capacity", type: "bed", tone: "blue" },
+    { label: "Occupied Beds", value: bedSummary.occupiedBeds, note: `${bedSummary.totalBeds - bedSummary.occupiedBeds} beds not occupied`, type: "occupancy", tone: "orange" },
+    { label: "Available Beds", value: bedSummary.availableBeds, note: "Ready for immediate admission", type: "availability", tone: "green" },
+    { label: "Male Ward", value: bedCategories.maleWard?.totalBeds || 0, note: categoryNote(bedCategories.maleWard, "No male ward beds configured"), type: "bed", tone: "blue" },
+    { label: "Female Ward", value: bedCategories.femaleWard?.totalBeds || 0, note: categoryNote(bedCategories.femaleWard, "No female ward beds configured"), type: "bed", tone: "violet" },
+    { label: "Deluxe Rooms", value: bedCategories.deluxeRooms?.totalBeds || 0, note: categoryNote(bedCategories.deluxeRooms, "No deluxe/private rooms configured"), type: "bed", tone: "gold" },
+    { label: "ICU", value: bedCategories.icu?.totalBeds || 0, note: categoryNote(bedCategories.icu, "No ICU beds configured"), type: "occupancy", tone: "red" },
+    { label: "Bed Occupancy", value: `${bedSummary.occupancyPercent}%`, note: `${bedSummary.occupiedBeds} of ${bedSummary.totalBeds} beds occupied`, type: "percentage", tone: "navy", progress: bedSummary.occupancyPercent }
+  ];
+  const dashboardUpdatedAt = census?.updatedAt
+    ? new Date(census.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    : "Waiting for data";
   const selectedTherapy = masters.therapies?.find((item) => item.id === therapyForm.therapyId);
   const selectedPackage = masters.treatmentPackages?.find((item) => item.id === therapyForm.packageId);
   const patientLabel = (patient) => `${patient.uhid || patient.registrationNumber || "UHID"} - ${patient.firstName || ""} ${patient.lastName || ""}`.trim();
@@ -406,20 +502,49 @@ export function IpdPage() {
 
   return (
     <DashboardLayout>
-      <section className="hero-panel logo-hero">
-        <div className="eyebrow">IPD</div>
-        <h2>Run inpatient admissions, bedside documentation, and discharge billing from one IPD desk.</h2>
-        <p>
-          This phase completes the inpatient workflow with admission intake, bed allocation, clinical progress notes,
-          vitals tracking, and discharge closure that can generate an IPD bill.
-        </p>
-      </section>
+      <section className="ipd-bed-dashboard no-print" aria-labelledby="ipd-bed-dashboard-title">
+        <div className="ipd-dashboard-header">
+          <div>
+            <div className="eyebrow">IPD · Live census</div>
+            <h2 id="ipd-bed-dashboard-title">Bed availability dashboard</h2>
+            <div className={`ipd-live-status ${dashboardError ? "stale" : ""}`} role="status">
+              <span className="ipd-live-dot" aria-hidden="true" />
+              {dashboardError ? "Showing last available data" : `Live · Updated ${dashboardUpdatedAt}`}
+            </div>
+          </div>
+          <Button type="button" variant="secondary" onClick={() => refreshBedDashboard()} disabled={dashboardRefreshing}>
+            {dashboardRefreshing ? "Refreshing…" : "Refresh now"}
+          </Button>
+        </div>
 
-      <section className="stat-grid">
-        <article className="stat-card"><div className="stat-label">Admissions</div><div className="stat-value">{stats.totalAdmissions}</div><div className="stat-note">Total IPD records</div></article>
-        <article className="stat-card"><div className="stat-label">Active</div><div className="stat-value">{stats.activeAdmissions}</div><div className="stat-note">Current inpatient load</div></article>
-        <article className="stat-card"><div className="stat-label">Pending discharge</div><div className="stat-value">{stats.pendingDischarges}</div><div className="stat-note">Expected out today or earlier</div></article>
-        <article className="stat-card"><div className="stat-label">Today</div><div className="stat-value">{stats.todayAdmissions}</div><div className="stat-note">Admissions registered today</div></article>
+        {dashboardError ? <div className="ipd-dashboard-warning">{dashboardError} Automatic refresh will retry.</div> : null}
+
+        <div className="ipd-bed-metric-grid">
+          {dashboardCards.map((card) => (
+            <article className={`ipd-bed-metric-card ${card.tone}`} key={card.label}>
+              <div className="ipd-metric-topline">
+                <div className={`ipd-metric-icon ${card.tone}`}>
+                  <BedDashboardIcon type={card.type} />
+                </div>
+                <span>{card.label}</span>
+              </div>
+              <div className="ipd-metric-value">{card.value}</div>
+              <div className="ipd-metric-note">{card.note}</div>
+              {card.progress !== undefined ? (
+                <div
+                  className="ipd-occupancy-track"
+                  role="progressbar"
+                  aria-label="Bed occupancy percentage"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow={card.progress}
+                >
+                  <span style={{ width: `${Math.min(Math.max(card.progress, 0), 100)}%` }} />
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
       </section>
 
       <section className="workspace-grid">

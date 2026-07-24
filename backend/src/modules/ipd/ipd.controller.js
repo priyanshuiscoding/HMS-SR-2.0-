@@ -6,6 +6,7 @@ import {
   getAdmissionDetails,
   getAdmissionNotes,
   getAdmissionVitals,
+  getIpdBedDashboard,
   getIpdCensus,
   getIpdMasters,
   getIpdSummary,
@@ -26,6 +27,15 @@ export async function ipdMastersHandler(_req, res, next) {
 export async function ipdSummaryHandler(_req, res, next) {
   try {
     res.json(await getIpdSummary());
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function ipdBedDashboardHandler(_req, res, next) {
+  try {
+    res.set("Cache-Control", "no-store");
+    res.json(await getIpdBedDashboard());
   } catch (error) {
     next(error);
   }
