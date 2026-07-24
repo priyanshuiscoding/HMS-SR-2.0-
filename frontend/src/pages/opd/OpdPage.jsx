@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "../../components/common/Button.jsx";
+import { MultiSelectPicker } from "../../components/common/MultiSelectPicker.jsx";
 import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { Toast } from "../../components/common/Toast.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
@@ -99,6 +100,8 @@ const initialPrescription = {
   samprapti: "",
   chikitsaSutra: "",
   dietRecommendations: "",
+  dietToTake: [],
+  dietToAvoid: [],
   followUpDate: "",
   metadata: {
     diagnosisRows: [
@@ -165,6 +168,10 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function dietNames(items) {
+  return (items || []).map((item) => item.name).join(", ");
+}
+
 function normalizeMedicineNameInput(value) {
   return String(value || "").replace(/^\s*\d+[\).\-\s]+/, "").trimStart();
 }
@@ -194,6 +201,8 @@ function mergePrescription(prescription) {
         ...(prescription?.metadata?.investigations || {})
       }
     },
+    dietToTake: prescription?.dietToTake || [],
+    dietToAvoid: prescription?.dietToAvoid || [],
     medicines: prescription?.medicines?.length ? prescription.medicines : [{ ...emptyMedicine }]
   };
 }
@@ -277,6 +286,7 @@ export function OpdPage() {
     doctors: [],
     medicines: [],
     labTests: [],
+    dietItems: { take: [], avoid: [] },
     nadiTypes: [],
     agniStatuses: [],
     koshthaTypes: [],
@@ -349,11 +359,19 @@ export function OpdPage() {
     }
   }
 
+  async function loadMasters() {
+    const response = await getOpdMasters();
+    setMasters((current) => ({
+      ...current,
+      ...response,
+      dietItems: { ...current.dietItems, ...(response.dietItems || {}) }
+    }));
+  }
+
   useEffect(() => {
     async function bootstrap() {
       try {
-        const response = await getOpdMasters();
-        setMasters(response);
+        await loadMasters();
       } catch (apiError) {
         setError(apiError.message || "Unable to load OPD masters.");
       }
@@ -443,6 +461,13 @@ export function OpdPage() {
     setPrescriptionForm((current) => ({
       ...current,
       [event.target.name]: event.target.value
+    }));
+  };
+
+  const handleDietChange = (field, items) => {
+    setPrescriptionForm((current) => ({
+      ...current,
+      [field]: items.map((item) => ({ id: item.id, name: item.name, nameHi: item.nameHi || "" }))
     }));
   };
 
@@ -640,6 +665,9 @@ export function OpdPage() {
     try {
       await savePrescription(visitPayload.visit.id, prescriptionForm);
       await loadVisit(visitPayload.visit.id, selectedQueueItem);
+      // Typed diet items become master entries on save; refresh so they are
+      // suggested straight away instead of only after a page reload.
+      await loadMasters();
       setMessage("Prescription saved. Complete the visit to forward it to pharmacy and reception.");
     } catch (apiError) {
       setError(apiError.message || "Unable to save prescription.");
@@ -1176,11 +1204,33 @@ export function OpdPage() {
                     />
                   </div>
                   <div className="field field-span-2">
-                    <label>Diet recommendations</label>
-                    <input
-                      name="dietRecommendations"
-                      value={prescriptionForm.dietRecommendations}
-                      onChange={handlePrescriptionChange}
+                    <label>Diet To Take</label>
+                    <MultiSelectPicker
+                      value={prescriptionForm.dietToTake}
+                      options={masters.dietItems.take}
+                      onChange={(items) => handleDietChange("dietToTake", items)}
+                      placeholder="Search foods to advise"
+                      emptyLabel="No matching item in the diet master"
+                      emptySelectionLabel="No foods added yet"
+                      getOptionMeta={(item) => item.nameHi || ""}
+                      getSearchText={(item) => [item.name, item.nameHi].filter(Boolean).join(" ")}
+                      allowCustom
+                      disabled={!canClinicalDocument}
+                    />
+                  </div>
+                  <div className="field field-span-2">
+                    <label>Diet To Avoid</label>
+                    <MultiSelectPicker
+                      value={prescriptionForm.dietToAvoid}
+                      options={masters.dietItems.avoid}
+                      onChange={(items) => handleDietChange("dietToAvoid", items)}
+                      placeholder="Search foods to avoid"
+                      emptyLabel="No matching item in the diet master"
+                      emptySelectionLabel="No foods added yet"
+                      getOptionMeta={(item) => item.nameHi || ""}
+                      getSearchText={(item) => [item.name, item.nameHi].filter(Boolean).join(" ")}
+                      allowCustom
+                      disabled={!canClinicalDocument}
                     />
                   </div>
                   <div className="field">
@@ -1680,8 +1730,8 @@ export function OpdPage() {
                   <section className="opd-print-block">
                     <h3>Disease-Specific Diet Plan</h3>
                     <p><strong>Recommended diet:</strong> {prescriptionForm.metadata.dietPlan.recommendedDiet || prescriptionForm.dietRecommendations || "-"}</p>
-                    <p><strong>Foods to include:</strong> {prescriptionForm.metadata.dietPlan.foodsToInclude || "-"}</p>
-                    <p><strong>Foods to avoid:</strong> {prescriptionForm.metadata.dietPlan.foodsToAvoid || "-"}</p>
+                    <p><strong>Foods to include:</strong> {dietNames(prescriptionForm.dietToTake) || prescriptionForm.metadata.dietPlan.foodsToInclude || "-"}</p>
+                    <p><strong>Foods to avoid:</strong> {dietNames(prescriptionForm.dietToAvoid) || prescriptionForm.metadata.dietPlan.foodsToAvoid || "-"}</p>
                   </section>
 
                   <section className="opd-print-block">

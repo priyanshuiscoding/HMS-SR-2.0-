@@ -6,9 +6,19 @@ import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import { createPatient, deletePatient, getPatients } from "../../services/api.js";
 
+const titleOptionsByGender = {
+  male: ["Master", "Mr", "Shri"],
+  female: ["Baby", "Ms", "Miss", "Mrs", "Smt"],
+  other: ["Master", "Mr", "Shri", "Baby", "Ms", "Miss", "Mrs", "Smt"]
+};
+
+function getTitleOptions(gender) {
+  return titleOptionsByGender[gender] || titleOptionsByGender.other;
+}
+
 const initialForm = {
   patientType: "new",
-  title: "Mr",
+  title: "",
   firstName: "",
   lastName: "",
   fatherName: "",
@@ -107,11 +117,19 @@ export function PatientsPage() {
   const handleInputChange = (event) => {
     const { name, value } = event.target;
 
-    setFormState((current) => ({
-      ...current,
-      [name]: value,
-      ...(name === "dateOfBirth" ? { ageYears: calculateAge(value) } : {})
-    }));
+    setFormState((current) => {
+      const next = {
+        ...current,
+        [name]: value,
+        ...(name === "dateOfBirth" ? { ageYears: calculateAge(value) } : {})
+      };
+
+      if (name === "gender" && !getTitleOptions(value).includes(current.title)) {
+        next.title = "";
+      }
+
+      return next;
+    });
   };
 
   const handleOpenForm = () => {
@@ -341,20 +359,20 @@ export function PatientsPage() {
                 <input name="opdIpdNumber" value={formState.opdIpdNumber} onChange={handleInputChange} />
               </div>
               <div className="field">
-                <label>Title</label>
-                <select name="title" value={formState.title} onChange={handleInputChange}>
-                  <option value="Mr">Mr</option>
-                  <option value="Mrs">Mrs</option>
-                  <option value="Miss">Miss</option>
-                  <option value="Master">Master</option>
-                </select>
-              </div>
-              <div className="field">
                 <label>Gender</label>
                 <select name="gender" value={formState.gender} onChange={handleInputChange}>
                   <option value="female">Female</option>
                   <option value="male">Male</option>
                   <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="field">
+                <label>Title</label>
+                <select name="title" value={formState.title} onChange={handleInputChange} required>
+                  <option value="">Select</option>
+                  {getTitleOptions(formState.gender).map((title) => (
+                    <option key={title} value={title}>{title}</option>
+                  ))}
                 </select>
               </div>
               <div className="field">
