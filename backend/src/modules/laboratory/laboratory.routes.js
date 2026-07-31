@@ -3,7 +3,6 @@ import { Router } from "express";
 import { authorize } from "../../middleware/rbac.js";
 import {
   collectSampleHandler,
-  createBillHandler,
   createOrderHandler,
   labWorkflowActionHandler,
   listOrdersHandler,
@@ -22,7 +21,6 @@ laboratoryRouter.get("/orders/:id", authorize(["admin", "doctor", "lab", "recept
 laboratoryRouter.post("/orders", authorize(["admin", "doctor"]), createOrderHandler);
 laboratoryRouter.post("/orders/:id/sample-collection", authorize(["admin", "lab", "reception", "doctor"]), collectSampleHandler);
 laboratoryRouter.post("/orders/:id/results", authorize(["admin", "lab", "doctor"]), saveResultsHandler);
-laboratoryRouter.post("/orders/:id/bill", authorize(["admin", "accounts", "reception", "doctor", "lab"]), createBillHandler);
 laboratoryRouter.put("/orders/:id/workflow", authorize(["admin", "lab", "reception", "doctor"]), labWorkflowActionHandler);
 
 export { laboratoryRouter };

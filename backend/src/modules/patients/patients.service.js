@@ -16,6 +16,13 @@ import {
   softDeletePatientDocument
 } from "./patientDocuments.repository.js";
 import { listCertificateRecords } from "../certificates/certificates.repository.js";
+import { listAppointmentRecords } from "../appointments/appointments.repository.js";
+import { listBillRecords, listPaymentRecords } from "../billing/billing.repository.js";
+import { listAdmissionRecords } from "../ipd/ipd.repository.js";
+import { listLabOrderRecords } from "../laboratory/laboratory.repository.js";
+import { listAssessmentRecords, listPrescriptionRecords, listVisitRecords } from "../opd/opd.repository.js";
+import { listSessionRecords } from "../panchkarma/panchkarma.repository.js";
+import { listDispensationRecords } from "../pharmacy/pharmacy.repository.js";
 
 const MAX_PATIENT_DOCUMENT_BYTES = 8 * 1024 * 1024;
 const ALLOWED_PATIENT_DOCUMENT_TYPES = new Set(["application/pdf"]);
@@ -102,48 +109,55 @@ export async function getPatientById(id) {
 
 export async function getPatientHistory(id) {
   const patient = await getPatientById(id);
-  const documents = await findPatientDocuments(id);
-  const certificates = await listCertificateRecords({ patientId: id });
 
-  const appointmentHistory = db.appointments
-    .filter((appointment) => appointment.patientId === id)
-    .sort((a, b) => `${b.appointmentDate} ${b.appointmentTime}`.localeCompare(`${a.appointmentDate} ${a.appointmentTime}`));
+  // Everything here reads straight from the database. This used to filter the
+  // in-memory mirrors, which are only ever populated by whatever the running
+  // process happened to write - so a patient's vitals, prescriptions and bills
+  // vanished from their profile after every restart.
+  const [
+    documents,
+    certificates,
+    appointmentHistory,
+    opdVisits,
+    assessments,
+    prescriptions,
+    ipdAdmissions,
+    labOrders,
+    panchkarmaSchedules,
+    bills,
+    dispensations,
+    payments
+  ] = await Promise.all([
+    findPatientDocuments(id),
+    listCertificateRecords({ patientId: id }),
+    listAppointmentRecords({ patientId: id }),
+    listVisitRecords({ patientId: id }),
+    listAssessmentRecords({ patientId: id }),
+    listPrescriptionRecords({ patientId: id }),
+    listAdmissionRecords({ patientId: id }),
+    listLabOrderRecords({ patientId: id }),
+    listSessionRecords({ patientId: id }),
+    listBillRecords({ patientId: id }),
+    listDispensationRecords({ patientId: id }),
+    listPaymentRecords({ patientId: id })
+  ]);
 
-  const opdVisits = db.opdVisits
-    .filter((visit) => visit.patientId === id)
-    .sort((a, b) => b.visitDate.localeCompare(a.visitDate));
-
-  const assessments = db.ayurvedaAssessments
-    .filter((assessment) => assessment.patientId === id)
-    .sort((a, b) => b.assessmentDate.localeCompare(a.assessmentDate));
-
-  const prescriptions = db.prescriptions
-    .filter((prescription) => prescription.patientId === id)
-    .sort((a, b) => b.prescriptionDate.localeCompare(a.prescriptionDate));
-
-  const ipdAdmissions = db.ipdAdmissions
-    .filter((admission) => admission.patientId === id)
-    .sort((a, b) => `${b.admissionDate} ${b.admissionTime || ""}`.localeCompare(`${a.admissionDate} ${a.admissionTime || ""}`));
-
-  const labOrders = db.labOrders
-    .filter((order) => order.patientId === id)
-    .sort((a, b) => b.orderDate.localeCompare(a.orderDate));
-
-  const panchkarmaSchedules = db.panchkarmaSchedules
-    .filter((schedule) => schedule.patientId === id)
-    .sort((a, b) => `${b.scheduledDate} ${b.scheduledTime || ""}`.localeCompare(`${a.scheduledDate} ${a.scheduledTime || ""}`));
-
-  const bills = db.bills
-    .filter((bill) => bill.patientId === id)
-    .sort((a, b) => b.billDate.localeCompare(a.billDate));
-
-  const dispensations = db.dispensations
-    .filter((dispense) => dispense.patientId === id)
-    .sort((a, b) => b.dispensedDate.localeCompare(a.dispensedDate));
-
-  const payments = db.payments
-    .filter((payment) => payment.patientId === id)
-    .sort((a, b) => b.paymentDate.localeCompare(a.paymentDate));
+  appointmentHistory.sort((a, b) =>
+    `${b.appointmentDate} ${b.appointmentTime}`.localeCompare(`${a.appointmentDate} ${a.appointmentTime}`)
+  );
+  opdVisits.sort((a, b) => String(b.visitDate).localeCompare(String(a.visitDate)));
+  assessments.sort((a, b) => String(b.assessmentDate).localeCompare(String(a.assessmentDate)));
+  prescriptions.sort((a, b) => String(b.prescriptionDate).localeCompare(String(a.prescriptionDate)));
+  ipdAdmissions.sort((a, b) =>
+    `${b.admissionDate} ${b.admissionTime || ""}`.localeCompare(`${a.admissionDate} ${a.admissionTime || ""}`)
+  );
+  labOrders.sort((a, b) => String(b.orderDate).localeCompare(String(a.orderDate)));
+  panchkarmaSchedules.sort((a, b) =>
+    `${b.scheduledDate} ${b.scheduledTime || ""}`.localeCompare(`${a.scheduledDate} ${a.scheduledTime || ""}`)
+  );
+  bills.sort((a, b) => String(b.billDate).localeCompare(String(a.billDate)));
+  dispensations.sort((a, b) => String(b.dispensedDate).localeCompare(String(a.dispensedDate)));
+  payments.sort((a, b) => String(b.paymentDate).localeCompare(String(a.paymentDate)));
 
   const timeline = [
     ...appointmentHistory.map((appointment) => ({

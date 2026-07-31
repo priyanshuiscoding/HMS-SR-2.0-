@@ -13,7 +13,8 @@ import {
   getBillingSummary,
   getBills,
   getPatients,
-  getPayments
+  getPayments,
+  getPendingCharges
 } from "../../services/api.js";
 
 const initialPaymentForm = {
@@ -23,196 +24,243 @@ const initialPaymentForm = {
   note: ""
 };
 
-const initialCreateBillForm = {
-  patientId: "",
-  billType: "opd",
-  notes: "",
+const initialBillForm = {
   discountAmount: "0",
   taxAmount: "0",
-  invoiceMeta: {
-    doctorName: "",
-    doctorRegNo: "",
-    patientAddress: "",
-    remark: ""
-  },
-  items: [
-    { description: "", category: "service", quantity: 1, unitPrice: "", batchNumber: "", pack: "", expiryDate: "" }
-  ]
+  notes: ""
 };
 
-function formatDisplayDate(value) {
-  if (!value) {
-    return "";
+const emptyExtraItem = { description: "", category: "service", quantity: "1", unitPrice: "" };
+
+const SOURCE_LABELS = {
+  consultation: "Consultation",
+  lab: "Laboratory",
+  pharmacy: "Pharmacy",
+  therapy: "Panchkarma",
+  ipd: "IPD stay"
+};
+
+const CATEGORY_LABELS = {
+  consultation: "Consultation",
+  lab: "Investigations",
+  pharmacy: "Medicines",
+  therapy: "Therapy",
+  room: "Room & stay",
+  procedure: "Procedures",
+  service: "Other charges",
+  miscellaneous: "Miscellaneous"
+};
+
+const ONES = [
+  "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+  "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"
+];
+const TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+function twoDigitWords(value) {
+  if (value < 20) return ONES[value];
+  return `${TENS[Math.floor(value / 10)]}${value % 10 ? ` ${ONES[value % 10]}` : ""}`;
+}
+
+function threeDigitWords(value) {
+  const hundred = Math.floor(value / 100);
+  const rest = value % 100;
+  return [hundred ? `${ONES[hundred]} Hundred` : "", rest ? twoDigitWords(rest) : ""].filter(Boolean).join(" ");
+}
+
+// Indian numbering, because the printed bill is read by patients and auditors here.
+function amountInWords(value) {
+  const amount = Math.round(Number(value || 0));
+
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return "Zero Rupees Only";
   }
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split("-");
+  const parts = [
+    { count: Math.floor(amount / 10000000), label: "Crore" },
+    { count: Math.floor((amount % 10000000) / 100000), label: "Lakh" },
+    { count: Math.floor((amount % 100000) / 1000), label: "Thousand" }
+  ]
+    .filter((part) => part.count > 0)
+    .map((part) => `${twoDigitWords(part.count)} ${part.label}`);
+
+  const remainder = amount % 1000;
+  if (remainder) {
+    parts.push(threeDigitWords(remainder));
+  }
+
+  return `${parts.join(" ")} Rupees Only`;
+}
+
+function formatDisplayDate(value) {
+  if (!value) return "";
+
+  const isoDate = String(value).slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) {
+    const [year, month, day] = isoDate.split("-");
     return `${day}-${month}-${year}`;
   }
 
   return value;
 }
 
-function GenericInvoice({ selectedBill, invoiceTotals }) {
-  return (
-    <div className="invoice-sheet">
-      <div className="invoice-header">
-        <div>
-          <div className="eyebrow">Shanti-Ratnam</div>
-          <h3>SR-AIIMS Billing Invoice</h3>
-          <div className="timeline-copy">Healing With Happiness</div>
-        </div>
-        <div className="detail-list compact-detail">
-          <div><strong>Bill:</strong> {selectedBill.item.billNumber}</div>
-          <div><strong>Date:</strong> {selectedBill.item.billDate}</div>
-          <div><strong>Status:</strong> {selectedBill.item.paymentStatus}</div>
-        </div>
-      </div>
-      <div className="detail-grid">
-        <article className="content-card inset-card">
-          <h3>Patient</h3>
-          <div className="detail-list">
-            <div><strong>Name:</strong> {selectedBill.patient?.firstName} {selectedBill.patient?.lastName}</div>
-            <div><strong>UHID:</strong> {selectedBill.patient?.uhid || "N/A"}</div>
-            <div><strong>Phone:</strong> {selectedBill.patient?.phone || "N/A"}</div>
-          </div>
-        </article>
-        <article className="content-card inset-card">
-          <h3>Source</h3>
-          <div className="detail-list">
-            <div><strong>Visit:</strong> {selectedBill.visit?.opdNumber || "N/A"}</div>
-            <div><strong>Room:</strong> {selectedBill.room?.roomNumber || "N/A"}</div>
-            <div><strong>Bed:</strong> {selectedBill.bed?.bedNumber || "N/A"}</div>
-            <div><strong>Type:</strong> {selectedBill.item.billType}</div>
-          </div>
-        </article>
-      </div>
-      <div className="table-shell">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th>Category</th>
-              <th>Qty</th>
-              <th>Rate</th>
-              <th>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {selectedBill.item.items.map((item) => (
-              <tr key={item.id}>
-                <td>{item.description}</td>
-                <td>{item.category}</td>
-                <td>{item.quantity}</td>
-                <td>Rs. {formatCurrency(item.unitPrice)}</td>
-                <td>Rs. {formatCurrency(item.amount)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="invoice-summary">
-        <div><strong>Subtotal:</strong> Rs. {formatCurrency(invoiceTotals?.subtotal)}</div>
-        <div><strong>Discount:</strong> Rs. {formatCurrency(invoiceTotals?.discountAmount)}</div>
-        <div><strong>Tax:</strong> Rs. {formatCurrency(invoiceTotals?.taxAmount)}</div>
-        <div><strong>Total:</strong> Rs. {formatCurrency(invoiceTotals?.totalAmount)}</div>
-        <div><strong>Paid:</strong> Rs. {formatCurrency(invoiceTotals?.paidAmount)}</div>
-        <div><strong>Balance:</strong> Rs. {formatCurrency(invoiceTotals?.balanceAmount)}</div>
-      </div>
-    </div>
-  );
+function chargeKey(charge) {
+  return `${charge.source}:${charge.sourceId}`;
 }
 
-function PharmacyInvoice({ selectedBill, invoiceTotals, profile }) {
-  const invoiceMeta = selectedBill.item.invoiceMeta || {};
-  const patientAddress = invoiceMeta.patientAddress || [selectedBill.patient?.address, selectedBill.patient?.city, selectedBill.patient?.state, selectedBill.patient?.pincode].filter(Boolean).join(", ");
+function groupItemsByCategory(items = []) {
+  const groups = new Map();
+
+  items.forEach((item) => {
+    const category = item.category || "service";
+    groups.set(category, [...(groups.get(category) || []), item]);
+  });
+
+  return [...groups.entries()].map(([category, groupItems]) => ({
+    category,
+    label: CATEGORY_LABELS[category] || category,
+    items: groupItems,
+    subtotal: groupItems.reduce((sum, item) => sum + Number(item.amount || 0), 0)
+  }));
+}
+
+// One printable sheet used for both the on-screen preview and the print copy.
+function BillInvoiceSheet({ selectedBill, profile, copyLabel = "Patient copy" }) {
+  const bill = selectedBill.item;
+  const patient = selectedBill.patient;
+  const invoiceMeta = bill.invoiceMeta || {};
+  const groups = groupItemsByCategory(bill.items);
+  const showBatchColumns = bill.items.some((item) => item.batchNumber || item.expiryDate || item.pack);
+  const patientAddress =
+    invoiceMeta.patientAddress ||
+    [patient?.address, patient?.city, patient?.state, patient?.pincode].filter(Boolean).join(", ");
   const doctorName = invoiceMeta.doctorName || selectedBill.doctor?.fullName || "";
+  const columnCount = showBatchColumns ? 8 : 5;
 
   return (
-    <div className="pharmacy-invoice-sheet">
-      <div className="pharmacy-invoice-top">
-        <div className="pharmacy-store-block">
-          <h2>{profile?.sellerName || "Pharmacy Invoice"}</h2>
-          {(profile?.addressLines || []).map((line) => <div key={line}>{line}</div>)}
-          <div>Phone: {profile?.phone || "N/A"}</div>
-          <div>Website: {profile?.website || "N/A"}</div>
-          <div>Email: {profile?.email || "N/A"}</div>
-          <div>GSTIN: {profile?.gstin || "N/A"}</div>
+    <div className="bill-invoice-sheet">
+      <header className="bill-invoice-head">
+        <div className="bill-invoice-org">
+          <div className="bill-invoice-org-name">{profile?.sellerName || "SR-AIIMS Hospital"}</div>
+          {(profile?.addressLines || []).map((line) => (
+            <div key={line}>{line}</div>
+          ))}
+          {profile?.phone ? <div>Phone: {profile.phone}</div> : null}
+          {profile?.email ? <div>Email: {profile.email}</div> : null}
+          {profile?.gstin ? <div>GSTIN: {profile.gstin}</div> : null}
         </div>
-        <div className="pharmacy-title-block">
-          <div className="pharmacy-invoice-title">{profile?.invoiceTitle || "GST INVOICE"}</div>
-          <div><strong>Invoice No.:</strong> {selectedBill.item.billNumber}</div>
-          <div><strong>Date:</strong> {formatDisplayDate(selectedBill.item.billDate)}</div>
+        <div className="bill-invoice-meta">
+          <div className="bill-invoice-title">{profile?.invoiceTitle || "HOSPITAL INVOICE"}</div>
+          <div><span>Bill No.</span><strong>{bill.billNumber}</strong></div>
+          <div><span>Date</span><strong>{formatDisplayDate(bill.billDate)}</strong></div>
+          <div><span>Type</span><strong>{bill.billType}</strong></div>
+          <div><span>Status</span><strong>{bill.paymentStatus}</strong></div>
         </div>
-      </div>
+      </header>
 
-      <div className="pharmacy-party-grid">
-        <div className="pharmacy-party-card">
-          <div><strong>Patient Name:</strong> {selectedBill.patient ? `${selectedBill.patient.firstName} ${selectedBill.patient.lastName}` : selectedBill.item.patientName}</div>
-          <div><strong>Patient Address:</strong> {patientAddress || "N/A"}</div>
+      <section className="bill-invoice-party">
+        <div>
+          <div><span>Patient</span><strong>{patient?.fullName || bill.patientName}</strong></div>
+          <div><span>UHID</span><strong>{patient?.uhid || "-"}</strong></div>
+          <div><span>Phone</span><strong>{patient?.phone || "-"}</strong></div>
+          <div><span>Address</span><strong>{patientAddress || "-"}</strong></div>
         </div>
-        <div className="pharmacy-party-card">
-          <div><strong>Dr Name:</strong> {doctorName || "N/A"}</div>
-          <div><strong>Dr Reg No.:</strong> {invoiceMeta.doctorRegNo || "N/A"}</div>
-          <div><strong>Status:</strong> {selectedBill.item.paymentStatus}</div>
+        <div>
+          <div><span>Doctor</span><strong>{doctorName || "-"}</strong></div>
+          <div><span>Reg. No.</span><strong>{invoiceMeta.doctorRegNo || "-"}</strong></div>
+          <div><span>Visit</span><strong>{selectedBill.visit?.opdNumber || "-"}</strong></div>
+          <div><span>Room / Bed</span><strong>{[selectedBill.room?.roomNumber, selectedBill.bed?.bedNumber].filter(Boolean).join(" / ") || "-"}</strong></div>
         </div>
-      </div>
+      </section>
 
-      <div className="table-shell pharmacy-table-shell">
-        <table className="data-table pharmacy-table">
+      <div className="table-shell bill-invoice-table-shell">
+        <table className="data-table bill-invoice-table">
           <thead>
             <tr>
-              <th>SN.</th>
-              <th>Product Name</th>
-              <th>Exp.</th>
-              <th>Pack</th>
-              <th>Batch</th>
-              <th>Qty</th>
-              <th>Rate</th>
-              <th>Amount</th>
+              <th className="col-sn">SN</th>
+              <th>Particulars</th>
+              {showBatchColumns ? <th>Pack</th> : null}
+              {showBatchColumns ? <th>Batch</th> : null}
+              {showBatchColumns ? <th>Expiry</th> : null}
+              <th className="col-num">Qty</th>
+              <th className="col-num">Rate</th>
+              <th className="col-num">Amount</th>
             </tr>
           </thead>
-          <tbody>
-            {selectedBill.item.items.map((item, index) => (
-              <tr key={item.id}>
-                <td>{index + 1}</td>
-                <td>{item.description}</td>
-                <td>{item.expiryDate || "-"}</td>
-                <td>{item.pack || "-"}</td>
-                <td>{item.batchNumber || "-"}</td>
-                <td>{item.quantity}</td>
-                <td>{formatCurrency(item.unitPrice)}</td>
-                <td>{formatCurrency(item.amount)}</td>
+          {groups.map((group, groupIndex) => (
+            <tbody key={group.category}>
+              <tr className="bill-invoice-group-row">
+                <td colSpan={columnCount}>{group.label}</td>
               </tr>
-            ))}
-          </tbody>
+              {group.items.map((item, index) => (
+                <tr key={item.id}>
+                  <td className="col-sn">{index + 1}</td>
+                  <td>{item.description}</td>
+                  {showBatchColumns ? <td>{item.pack || "-"}</td> : null}
+                  {showBatchColumns ? <td>{item.batchNumber || "-"}</td> : null}
+                  {showBatchColumns ? <td>{item.expiryDate ? formatDisplayDate(item.expiryDate) : "-"}</td> : null}
+                  <td className="col-num">{item.quantity}</td>
+                  <td className="col-num">{formatCurrency(item.unitPrice)}</td>
+                  <td className="col-num">{formatCurrency(item.amount)}</td>
+                </tr>
+              ))}
+              {groups.length > 1 ? (
+                <tr className="bill-invoice-subtotal-row">
+                  <td colSpan={columnCount - 1}>{group.label} subtotal</td>
+                  <td className="col-num">{formatCurrency(group.subtotal)}</td>
+                </tr>
+              ) : null}
+              {groupIndex === groups.length - 1 ? null : null}
+            </tbody>
+          ))}
         </table>
       </div>
 
-      <div className="pharmacy-invoice-footer-grid">
-        <div className="pharmacy-terms-block">
-          <h4>Terms &amp; Conditions</h4>
-          {(profile?.terms || []).map((term) => <div key={term}>{term}</div>)}
-          <div className="pharmacy-meta-line"><strong>Remark:</strong> {invoiceMeta.remark || selectedBill.item.notes || "-"}</div>
-          <div className="pharmacy-prepared-row">
-            <span>BILLING BY ................</span>
-            <span>MED COLLECTION BY ................</span>
+      <section className="bill-invoice-foot">
+        <div className="bill-invoice-notes">
+          <div className="bill-invoice-words">
+            <span>Amount in words</span>
+            <strong>{amountInWords(bill.totalAmount)}</strong>
           </div>
-          <div className="pharmacy-prepared-row">
-            <span>PREPARED BY ................</span>
-            <span>CHECKED &amp; DISPATCHED BY ................</span>
-          </div>
+          {bill.notes ? <div className="bill-invoice-remark"><span>Note</span> {bill.notes}</div> : null}
+          {invoiceMeta.remark ? <div className="bill-invoice-remark"><span>Remark</span> {invoiceMeta.remark}</div> : null}
+          {bill.payments?.length ? (
+            <div className="bill-invoice-receipts">
+              <span>Receipts</span>
+              {bill.payments.map((payment) => (
+                <div key={payment.id}>
+                  {payment.receiptNumber} - Rs. {formatCurrency(payment.amount)} via {payment.paymentMode} on{" "}
+                  {formatDisplayDate(payment.paymentDate)}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {(profile?.terms || []).length ? (
+            <div className="bill-invoice-terms">
+              {(profile?.terms || []).map((term) => (
+                <div key={term}>{term}</div>
+              ))}
+            </div>
+          ) : null}
         </div>
-        <div className="pharmacy-total-block">
-          <div><strong>Subtotal:</strong> {formatCurrency(invoiceTotals?.subtotal)}</div>
-          <div><strong>Discount:</strong> {formatCurrency(invoiceTotals?.discountAmount)}</div>
-          <div><strong>Tax:</strong> {formatCurrency(invoiceTotals?.taxAmount)}</div>
-          <div className="pharmacy-total-line"><strong>TOTAL C/F</strong><span>{formatCurrency(invoiceTotals?.totalAmount)}</span></div>
-          <div><strong>Paid:</strong> {formatCurrency(invoiceTotals?.paidAmount)}</div>
-          <div><strong>Balance:</strong> {formatCurrency(invoiceTotals?.balanceAmount)}</div>
-          <div className="pharmacy-signature">Authorised Signatory</div>
+
+        <div className="bill-invoice-totals">
+          <div><span>Subtotal</span><strong>{formatCurrency(bill.subtotal)}</strong></div>
+          <div><span>Discount</span><strong>- {formatCurrency(bill.discountAmount)}</strong></div>
+          <div><span>Tax</span><strong>{formatCurrency(bill.taxAmount)}</strong></div>
+          <div className="bill-invoice-grand"><span>Grand Total</span><strong>Rs. {formatCurrency(bill.totalAmount)}</strong></div>
+          <div><span>Paid</span><strong>{formatCurrency(bill.paidAmount)}</strong></div>
+          {Number(bill.refundedAmount || 0) > 0 ? (
+            <div><span>Refunded</span><strong>{formatCurrency(bill.refundedAmount)}</strong></div>
+          ) : null}
+          <div className="bill-invoice-balance"><span>Balance Due</span><strong>Rs. {formatCurrency(bill.balanceAmount)}</strong></div>
         </div>
-      </div>
+      </section>
+
+      <footer className="bill-invoice-signature">
+        <span>{copyLabel}</span>
+        <span>Authorised Signatory</span>
+      </footer>
     </div>
   );
 }
@@ -227,9 +275,16 @@ export function BillingPage() {
   const [selectedBill, setSelectedBill] = useState(null);
   const [filters, setFilters] = useState({ paymentStatus: "", billType: "", search: "" });
   const [paymentForm, setPaymentForm] = useState(initialPaymentForm);
-  const [createBillForm, setCreateBillForm] = useState(initialCreateBillForm);
+  const [chargePatientId, setChargePatientId] = useState("");
+  const [pendingCharges, setPendingCharges] = useState([]);
+  const [selectedChargeKeys, setSelectedChargeKeys] = useState([]);
+  const [billForm, setBillForm] = useState(initialBillForm);
+  const [extraItems, setExtraItems] = useState([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+
+  const canCreateBill = ["admin", "accounts", "doctor", "reception"].includes(user?.role);
+  const canCollectPayment = ["admin", "accounts", "reception"].includes(user?.role);
 
   async function loadAll(nextFilters = filters, selectedId = selectedBill?.item?.id) {
     try {
@@ -262,6 +317,26 @@ export function BillingPage() {
     }
   }
 
+  async function loadCharges(patientId) {
+    if (!patientId) {
+      setPendingCharges([]);
+      setSelectedChargeKeys([]);
+      return;
+    }
+
+    try {
+      const response = await getPendingCharges({ patientId });
+      setPendingCharges(response.items);
+      // Pre-select everything outstanding: the desk almost always bills the whole visit.
+      setSelectedChargeKeys(response.items.map(chargeKey));
+      setError("");
+    } catch (apiError) {
+      setPendingCharges([]);
+      setSelectedChargeKeys([]);
+      setError(apiError.message || "Unable to load pending charges.");
+    }
+  }
+
   useEffect(() => {
     loadAll({ paymentStatus: "", billType: "", search: "" });
   }, []);
@@ -289,15 +364,100 @@ export function BillingPage() {
     }
   };
 
+  const handleChargePatientChange = async (patientId) => {
+    setChargePatientId(patientId);
+    await loadCharges(patientId);
+  };
+
+  const toggleCharge = (key) => {
+    setSelectedChargeKeys((current) =>
+      current.includes(key) ? current.filter((entry) => entry !== key) : [...current, key]
+    );
+  };
+
+  const handleBillFormChange = (event) => {
+    setBillForm((current) => ({ ...current, [event.target.name]: event.target.value }));
+  };
+
+  const handleExtraItemChange = (index, field, value) => {
+    setExtraItems((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, [field]: value } : item)));
+  };
+
+  const addExtraItem = () => setExtraItems((current) => [...current, { ...emptyExtraItem }]);
+  const removeExtraItem = (index) => setExtraItems((current) => current.filter((_, itemIndex) => itemIndex !== index));
+
+  const selectedCharges = useMemo(
+    () => pendingCharges.filter((charge) => selectedChargeKeys.includes(chargeKey(charge))),
+    [pendingCharges, selectedChargeKeys]
+  );
+
+  const draftTotals = useMemo(() => {
+    const chargeTotal = selectedCharges.reduce((sum, charge) => sum + Number(charge.total || 0), 0);
+    const extraTotal = extraItems.reduce(
+      (sum, item) => sum + Number(item.quantity || 0) * Number(item.unitPrice || 0),
+      0
+    );
+    const subtotal = chargeTotal + extraTotal;
+    const discountAmount = Number(billForm.discountAmount || 0);
+    const taxAmount = Number(billForm.taxAmount || 0);
+
+    return { subtotal, discountAmount, taxAmount, total: subtotal - discountAmount + taxAmount };
+  }, [selectedCharges, extraItems, billForm]);
+
+  const handleGenerateBill = async (event) => {
+    event.preventDefault();
+
+    if (!canCreateBill) {
+      setError("You do not have permission to create bills.");
+      return;
+    }
+
+    if (!chargePatientId) {
+      setError("Select a patient first.");
+      return;
+    }
+
+    const items = extraItems
+      .filter((item) => item.description.trim() && Number(item.unitPrice || 0) >= 0)
+      .map((item) => ({
+        description: item.description.trim(),
+        category: item.category || "service",
+        quantity: Number(item.quantity || 1),
+        unitPrice: Number(item.unitPrice || 0)
+      }));
+
+    if (!selectedCharges.length && !items.length) {
+      setError("Select at least one pending charge or add another charge.");
+      return;
+    }
+
+    try {
+      const response = await createBill({
+        patientId: chargePatientId,
+        charges: selectedCharges.map((charge) => ({ source: charge.source, sourceId: charge.sourceId })),
+        items,
+        discountAmount: Number(billForm.discountAmount || 0),
+        taxAmount: Number(billForm.taxAmount || 0),
+        notes: billForm.notes
+      });
+
+      setMessage(`${response.message} (${response.item.billNumber})`);
+      setBillForm(initialBillForm);
+      setExtraItems([]);
+      await loadCharges(chargePatientId);
+      await loadAll(filters, response.item.id);
+    } catch (apiError) {
+      setError(apiError.message || "Unable to create bill.");
+    }
+  };
+
   const handlePaymentFormChange = (event) => {
     setPaymentForm((current) => ({ ...current, [event.target.name]: event.target.value }));
   };
 
   const handleCollectPayment = async (event) => {
     event.preventDefault();
-    if (!selectedBill?.item?.id) {
-      return;
-    }
+    if (!selectedBill?.item?.id) return;
 
     if (!canCollectPayment) {
       setError("You do not have permission to collect payments.");
@@ -314,106 +474,34 @@ export function BillingPage() {
     }
   };
 
-  const handleCreateBillChange = (event) => {
-    setCreateBillForm((current) => ({ ...current, [event.target.name]: event.target.value }));
-  };
+  // Print only the invoice sheet: the desk prints on a shared counter printer and
+  // the rest of the workspace must never end up on the patient copy.
+  const printInvoice = () => {
+    if (!selectedBill?.item) return;
 
-  const handleCreateBillPatientChange = (patientId) => {
-    setCreateBillForm((current) => ({ ...current, patientId }));
-  };
-
-  const handleInvoiceMetaChange = (event) => {
-    const { name, value } = event.target;
-    setCreateBillForm((current) => ({
-      ...current,
-      invoiceMeta: {
-        ...current.invoiceMeta,
-        [name]: value
-      }
-    }));
-  };
-
-  const handleBillItemChange = (index, field, value) => {
-    setCreateBillForm((current) => {
-      const items = [...current.items];
-      items[index] = { ...items[index], [field]: value };
-      return { ...current, items };
-    });
-  };
-
-  const addBillItem = () => {
-    setCreateBillForm((current) => ({
-      ...current,
-      items: [
-        ...current.items,
-        {
-          description: "",
-          category: current.billType === "pharmacy" ? "pharmacy" : masters.itemCategories[0] || "service",
-          quantity: 1,
-          unitPrice: "",
-          batchNumber: "",
-          pack: "",
-          expiryDate: ""
-        }
-      ]
-    }));
-  };
-
-  const handleCreateBill = async (event) => {
-    event.preventDefault();
-
-    if (!canCreateBill) {
-      setError("You do not have permission to create bills.");
-      return;
-    }
-
-    try {
-      const response = await createBill({
-        ...createBillForm,
-        items: createBillForm.items.map((item) => ({
-          ...item,
-          quantity: Number(item.quantity || 1),
-          unitPrice: Number(item.unitPrice || 0)
-        }))
-      });
-      setMessage(response.message);
-      setCreateBillForm(initialCreateBillForm);
-      await loadAll(filters, response.item.id);
-    } catch (apiError) {
-      setError(apiError.message || "Unable to create bill.");
-    }
-  };
-
-  const invoiceTotals = useMemo(() => {
-    if (!selectedBill?.item) {
-      return null;
-    }
-
-    return {
-      subtotal: selectedBill.item.subtotal,
-      discountAmount: selectedBill.item.discountAmount,
-      taxAmount: selectedBill.item.taxAmount,
-      totalAmount: selectedBill.item.totalAmount,
-      paidAmount: selectedBill.item.paidAmount,
-      balanceAmount: selectedBill.item.balanceAmount
+    const cleanup = () => {
+      document.body.classList.remove("print-bill-invoice");
+      window.removeEventListener("afterprint", cleanup);
     };
-  }, [selectedBill]);
 
-  const isPharmacyCreateMode = createBillForm.billType === "pharmacy";
-  const isPharmacyInvoice = selectedBill?.item?.billType === "pharmacy";
-  const pharmacyProfile = masters.invoiceProfiles?.pharmacy;
-  const canCreateBill = ["admin", "accounts", "doctor", "reception"].includes(user?.role);
-  const canCollectPayment = ["admin", "accounts", "reception"].includes(user?.role);
+    document.body.classList.add("print-bill-invoice");
+    window.addEventListener("afterprint", cleanup);
+    window.print();
+  };
+
+  const invoiceProfile = selectedBill?.item?.billType === "pharmacy"
+    ? masters.invoiceProfiles?.pharmacy
+    : masters.invoiceProfiles?.hospital;
   const patientLabel = (patient) => `${patient.uhid || patient.registrationNumber || "UHID"} - ${patient.firstName || ""} ${patient.lastName || ""}`.trim();
 
   return (
     <DashboardLayout>
       <section className="hero-panel logo-hero">
         <div className="eyebrow">Billing Desk</div>
-        <h2>Manage invoice creation, receipt collection, and account visibility from one billing base.</h2>
+        <h2>Every charge from registration to pharmacy comes here for one final bill.</h2>
         <p>
-          This implementation upgrades billing from a consultation hook into a proper accounts workspace with
-          manual bill creation, payment history, status filtering, and print-ready invoice review.
+          Consultation, investigations, medicines, therapy and IPD stay charges collect against the patient as they
+          move through the hospital. The billing desk picks them up, raises a single invoice, and collects payment.
         </p>
       </section>
 
@@ -437,14 +525,18 @@ export function BillingPage() {
 
       <section className="workspace-grid">
         <article className="content-card">
-          <div className="section-header"><div><div className="eyebrow">Create Bill</div><h3>Manual invoice entry</h3></div><Button variant="secondary" onClick={addBillItem} disabled={!canCreateBill}>Add Item</Button></div>
-          <form className="form-grid" onSubmit={handleCreateBill}>
+          <div className="section-header">
+            <div><div className="eyebrow">New Bill</div><h3>Pending charges</h3></div>
+            <Button variant="secondary" onClick={addExtraItem} disabled={!canCreateBill}>Add Other Charge</Button>
+          </div>
+
+          <form className="form-grid" onSubmit={handleGenerateBill}>
             <div className="field field-span-2">
               <label>Patient</label>
               <SearchableSelect
-                value={createBillForm.patientId}
+                value={chargePatientId}
                 options={patients}
-                onChange={handleCreateBillPatientChange}
+                onChange={handleChargePatientChange}
                 placeholder="Search patient by name, UHID, phone, father name, or city"
                 emptyLabel="No matching patient"
                 getOptionLabel={patientLabel}
@@ -461,47 +553,80 @@ export function BillingPage() {
                 ].filter(Boolean).join(" ")}
               />
             </div>
-            <div className="field"><label>Bill type</label><select name="billType" value={createBillForm.billType} onChange={handleCreateBillChange}>{masters.billTypes.map((type) => (<option key={type} value={type}>{type}</option>))}</select></div>
-            <div className="field"><label>Discount</label><input name="discountAmount" value={createBillForm.discountAmount} onChange={handleCreateBillChange} /></div>
-            <div className="field"><label>Tax</label><input name="taxAmount" value={createBillForm.taxAmount} onChange={handleCreateBillChange} /></div>
-            <div className="field field-span-2"><label>Notes</label><input name="notes" value={createBillForm.notes} onChange={handleCreateBillChange} /></div>
-            {isPharmacyCreateMode ? (
-              <>
-                <div className="field"><label>Doctor name</label><input name="doctorName" value={createBillForm.invoiceMeta.doctorName} onChange={handleInvoiceMetaChange} /></div>
-                <div className="field"><label>Doctor reg no</label><input name="doctorRegNo" value={createBillForm.invoiceMeta.doctorRegNo} onChange={handleInvoiceMetaChange} /></div>
-                <div className="field field-span-2"><label>Patient address override</label><input name="patientAddress" value={createBillForm.invoiceMeta.patientAddress} onChange={handleInvoiceMetaChange} placeholder="Leave blank to use patient master address" /></div>
-                <div className="field field-span-2"><label>Remark</label><input name="remark" value={createBillForm.invoiceMeta.remark} onChange={handleInvoiceMetaChange} /></div>
-              </>
-            ) : null}
+
             <div className="field field-span-2">
-              <label>Bill items</label>
-              <div className="stack-list compact-list">
-                {createBillForm.items.map((item, index) => (
-                  <div key={`item-${index}`} className="medicine-card">
-                    <div className="form-grid">
-                      <div className="field field-span-2"><label>{isPharmacyCreateMode ? "Product name" : "Description"}</label><input value={item.description} onChange={(event) => handleBillItemChange(index, "description", event.target.value)} /></div>
-                      <div className="field"><label>Category</label><select value={item.category} onChange={(event) => handleBillItemChange(index, "category", event.target.value)}>{masters.itemCategories.map((category) => (<option key={category} value={category}>{category}</option>))}</select></div>
-                      <div className="field"><label>Quantity</label><input value={item.quantity} onChange={(event) => handleBillItemChange(index, "quantity", event.target.value)} /></div>
-                      <div className="field"><label>Unit price</label><input value={item.unitPrice} onChange={(event) => handleBillItemChange(index, "unitPrice", event.target.value)} /></div>
-                      {isPharmacyCreateMode ? (
-                        <>
-                          <div className="field"><label>Pack</label><input value={item.pack} onChange={(event) => handleBillItemChange(index, "pack", event.target.value)} placeholder="1TAB / 1GM" /></div>
-                          <div className="field"><label>Batch</label><input value={item.batchNumber} onChange={(event) => handleBillItemChange(index, "batchNumber", event.target.value)} /></div>
-                          <div className="field"><label>Expiry</label><input value={item.expiryDate} onChange={(event) => handleBillItemChange(index, "expiryDate", event.target.value)} placeholder="MM/YY" /></div>
-                        </>
-                      ) : null}
+              <label>Unbilled charges</label>
+              {!chargePatientId ? (
+                <div className="empty-state">Select a patient to see everything pending against them.</div>
+              ) : pendingCharges.length ? (
+                <div className="stack-list compact-list">
+                  {pendingCharges.map((charge) => {
+                    const key = chargeKey(charge);
+
+                    return (
+                      <label key={key} className={`charge-row${selectedChargeKeys.includes(key) ? " charge-row-selected" : ""}`}>
+                        <input type="checkbox" checked={selectedChargeKeys.includes(key)} onChange={() => toggleCharge(key)} />
+                        <span className="charge-row-body">
+                          <strong>{charge.label}</strong>
+                          <span className="timeline-copy">{SOURCE_LABELS[charge.source] || charge.source} | {formatDisplayDate(charge.chargeDate)}</span>
+                          <span className="timeline-copy">
+                            {charge.items.map((item) => `${item.description} x${item.quantity}`).join(", ")}
+                          </span>
+                        </span>
+                        <span className="charge-row-total">Rs. {formatCurrency(charge.total)}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="empty-state">Nothing pending for this patient. Everything so far has been billed.</div>
+              )}
+            </div>
+
+            {extraItems.length ? (
+              <div className="field field-span-2">
+                <label>Other charges</label>
+                <div className="stack-list compact-list">
+                  {extraItems.map((item, index) => (
+                    <div key={`extra-${index}`} className="medicine-card">
+                      <div className="form-grid">
+                        <div className="field field-span-2"><label>Description</label><input value={item.description} onChange={(event) => handleExtraItemChange(index, "description", event.target.value)} /></div>
+                        <div className="field"><label>Category</label><select value={item.category} onChange={(event) => handleExtraItemChange(index, "category", event.target.value)}>{masters.itemCategories.map((category) => (<option key={category} value={category}>{category}</option>))}</select></div>
+                        <div className="field"><label>Quantity</label><input value={item.quantity} onChange={(event) => handleExtraItemChange(index, "quantity", event.target.value)} /></div>
+                        <div className="field"><label>Unit price</label><input value={item.unitPrice} onChange={(event) => handleExtraItemChange(index, "unitPrice", event.target.value)} /></div>
+                        <div className="field"><label>&nbsp;</label><Button type="button" variant="secondary" onClick={() => removeExtraItem(index)}>Remove</Button></div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="field"><label>Discount</label><input name="discountAmount" value={billForm.discountAmount} onChange={handleBillFormChange} /></div>
+            <div className="field"><label>Tax</label><input name="taxAmount" value={billForm.taxAmount} onChange={handleBillFormChange} /></div>
+            <div className="field field-span-2"><label>Notes</label><input name="notes" value={billForm.notes} onChange={handleBillFormChange} /></div>
+
+            <div className="field field-span-2">
+              <div className="bill-draft-summary">
+                <div><span>Selected</span><strong>{selectedCharges.length} charge{selectedCharges.length === 1 ? "" : "s"}</strong></div>
+                <div><span>Subtotal</span><strong>Rs. {formatCurrency(draftTotals.subtotal)}</strong></div>
+                <div><span>Discount</span><strong>- Rs. {formatCurrency(draftTotals.discountAmount)}</strong></div>
+                <div><span>Tax</span><strong>Rs. {formatCurrency(draftTotals.taxAmount)}</strong></div>
+                <div className="bill-draft-total"><span>Bill total</span><strong>Rs. {formatCurrency(draftTotals.total)}</strong></div>
               </div>
             </div>
-            <div className="field field-span-2"><Button type="submit" disabled={!canCreateBill}>Create Bill</Button></div>
+
+            <div className="field field-span-2">
+              <Button type="submit" disabled={!canCreateBill || !chargePatientId || (!selectedCharges.length && !extraItems.length)}>
+                Generate Bill
+              </Button>
+            </div>
           </form>
         </article>
 
         <article className="content-card">
           <div className="section-header"><div><div className="eyebrow">Recent Payments</div><h3>Latest receipt activity</h3></div></div>
-          <div className="stack-list">{payments.map((payment) => (<div key={payment.id} className="quick-action"><strong>{payment.receiptNumber}</strong><div className="timeline-copy">{payment.patientName}</div><div className="timeline-copy">Rs. {payment.amount} via {payment.paymentMode}</div><div className="timeline-copy">{payment.paymentDate}</div></div>))}{!payments.length ? <div className="empty-state">No payments recorded yet.</div> : null}</div>
+          <div className="stack-list">{payments.map((payment) => (<div key={payment.id} className="quick-action"><strong>{payment.receiptNumber}</strong><div className="timeline-copy">{payment.patientName}</div><div className="timeline-copy">Rs. {payment.amount} via {payment.paymentMode}</div><div className="timeline-copy">{formatDisplayDate(payment.paymentDate)}</div></div>))}{!payments.length ? <div className="empty-state">No payments recorded yet.</div> : null}</div>
         </article>
       </section>
 
@@ -513,15 +638,19 @@ export function BillingPage() {
             <select name="billType" value={filters.billType} onChange={handleFilterChange}><option value="">All bill types</option>{masters.billTypes.map((type) => (<option key={type} value={type}>{type}</option>))}</select>
             <select name="paymentStatus" value={filters.paymentStatus} onChange={handleFilterChange}><option value="">All statuses</option><option value="paid">Paid</option><option value="partial">Partial</option><option value="unpaid">Unpaid</option></select>
           </div>
-          <div className="queue-list">{bills.map((bill) => (<div key={bill.id} className={`queue-item selectable-card${selectedBill?.item?.id === bill.id ? " selected-card" : ""}`} onClick={() => handleBillSelect(bill.id)} role="button" tabIndex={0}><div><strong>{bill.billNumber}</strong><div className="timeline-copy">{bill.patientName}</div><div className="timeline-copy">{bill.billType} | Rs. {bill.totalAmount}</div><div className="timeline-copy">{bill.billDate}</div></div><div className="queue-actions"><span className={`status-pill ${bill.paymentStatus === "partial" ? "in_progress" : bill.paymentStatus === "paid" ? "completed" : "cancelled"}`}>{bill.paymentStatus}</span></div></div>))}{!bills.length ? <div className="empty-state">No bills found for the selected filters.</div> : null}</div>
+          <div className="queue-list">{bills.map((bill) => (<div key={bill.id} className={`queue-item selectable-card${selectedBill?.item?.id === bill.id ? " selected-card" : ""}`} onClick={() => handleBillSelect(bill.id)} role="button" tabIndex={0}><div><strong>{bill.billNumber}</strong><div className="timeline-copy">{bill.patientName}</div><div className="timeline-copy">{bill.billType} | Rs. {bill.totalAmount}</div><div className="timeline-copy">{formatDisplayDate(bill.billDate)}</div></div><div className="queue-actions"><span className={`status-pill ${bill.paymentStatus === "partial" ? "in_progress" : bill.paymentStatus === "paid" ? "completed" : "cancelled"}`}>{bill.paymentStatus}</span></div></div>))}{!bills.length ? <div className="empty-state">No bills found for the selected filters.</div> : null}</div>
         </aside>
 
         <section className="consultation-column">
-          <article className="content-card printable-area">
-            <div className="section-header no-print"><div><div className="eyebrow">Invoice Detail</div><h3>{selectedBill?.item?.billNumber || "Select a bill"}</h3></div><Button variant="secondary" onClick={() => window.print()} disabled={!selectedBill?.item}>Print Invoice</Button></div>
+          <article className="content-card">
+            <div className="section-header no-print"><div><div className="eyebrow">Invoice Detail</div><h3>{selectedBill?.item?.billNumber || "Select a bill"}</h3></div><Button variant="secondary" onClick={printInvoice} disabled={!selectedBill?.item}>Print Invoice</Button></div>
             {error ? <div className="error-text no-print">{error}</div> : null}
             {message ? <div className="success-text no-print">{message}</div> : null}
-            {selectedBill?.item ? (isPharmacyInvoice ? <PharmacyInvoice selectedBill={selectedBill} invoiceTotals={invoiceTotals} profile={pharmacyProfile} /> : <GenericInvoice selectedBill={selectedBill} invoiceTotals={invoiceTotals} />) : <div className="empty-state">Choose a bill from the register to open its invoice.</div>}
+            {selectedBill?.item ? (
+              <BillInvoiceSheet selectedBill={selectedBill} profile={invoiceProfile} />
+            ) : (
+              <div className="empty-state">Choose a bill from the register to open its invoice.</div>
+            )}
           </article>
 
           <article className="content-card">
@@ -534,10 +663,16 @@ export function BillingPage() {
               <div className="field field-span-2"><Button type="submit" disabled={!canCollectPayment || !selectedBill?.item || selectedBill.item.balanceAmount <= 0}>Collect Payment</Button></div>
             </form>
             {!canCollectPayment ? <div className="empty-state" style={{ marginTop: 18 }}>Receipt collection is limited to admin, reception, and accounts roles.</div> : null}
-            {selectedBill?.item?.payments?.length ? <div className="stack-list" style={{ marginTop: 18 }}>{selectedBill.item.payments.map((payment) => (<div key={payment.id} className="quick-action"><strong>{payment.receiptNumber}</strong><div className="timeline-copy">Rs. {payment.amount} via {payment.paymentMode}</div><div className="timeline-copy">{payment.referenceNumber || "No reference"}</div><div className="timeline-copy">{payment.paymentDate}</div></div>))}</div> : <div className="empty-state" style={{ marginTop: 18 }}>No payments recorded for this bill yet.</div>}
+            {selectedBill?.item?.payments?.length ? <div className="stack-list" style={{ marginTop: 18 }}>{selectedBill.item.payments.map((payment) => (<div key={payment.id} className="quick-action"><strong>{payment.receiptNumber}</strong><div className="timeline-copy">Rs. {payment.amount} via {payment.paymentMode}</div><div className="timeline-copy">{payment.referenceNumber || "No reference"}</div><div className="timeline-copy">{formatDisplayDate(payment.paymentDate)}</div></div>))}</div> : <div className="empty-state" style={{ marginTop: 18 }}>No payments recorded for this bill yet.</div>}
           </article>
         </section>
       </section>
+
+      {selectedBill?.item ? (
+        <section className="bill-print-sheet" aria-hidden="true">
+          <BillInvoiceSheet selectedBill={selectedBill} profile={invoiceProfile} />
+        </section>
+      ) : null}
     </DashboardLayout>
   );
 }

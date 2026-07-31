@@ -8,7 +8,6 @@ import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
 import {
   completeOpdVisit,
-  createBill,
   createLabOrder,
   createOpdVisit,
   getOpdMasters,
@@ -158,11 +157,6 @@ const initialLabOrder = {
   tests: []
 };
 
-const initialBilling = {
-  consultationIncluded: true,
-  addLabCharges: true,
-  paymentStatus: "unpaid"
-};
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -306,7 +300,6 @@ export function OpdPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [labOrderForm, setLabOrderForm] = useState(initialLabOrder);
-  const [billingForm, setBillingForm] = useState(initialBilling);
   const [activeOpdTab, setActiveOpdTab] = useState("Vitals");
 
   async function loadQueue(doctorId = filterDoctorId) {
@@ -353,7 +346,6 @@ export function OpdPage() {
       setPrescriptionForm(nextPrescription);
       setDischargeForm(mergeDischargeSummary(response.dischargeSummary, nextPrescription, response.visit));
       setLabOrderForm(initialLabOrder);
-      setBillingForm(initialBilling);
     } catch (apiError) {
       setError(apiError.message || "Unable to load visit details.");
     }
@@ -392,7 +384,6 @@ export function OpdPage() {
   const canStartVisit = ["admin", "reception", "doctor"].includes(user?.role);
   const canSaveVitals = ["admin", "doctor", "nursing"].includes(user?.role);
   const canClinicalDocument = ["admin", "doctor"].includes(user?.role);
-  const canCreateBilling = ["admin", "doctor", "reception"].includes(user?.role);
   const canPrintPrescription = ["admin", "doctor", "reception"].includes(user?.role);
 
   const handleDoctorFilter = async (event) => {
@@ -566,13 +557,6 @@ export function OpdPage() {
     }));
   };
 
-  const handleBillingChange = (event) => {
-    const { name, checked, value, type } = event.target;
-    setBillingForm((current) => ({
-      ...current,
-      [name]: type === "checkbox" ? checked : value
-    }));
-  };
 
   const handleMedicineChange = (index, field, value) => {
     setPrescriptionForm((current) => {
@@ -785,66 +769,6 @@ export function OpdPage() {
       setMessage("Lab order created.");
     } catch (apiError) {
       setError(apiError.message || "Unable to create lab order.");
-    }
-  };
-
-  const createBillAction = async () => {
-    if (!visitPayload?.visit?.id) {
-      return;
-    }
-
-    if (!canCreateBilling) {
-      setError("You do not have permission to create OPD bills.");
-      return;
-    }
-
-    if (visitPayload.bills?.some((bill) => bill.billType === "opd")) {
-      setError("An OPD bill has already been generated for this visit.");
-      return;
-    }
-
-    setError("");
-    try {
-      const items = [];
-
-      if (billingForm.consultationIncluded) {
-        items.push({
-          description: "OPD Consultation Fee",
-          category: "consultation",
-          quantity: 1,
-          unitPrice: Number(visitPayload.visit.consultationFee || 0),
-          amount: Number(visitPayload.visit.consultationFee || 0)
-        });
-      }
-
-      if (billingForm.addLabCharges) {
-        visitPayload.labOrders.forEach((order) => {
-          order.tests.forEach((test) => {
-            const master = masters.labTests.find((entry) => entry.id === test.testId);
-            items.push({
-              description: test.testName,
-              category: "lab",
-              quantity: 1,
-              unitPrice: Number(master?.price || 0),
-              amount: Number(master?.price || 0)
-            });
-          });
-        });
-      }
-
-      await createBill({
-        patientId: visitPayload.visit.patientId,
-        patientName: visitPayload.visit.patientName,
-        visitId: visitPayload.visit.id,
-        billType: "opd",
-        items,
-        paymentStatus: billingForm.paymentStatus,
-        createdBy: visitPayload.visit.doctorId
-      });
-      await loadVisit(visitPayload.visit.id, selectedQueueItem);
-      setMessage("Bill generated.");
-    } catch (apiError) {
-      setError(apiError.message || "Unable to generate bill.");
     }
   };
 
@@ -1503,52 +1427,14 @@ export function OpdPage() {
               <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
-                    <div className="eyebrow">Billing Hook</div>
-                    <h3>Create OPD bill from consultation</h3>
-                  </div>
-                  <Button onClick={createBillAction} disabled={!canCreateBilling || visitPayload.bills?.some((bill) => bill.billType === "opd")}>Generate Bill</Button>
-                </div>
-
-                <div className="form-grid">
-                  <label className="checkbox-chip">
-                    <input
-                      type="checkbox"
-                      name="consultationIncluded"
-                      checked={billingForm.consultationIncluded}
-                      onChange={handleBillingChange}
-                    />
-                    <span>Include consultation fee</span>
-                  </label>
-                  <label className="checkbox-chip">
-                    <input
-                      type="checkbox"
-                      name="addLabCharges"
-                      checked={billingForm.addLabCharges}
-                      onChange={handleBillingChange}
-                    />
-                    <span>Include lab charges from current visit</span>
-                  </label>
-                  <div className="field">
-                    <label>Payment status</label>
-                    <select name="paymentStatus" value={billingForm.paymentStatus} onChange={handleBillingChange}>
-                      <option value="unpaid">unpaid</option>
-                      <option value="partial">partial</option>
-                      <option value="paid">paid</option>
-                    </select>
+                    <div className="eyebrow">Billing</div>
+                    <h3>Charges for this visit</h3>
                   </div>
                 </div>
-
-                {visitPayload.bills?.length ? (
-                  <div className="stack-list">
-                    {visitPayload.bills.map((bill) => (
-                      <div key={bill.id} className="quick-action">
-                        <strong>{bill.billNumber}</strong>
-                        <div className="timeline-copy">Total: Rs. {bill.totalAmount}</div>
-                        <div className="timeline-copy">Status: {bill.paymentStatus}</div>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+                <div className="empty-state">
+                  Consultation, lab and pharmacy charges from this visit collect automatically and are billed together
+                  at the Billing Desk. No bill is raised from OPD.
+                </div>
               </article>
               ) : null}
 

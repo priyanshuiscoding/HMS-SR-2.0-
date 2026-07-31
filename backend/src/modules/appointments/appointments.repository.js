@@ -81,6 +81,11 @@ export async function listAppointmentRecords(filters = {}) {
     conditions.push(`status = $${params.length}`);
   }
 
+  if (filters.patientId) {
+    params.push(filters.patientId);
+    conditions.push(`patient_id = $${params.length}`);
+  }
+
   const result = await query(
     `
     SELECT *

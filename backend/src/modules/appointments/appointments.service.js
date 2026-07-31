@@ -159,19 +159,22 @@ function normalizePaymentMode(value = "cash") {
   throw createError("Invalid consultation payment mode.");
 }
 
+// Booking only records what the consultation will cost. Nothing is collected
+// here - the fee is billed and paid at the billing desk with the rest of the
+// visit, so this no longer claims a payment that never reached accounts.
 function normalizeConsultationPayment(payload = {}) {
   const amount = Number(payload.consultationFeeAmount ?? payload.paymentAmount ?? CONSULTATION_FEE);
 
-  if (!Number.isFinite(amount) || amount <= 0) {
-    throw createError("Consultation fee payment is required before adding the patient to OPD queue.");
+  if (!Number.isFinite(amount) || amount < 0) {
+    throw createError("Consultation fee must be zero or greater.");
   }
 
   return {
-    status: "paid",
+    status: "billable",
     amount,
-    paymentMode: normalizePaymentMode(payload.paymentMode || "cash"),
+    preferredPaymentMode: normalizePaymentMode(payload.paymentMode || "cash"),
     referenceNumber: String(payload.paymentReference || "").trim(),
-    paidAt: new Date().toISOString()
+    recordedAt: new Date().toISOString()
   };
 }
 

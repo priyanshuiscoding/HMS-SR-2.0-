@@ -182,13 +182,13 @@ export const getLabOrders = (params = {}) => get("/lab/orders", params);
 export const getLabOrder = (id) => get(`/lab/orders/${id}`);
 export const collectLabSample = (id, payload) => post(`/lab/orders/${id}/sample-collection`, payload);
 export const saveLabResults = (id, payload) => post(`/lab/orders/${id}/results`, payload);
-export const createLabBill = (id, payload = {}) => post(`/lab/orders/${id}/bill`, payload);
 export const updateLabOrderWorkflow = (id, payload) => put(`/lab/orders/${id}/workflow`, payload);
 
 export const getBills = (params = {}) => get("/billing/bills", params);
 export const createBill = (payload) => post("/billing/bills", payload);
 export const getBillingSummary = () => get("/billing/summary");
 export const getBillingMasters = () => get("/billing/masters");
+export const getPendingCharges = (params = {}) => get("/billing/pending-charges", params);
 export const getPayments = (params = {}) => get("/billing/payments", params);
 export const getRefunds = (params = {}) => get("/billing/refunds", params);
 export const getBill = (id) => get(`/billing/bills/${id}`);

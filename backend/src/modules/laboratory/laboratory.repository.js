@@ -442,24 +442,6 @@ export async function saveLabResultsRecord(orderId, payload = {}) {
   });
 }
 
-export async function linkLabBillRecord(orderId, billId) {
-  return withTransaction(async (client) => {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`lab:${orderId}`]);
-    const result = await client.query(
-      `
-      UPDATE lab_orders
-      SET bill_id = $2, updated_at = NOW()
-      WHERE id = $1 AND bill_id IS NULL
-      RETURNING *
-      `,
-      [orderId, billId]
-    );
-
-    if (!result.rows[0]) return null;
-    return loadOrderBundle(client, orderId);
-  });
-}
-
 export async function updateLabOrderStatusRecord(orderId, payload = {}) {
   return withTransaction(async (client) => {
     const current = await loadOrderBundle(client, orderId);

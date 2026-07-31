@@ -199,7 +199,6 @@ export async function listOpdQueue(date, doctorId = "") {
       ${doctorFilter}
       AND a.deleted_at IS NULL
       AND a.status NOT IN ('cancelled', 'no_show')
-      AND a.metadata->'consultationPayment'->>'status' = 'paid'
     ORDER BY a.token_number ASC, a.appointment_time ASC
     `,
     params
@@ -218,8 +217,19 @@ export async function findVisitByAppointmentId(appointmentId) {
   return toCamelVisit(result.rows[0]);
 }
 
-export async function listVisitRecords() {
-  const result = await query("SELECT * FROM opd_visits ORDER BY visit_date DESC, created_at DESC");
+export async function listVisitRecords(filters = {}) {
+  const params = [];
+  const conditions = ["1 = 1"];
+
+  if (filters.patientId) {
+    params.push(filters.patientId);
+    conditions.push(`patient_id = $${params.length}`);
+  }
+
+  const result = await query(
+    `SELECT * FROM opd_visits WHERE ${conditions.join(" AND ")} ORDER BY visit_date DESC, created_at DESC`,
+    params
+  );
   return result.rows.map(toCamelVisit);
 }
 
@@ -315,8 +325,19 @@ export async function findAssessmentByVisitId(visitId) {
   return toCamelAssessment(result.rows[0]);
 }
 
-export async function listAssessmentRecords() {
-  const result = await query("SELECT * FROM ayurveda_assessments ORDER BY assessment_date DESC, created_at DESC");
+export async function listAssessmentRecords(filters = {}) {
+  const params = [];
+  const conditions = ["1 = 1"];
+
+  if (filters.patientId) {
+    params.push(filters.patientId);
+    conditions.push(`patient_id = $${params.length}`);
+  }
+
+  const result = await query(
+    `SELECT * FROM ayurveda_assessments WHERE ${conditions.join(" AND ")} ORDER BY assessment_date DESC, created_at DESC`,
+    params
+  );
   return result.rows.map(toCamelAssessment);
 }
 
@@ -391,9 +412,28 @@ export async function findDischargeSummaryByVisitId(visitId) {
   return toCamelDischargeSummary(result.rows[0]);
 }
 
-export async function listPrescriptionRecords() {
-  const prescriptionResult = await query("SELECT * FROM prescriptions ORDER BY prescription_date DESC, created_at DESC");
-  const medicineResult = await query("SELECT * FROM prescription_medicines ORDER BY id");
+export async function listPrescriptionRecords(filters = {}) {
+  const params = [];
+  const conditions = ["1 = 1"];
+
+  if (filters.patientId) {
+    params.push(filters.patientId);
+    conditions.push(`patient_id = $${params.length}`);
+  }
+
+  const prescriptionResult = await query(
+    `SELECT * FROM prescriptions WHERE ${conditions.join(" AND ")} ORDER BY prescription_date DESC, created_at DESC`,
+    params
+  );
+
+  if (!prescriptionResult.rows.length) {
+    return [];
+  }
+
+  const medicineResult = await query(
+    "SELECT * FROM prescription_medicines WHERE prescription_id = ANY($1::uuid[]) ORDER BY id",
+    [prescriptionResult.rows.map((row) => row.id)]
+  );
   const medicinesByPrescription = medicineResult.rows.reduce((lookup, medicine) => {
     if (!lookup[medicine.prescription_id]) {
       lookup[medicine.prescription_id] = [];

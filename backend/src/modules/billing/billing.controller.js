@@ -9,8 +9,17 @@ import {
   getBillingSummary,
   listBills,
   listPayments,
+  listPendingCharges,
   listRefunds
 } from "./billing.service.js";
+
+export async function pendingChargesHandler(req, res, next) {
+  try {
+    res.json({ items: await listPendingCharges(req.query) });
+  } catch (error) {
+    next(error);
+  }
+}
 
 export function billingMastersHandler(_req, res, next) {
   try {

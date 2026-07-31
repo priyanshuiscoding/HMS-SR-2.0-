@@ -83,14 +83,14 @@ export async function dispensePrescription(prescriptionId, payload = {}, userId 
   if (!dispensation) {
     throw createError("Prescription not found.", 404);
   }
-  if (dispensation.conflict === "already_dispensed") {
-    throw createError("This prescription has already been dispensed.");
+  if (dispensation.conflict === "cancelled") {
+    throw createError("This prescription is cancelled. Reopen it before dispensing.");
+  }
+  if (dispensation.conflict === "nothing_to_dispense") {
+    throw createError("Enter a dispense quantity for at least one medicine.");
   }
   if (dispensation.conflict === "medicine_missing") {
     throw createError(`Unknown medicine: ${dispensation.medicineId}`);
-  }
-  if (dispensation.conflict === "invalid_quantity") {
-    throw createError(`Dispense quantity is required for ${dispensation.medicineName}.`);
   }
   if (dispensation.conflict === "insufficient_stock") {
     throw createError(`Insufficient stock for ${dispensation.medicineName}.`);
@@ -98,7 +98,7 @@ export async function dispensePrescription(prescriptionId, payload = {}, userId 
 
   const prescription = db.prescriptions.find((entry) => entry.id === prescriptionId);
   if (prescription) {
-    prescription.isDispensed = true;
+    prescription.isDispensed = dispensation.fullyDispensed;
     prescription.dispensation = dispensation;
   }
 
@@ -114,15 +114,26 @@ export async function updatePrescriptionPharmacyWorkflow(prescriptionId, payload
     throw createError("Invalid pharmacy workflow action.");
   }
 
-  const existing = (await listPrescriptionQueueRecords()).find((item) => item.id === prescriptionId);
+  const [existing] = await listPrescriptionQueueRecords({ prescriptionId });
   if (!existing) {
     throw createError("Prescription not found.", 404);
   }
 
   const metadata = appendWorkflowMetadata(existing.metadata, payload, user, `pharmacy:${action}`);
-  metadata.pharmacyStatus = action === "cancel" ? "cancelled" : "pending";
+  metadata.pharmacyStatus = action === "cancel" ? "cancelled" : "reopened";
 
-  const result = await updatePrescriptionPharmacyStatusRecord(prescriptionId, { metadata });
+  if (action === "reopen") {
+    metadata.reopenedAt = new Date().toISOString();
+    metadata.reopenedBy = user.sub || "";
+  }
+
+  const result = await updatePrescriptionPharmacyStatusRecord(prescriptionId, {
+    action,
+    metadata,
+    // Reopen returns the prescription to the pending queue - either to collect a
+    // pending balance or to repeat the same medicines for a returning patient.
+    isDispensed: action === "reopen" ? false : undefined
+  });
   if (!result) throw createError("Prescription not found.", 404);
   if (result.conflict === "dispensed") throw createError("Dispensed prescriptions cannot be cancelled.");
 

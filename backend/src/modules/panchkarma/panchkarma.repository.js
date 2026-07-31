@@ -1,5 +1,4 @@
 import { query, withTransaction } from "../../config/postgres.js";
-import { createBillRecordWithClient } from "../billing/billing.repository.js";
 import { toIsoDate, toIsoDateTime, toTime } from "../../utils/dateTime.js";
 
 function toNumber(value) {
@@ -424,11 +423,6 @@ export async function completeSessionRecord(sessionId, payload) {
       materialsUsed.push(toCamelMaterial(materialResult.rows[0]));
     }
 
-    let bill = null;
-    if (payload.bill) {
-      bill = await createBillRecordWithClient(client, payload.bill);
-    }
-
     await client.query(
       `
       UPDATE panchkarma_sessions
@@ -450,15 +444,15 @@ export async function completeSessionRecord(sessionId, payload) {
         payload.executionNotes || session.execution_notes || "",
         payload.followUpAdvice || "",
         payload.outcome,
-        bill?.id || session.bill_id || null,
-        bill?.totalAmount || payload.billedAmount || 0,
-        JSON.stringify({ completedBy: payload.completedBy || "" })
+        session.bill_id || null,
+        payload.billedAmount || 0,
+        JSON.stringify({ completedBy: payload.completedBy || "", billItems: payload.billItems || [] })
       ]
     );
 
     return {
       session: await loadSessionBundle(client, sessionId),
-      bill,
+      bill: null,
       materialsUsed
     };
   });

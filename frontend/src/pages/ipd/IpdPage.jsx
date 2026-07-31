@@ -58,7 +58,6 @@ const initialDischargeForm = {
   followUpWithOpd: true,
   followUpWithPhone: false,
   nextBedStatus: "cleaning",
-  createBill: true,
   stayDays: "",
   extraCharge: "",
   extraChargeLabel: "",
@@ -725,7 +724,7 @@ export function IpdPage() {
                         <strong>{session.therapyName}</strong>
                         <div className="timeline-copy">{session.scheduleNumber} | {session.scheduledDate} at {session.scheduledTime}</div>
                         <div className="timeline-copy">Therapist: {session.therapistName} | Status: {session.status}</div>
-                        <div className="timeline-copy">Bill: {session.billId ? "Created separately" : session.status === "completed" ? "Will be added to IPD discharge bill" : "Pending completion"}</div>
+                        <div className="timeline-copy">Bill: {session.billId ? "Billed" : session.status === "completed" ? "Pending at billing desk" : "Pending completion"}</div>
                       </div>
                     ))}
                   </div>
@@ -873,7 +872,7 @@ export function IpdPage() {
                   <div className="field field-span-2"><Button type="submit">Schedule Therapy</Button></div>
                 </form>
                 <div className="empty-state" style={{ marginTop: 14 }}>
-                  Therapy completion and material usage are handled in Panchkarma. Completed unbilled IPD therapies are added to the discharge bill automatically.
+                  Therapy completion and material usage are handled in Panchkarma. Completed therapies appear as pending charges at the Billing Desk.
                 </div>
               </>
             )}
@@ -985,7 +984,7 @@ export function IpdPage() {
                 <label className="checkbox-chip"><input type="checkbox" name="followUpWithOpd" checked={dischargeForm.followUpWithOpd} onChange={handleDischargeFormChange} /> Follow-up OPD</label>
                 <label className="checkbox-chip"><input type="checkbox" name="followUpWithPhone" checked={dischargeForm.followUpWithPhone} onChange={handleDischargeFormChange} /> Follow-up phone</label>
                 <div className="field field-span-2"><label>Bed note</label><input name="bedNote" value={dischargeForm.bedNote} onChange={handleDischargeFormChange} /></div>
-                <label className="checkbox-chip field-span-2"><input type="checkbox" name="createBill" checked={dischargeForm.createBill} onChange={handleDischargeFormChange} /> Create IPD bill on discharge</label>
+                <div className="empty-state field-span-2">Stay charges are recorded on discharge and billed at the Billing Desk with the rest of the admission.</div>
                 <div className="field field-span-2"><Button type="submit">Discharge Patient</Button></div>
               </form>
             )}

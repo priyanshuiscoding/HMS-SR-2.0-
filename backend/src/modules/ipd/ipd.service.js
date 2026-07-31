@@ -3,7 +3,7 @@ import { createId, db } from "../../data/store.js";
 import { currentTime, nowIso, todayDate } from "../../utils/dateTime.js";
 import { createError } from "../../utils/errors.js";
 import { appendWorkflowMetadata } from "../../utils/workflow.js";
-import { createBill } from "../billing/billing.service.js";
+import { findBillById } from "../billing/billing.repository.js";
 import { createPanchkarmaSchedule, getPanchkarmaMasters } from "../panchkarma/panchkarma.service.js";
 import { listSessionRecords } from "../panchkarma/panchkarma.repository.js";
 import { getPatientById } from "../patients/patients.service.js";
@@ -95,7 +95,7 @@ async function enrichAdmission(admission) {
   const bed = db.beds.find((entry) => entry.id === admission.bedId) || null;
   const doctor = doctors.get(admission.attendingDoctorId) || null;
   const [bill, therapySessions] = await Promise.all([
-    Promise.resolve(admission.billId ? db.bills.find((entry) => entry.id === admission.billId) || null : null),
+    admission.billId ? findBillById(admission.billId).catch(() => null) : null,
     getAdmissionTherapySessions(admission.id).catch(() => [])
   ]);
 
@@ -544,57 +544,18 @@ export async function dischargeAdmission(admissionId, payload, userId) {
     throw createError("Discharge summary note is required.");
   }
 
-  const patient = admission.patientId ? await getPatientById(admission.patientId) : null;
-  const room = db.rooms.find((entry) => entry.id === admission.roomId) || null;
-  const bed = db.beds.find((entry) => entry.id === admission.bedId) || null;
+  // Read the ward off the database rather than the in-memory mirror: the stay
+  // charge is money, and a cold mirror would silently price the stay at zero.
+  const snapshot = await getRoomAndBedSnapshot();
+  syncRoomAndBedMirrors(snapshot);
+  const room = snapshot.rooms.find((entry) => entry.id === admission.roomId) || null;
   const dischargeDate = payload.dischargeDate || todayDate();
   const stayDays = calculateStayDays(admission.admissionDate, dischargeDate, payload.stayDays);
   const roomCharge = Number(room?.chargePerDay || 0) * stayDays;
   const extraCharge = Number(payload.extraCharge || 0);
-  let bill = null;
 
-  if (payload.createBill && patient) {
-    const linkedTherapies = await getAdmissionTherapySessions(admissionId);
-    const unbilledCompletedTherapies = linkedTherapies.filter((session) => session.status === "completed" && !session.billId);
-    const billItems = [
-      {
-        description: `IPD Room Charges (${room?.roomNumber || admission.roomId})`,
-        category: "room",
-        quantity: stayDays,
-        unitPrice: Number(room?.chargePerDay || 0)
-      }
-    ];
-
-    if (extraCharge > 0) {
-      billItems.push({
-        description: payload.extraChargeLabel || "IPD Additional Charges",
-        category: "service",
-        quantity: 1,
-        unitPrice: extraCharge
-      });
-    }
-
-    unbilledCompletedTherapies.forEach((session) => {
-      billItems.push({
-        description: `${session.therapyName} IPD therapy (${session.scheduleNumber})`,
-        category: "therapy",
-        quantity: 1,
-        unitPrice: Number(session.billedAmount || 0)
-      });
-    });
-
-    bill = await createBill({
-      patientId: patient.id,
-      patientName: admission.patientName,
-      bedId: bed?.id || admission.bedId,
-      billType: "ipd",
-      billDate: dischargeDate,
-      notes: `Generated from discharge ${admission.admissionNumber}`,
-      items: billItems,
-      createdBy: userId
-    });
-  }
-
+  // Discharge records the stay charges on the admission; the billing desk raises
+  // the bill, together with any pharmacy, lab and therapy charges of the stay.
   const dischargeSummary = {
     dischargeDate,
     dischargeTime: payload.dischargeTime || currentTime(),
@@ -608,14 +569,16 @@ export async function dischargeAdmission(admissionId, payload, userId) {
     stayDays,
     roomCharge,
     extraCharge,
+    extraChargeLabel: payload.extraChargeLabel || "IPD additional charges",
+    roomNumber: room?.roomNumber || "",
     dischargedBy: userId,
-    billId: bill?.id || admission.billId || "",
+    billId: admission.billId || "",
     metadata: payload.metadata || {}
   };
 
   const result = await dischargeAdmissionRecord(admissionId, {
     dischargeSummary,
-    billId: bill?.id || admission.billId || "",
+    billId: admission.billId || "",
     nextBedStatus: payload.nextBedStatus || "cleaning",
     bedNote: payload.bedNote || "Discharged from IPD",
     dischargeNoteId: createId(),

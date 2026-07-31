@@ -2,14 +2,12 @@ import { createId, db, getLabTestMasters } from "../../data/store.js";
 import { todayDate } from "../../utils/dateTime.js";
 import { createError } from "../../utils/errors.js";
 import { appendWorkflowMetadata } from "../../utils/workflow.js";
-import { createBill } from "../billing/billing.service.js";
 import {
   collectLabSampleRecord,
   createLabOrderRecord,
   findLabOrderRecord,
   findLabTestRecord,
   getLabSummaryRecord,
-  linkLabBillRecord,
   listLabOrderRecords,
   listLabTestRecords,
   saveLabResultsRecord,
@@ -194,56 +192,6 @@ export async function saveLabResults(orderId, payload, userId) {
     processingSummary: payload.processingSummary || "",
     reportedBy: userId
   });
-
-  syncLabOrderMirror(updated);
-  return updated;
-}
-
-export async function createLabBill(orderId, payload, userId) {
-  const order = await findLabOrderRecord(orderId);
-
-  if (!order) {
-    throw createError("Lab order not found.", 404);
-  }
-
-  if (order.billId) {
-    throw createError("A lab bill has already been created for this order.");
-  }
-
-  const tests = await listLabTestRecords();
-  const items = order.tests.map((test) => {
-    const master = tests.find((entry) => entry.id === test.testId || entry.metadata?.sourceId === test.testId);
-
-    return {
-      description: test.testName,
-      category: "lab",
-      quantity: 1,
-      unitPrice: Number(master?.price || 0),
-      amount: Number(master?.price || 0)
-    };
-  });
-
-  const bill = await createBill({
-    patientId: order.patientId,
-    patientName: order.patientName,
-    visitId: order.visitId || "",
-    billType: "lab",
-    paymentStatus: payload.paymentStatus || "unpaid",
-    billDate: payload.billDate || todayDate(),
-    createdBy: userId,
-    notes: `Generated from lab order ${order.orderNumber}`,
-    metadata: {
-      sourceModule: "laboratory",
-      labOrderId: order.id,
-      labOrderNumber: order.orderNumber
-    },
-    items
-  });
-
-  const updated = await linkLabBillRecord(order.id, bill.id);
-  if (!updated) {
-    throw createError("A lab bill has already been created for this order.");
-  }
 
   syncLabOrderMirror(updated);
   return updated;
