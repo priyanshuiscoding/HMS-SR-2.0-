@@ -15,6 +15,13 @@ import {
   updatePrescriptionPharmacyWorkflow
 } from "../../services/api.js";
 
+function statusPillClass(pharmacyStatus) {
+  if (pharmacyStatus === "completed") return "completed";
+  if (pharmacyStatus === "cancelled") return "cancelled";
+  if (pharmacyStatus === "partial" || pharmacyStatus === "reopened") return "in_progress";
+  return "waiting";
+}
+
 const initialReceiveForm = {
   medicineId: "",
   supplierId: "",
@@ -34,6 +41,7 @@ export function PharmacyPage() {
   const [inventoryMasters, setInventoryMasters] = useState({ medicines: [], suppliers: [] });
   const [receiveForm, setReceiveForm] = useState(initialReceiveForm);
   const [selectedPrescription, setSelectedPrescription] = useState(null);
+  const [dispenseQuantities, setDispenseQuantities] = useState({});
   const [statusFilter, setStatusFilter] = useState("pending");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -66,6 +74,14 @@ export function PharmacyPage() {
     loadAll("pending");
   }, []);
 
+  // Default each line to whatever is still pending, so the common "give the rest
+  // of the course" case is a single click while part-issues stay editable.
+  useEffect(() => {
+    setDispenseQuantities(
+      Object.fromEntries((selectedPrescription?.medicines || []).map((item) => [item.id, String(item.balanceQuantity ?? 0)]))
+    );
+  }, [selectedPrescription?.id, selectedPrescription?.dispensedTotal]);
+
   const pharmacyStats = useMemo(() => {
     return {
       lowStock: stockPayload.alerts.lowStock.length,
@@ -81,21 +97,45 @@ export function PharmacyPage() {
     await loadAll(nextFilter);
   };
 
+  const handleDispenseQuantityChange = (medicineLineId, value) => {
+    setDispenseQuantities((current) => ({ ...current, [medicineLineId]: value }));
+  };
+
+  const dispenseLines = useMemo(
+    () =>
+      (selectedPrescription?.medicines || [])
+        .map((item) => ({ item, quantity: Number(dispenseQuantities[item.id] || 0) }))
+        .filter((line) => line.quantity > 0),
+    [selectedPrescription, dispenseQuantities]
+  );
+
+  // Reopen covers both a completed course the patient wants repeated and a
+  // prescription that was cancelled by mistake.
+  const canReopen =
+    Boolean(selectedPrescription) &&
+    (selectedPrescription.isDispensed || selectedPrescription.pharmacyStatus === "cancelled") &&
+    ["admin", "pharmacy", "doctor"].includes(user?.role);
+
   const handleDispense = async () => {
-    if (!selectedPrescription) {
+    if (!selectedPrescription || !dispenseLines.length) {
+      setError("Enter a dispense quantity for at least one medicine.");
       return;
     }
 
     try {
-      await dispensePrescription(selectedPrescription.id, {
-        items: selectedPrescription.medicines.map((item) => ({
-          medicineId: item.medicineId,
-          quantity: item.quantityDispensed
+      const response = await dispensePrescription(selectedPrescription.id, {
+        items: dispenseLines.map((line) => ({
+          medicineId: line.item.medicineId,
+          quantity: line.quantity
         }))
       });
 
       await loadAll(statusFilter);
-      setMessage("Prescription dispensed and stock updated.");
+      setMessage(
+        response.item?.fullyDispensed
+          ? `${response.item.dispenseNumber} dispensed in full. Charges are pending at the billing desk.`
+          : `Part quantity dispensed as ${response.item?.dispenseNumber}. Balance stays in the pending queue, charges go to the billing desk.`
+      );
       setError("");
     } catch (apiError) {
       setError(apiError.message || "Unable to dispense prescription.");
@@ -115,8 +155,11 @@ export function PharmacyPage() {
 
     try {
       const response = await updatePrescriptionPharmacyWorkflow(selectedPrescription.id, { action, reason });
+      // A reopened prescription goes back to the pending queue, so follow it there.
+      const nextFilter = action === "reopen" ? "pending" : statusFilter;
+      setStatusFilter(nextFilter);
       setSelectedPrescription(response.item);
-      await loadAll(statusFilter);
+      await loadAll(nextFilter);
       setMessage(response.message);
       setError("");
     } catch (apiError) {
@@ -222,10 +265,13 @@ export function PharmacyPage() {
                   <div className="timeline-copy">{item.patientName}</div>
                   <div className="timeline-copy">{item.diagnosis}</div>
                   <div className="timeline-copy">{item.prescriptionDate}</div>
+                  {item.balanceTotal > 0 && item.dispensedTotal > 0 ? (
+                    <div className="timeline-copy">Balance pending: {item.balanceTotal}</div>
+                  ) : null}
                 </div>
                 <div className="queue-actions">
-                  <span className={`status-pill ${item.isDispensed ? "completed" : item.pharmacyStatus === "cancelled" ? "cancelled" : "waiting"}`}>
-                    {item.pharmacyStatus || (item.isDispensed ? "dispensed" : "pending")}
+                  <span className={`status-pill ${statusPillClass(item.pharmacyStatus)}`}>
+                    {item.pharmacyStatus}
                   </span>
                 </div>
               </div>
@@ -246,17 +292,22 @@ export function PharmacyPage() {
                 onClick={handleDispense}
                 disabled={
                   !selectedPrescription ||
-                  selectedPrescription.isDispensed ||
+                  selectedPrescription.pharmacyStatus === "cancelled" ||
+                  !dispenseLines.length ||
                   !["admin", "pharmacy"].includes(user?.role)
                 }
               >
-                {selectedPrescription?.isDispensed ? "Already Dispensed" : "Dispense Prescription"}
+                {selectedPrescription?.isDispensed ? "Dispense Again" : "Dispense Medicine"}
               </Button>
               <div className="action-row">
                 <Button variant="secondary" onClick={() => handlePrescriptionWorkflow("cancel", "cancel prescription")} disabled={!selectedPrescription || selectedPrescription.isDispensed}>
                   Cancel
                 </Button>
-                <Button variant="secondary" onClick={() => handlePrescriptionWorkflow("reopen", "reopen prescription")} disabled={!selectedPrescription || selectedPrescription.isDispensed}>
+                <Button
+                  variant="secondary"
+                  onClick={() => handlePrescriptionWorkflow("reopen", "reopen prescription")}
+                  disabled={!selectedPrescription || !canReopen}
+                >
                   Reopen
                 </Button>
               </div>
@@ -272,7 +323,8 @@ export function PharmacyPage() {
                   <div className="detail-list">
                     <div><strong>Prescription:</strong> {selectedPrescription.prescriptionNumber}</div>
                     <div><strong>Diagnosis:</strong> {selectedPrescription.diagnosis}</div>
-                    <div><strong>Dispense status:</strong> {selectedPrescription.pharmacyStatus || (selectedPrescription.isDispensed ? "Completed" : "Pending")}</div>
+                    <div><strong>Dispense status:</strong> {selectedPrescription.pharmacyStatus}</div>
+                    <div><strong>Prescribed / given / balance:</strong> {selectedPrescription.prescribedTotal} / {selectedPrescription.dispensedTotal} / {selectedPrescription.balanceTotal}</div>
                     <div><strong>Visit:</strong> {selectedPrescription.visit?.opdNumber || "Linked OPD visit"}</div>
                     {!["admin", "pharmacy"].includes(user?.role) ? (
                       <div><strong>Access:</strong> View only</div>
@@ -283,15 +335,51 @@ export function PharmacyPage() {
                 <article className="content-card inset-card">
                   <h3>Medicine lines</h3>
                   <div className="stack-list">
-                    {selectedPrescription.medicines.map((item) => (
-                      <div key={item.id} className="quick-action">
-                        <strong>{item.medicineName}</strong>
-                        <div className="timeline-copy">
-                          {item.dose} - {item.frequency} - {item.timing || "As advised"}
+                    {selectedPrescription.medicines.map((item) => {
+                      const quantity = Number(dispenseQuantities[item.id] || 0);
+
+                      return (
+                        <div key={item.id} className="quick-action">
+                          <strong>{item.medicineName}</strong>
+                          <div className="timeline-copy">
+                            {item.dose} - {item.frequency} - {item.timing || "As advised"}
+                          </div>
+                          <div className="timeline-copy">
+                            Prescribed {item.quantityPrescribed} | Given {item.quantityIssued} | Balance {item.balanceQuantity}
+                          </div>
+                          <div className="field">
+                            <label>Dispense now</label>
+                            <input
+                              value={dispenseQuantities[item.id] ?? ""}
+                              onChange={(event) => handleDispenseQuantityChange(item.id, event.target.value)}
+                              disabled={!["admin", "pharmacy"].includes(user?.role)}
+                            />
+                          </div>
+                          {quantity > item.balanceQuantity ? (
+                            <div className="timeline-copy">Above the prescribed balance ({item.balanceQuantity}).</div>
+                          ) : null}
                         </div>
-                        <div className="timeline-copy">Requested qty: {item.quantityDispensed}</div>
+                      );
+                    })}
+                  </div>
+                </article>
+
+                <article className="content-card inset-card">
+                  <h3>Dispense history</h3>
+                  <div className="stack-list">
+                    {(selectedPrescription.dispensations || []).map((dispensation) => (
+                      <div key={dispensation.id} className="quick-action">
+                        <strong>{dispensation.dispenseNumber}</strong>
+                        <div className="timeline-copy">{dispensation.dispensedDate}</div>
+                        <div className="timeline-copy">
+                          {dispensation.items.map((line) => `${line.medicineName} x${line.quantity}`).join(", ")}
+                        </div>
+                        <div className="timeline-copy">Bill: {dispensation.metadata?.billNumber || "Not billed"}</div>
                       </div>
                     ))}
+                    {!selectedPrescription.dispensations?.length ? (
+                      <div className="empty-state">Nothing dispensed against this prescription yet.</div>
+                    ) : null}
                   </div>
                 </article>
               </div>

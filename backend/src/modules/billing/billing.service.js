@@ -14,6 +14,7 @@ import {
   listPaymentRecords,
   listRefundRecords
 } from "./billing.repository.js";
+import { CHARGE_SOURCES, listPendingChargeRecords } from "./charges.repository.js";
 
 function sumItems(items) {
   return items.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -164,6 +165,7 @@ export async function getBillingSummary() {
 export function getBillingMasters() {
   return {
     billTypes: ["opd", "ipd", "lab", "pharmacy", "therapy", "room", "procedure", "miscellaneous"],
+    chargeSources: CHARGE_SOURCES,
     paymentModes: ["cash", "upi", "card", "bank_transfer"],
     itemCategories: ["consultation", "lab", "pharmacy", "room", "therapy", "procedure", "service", "miscellaneous"],
     standardCharges: {
@@ -175,9 +177,41 @@ export function getBillingMasters() {
   };
 }
 
+function dedupeChargeRefs(charges) {
+  const seen = new Set();
+
+  return (Array.isArray(charges) ? charges : [])
+    .filter((charge) => charge?.source && charge?.sourceId)
+    .filter((charge) => {
+      const key = `${charge.source}:${charge.sourceId}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((charge) => ({ source: charge.source, sourceId: charge.sourceId }));
+}
+
+export async function listPendingCharges(query = {}) {
+  if (!query.patientId) {
+    throw createError("Select a patient to view pending charges.");
+  }
+
+  await getPatientById(query.patientId);
+  return listPendingChargeRecords({
+    patientId: query.patientId,
+    sources: query.source ? [query.source] : undefined
+  });
+}
+
 export async function createBill(payload) {
-  if (!payload.patientId || !payload.items?.length) {
-    throw createError("Patient and at least one bill item are required.");
+  const chargeRefs = dedupeChargeRefs(payload.charges);
+
+  if (!payload.patientId) {
+    throw createError("Patient is required to create a bill.");
+  }
+
+  if (!chargeRefs.length && !payload.items?.length) {
+    throw createError("Select at least one pending charge or add a bill item.");
   }
 
   const patient = await getPatientById(payload.patientId);
@@ -185,7 +219,7 @@ export async function createBill(payload) {
     throw createError("Patient not found.", 404);
   }
 
-  const items = payload.items.map((item) => {
+  const items = (payload.items || []).map((item) => {
     if (!item.description) {
       throw createError("Each bill item requires a description.");
     }
@@ -213,7 +247,6 @@ export async function createBill(payload) {
     };
   });
 
-  const subtotal = sumItems(items);
   const discountAmount = Number(payload.discountAmount || 0);
   const taxAmount = Number(payload.taxAmount || 0);
 
@@ -221,10 +254,8 @@ export async function createBill(payload) {
     throw createError("Discount and tax must be zero or greater.");
   }
 
-  if (discountAmount > subtotal) {
-    throw createError("Discount cannot be greater than subtotal.");
-  }
-
+  // Totals are settled inside the creating transaction because charge lines are
+  // priced there, from the source rows, rather than trusted from the client.
   const bill = await createBillRecord({
     id: payload.id || createId(),
     billNumber: payload.billNumber,
@@ -232,12 +263,10 @@ export async function createBill(payload) {
     patientName: payload.patientName || patient.fullName || `${patient.firstName} ${patient.lastName}`.trim(),
     visitId: payload.visitId || "",
     bedId: payload.bedId || "",
-    billType: payload.billType || "opd",
+    billType: payload.billType || "",
     billDate: payload.billDate || todayDate(),
-    subtotal,
     discountAmount,
     taxAmount,
-    totalAmount: subtotal - discountAmount + taxAmount,
     paymentStatus: payload.paymentStatus || "unpaid",
     createdBy: payload.createdBy,
     notes: payload.notes || "",
@@ -249,7 +278,20 @@ export async function createBill(payload) {
     },
     metadata: payload.metadata || {},
     items
-  });
+  }, chargeRefs);
+
+  if (bill.conflict === "charge_unavailable") {
+    throw createError("One or more selected charges have already been billed. Refresh the pending charge list and try again.");
+  }
+  if (bill.conflict === "charge_patient_mismatch") {
+    throw createError(`Charge ${bill.reference} belongs to a different patient.`);
+  }
+  if (bill.conflict === "no_items") {
+    throw createError("Select at least one pending charge or add a bill item.");
+  }
+  if (bill.conflict === "discount_too_high") {
+    throw createError("Discount cannot be greater than subtotal.");
+  }
 
   syncBillMirror(bill);
   return bill;

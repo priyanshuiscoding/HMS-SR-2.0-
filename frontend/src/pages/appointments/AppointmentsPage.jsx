@@ -536,12 +536,12 @@ export function AppointmentsPage() {
             {success ? <div className="success-text field-span-2">{success}</div> : null}
             {lastReceipt ? (
               <div className="empty-state field-span-2">
-                <strong>Receipt {lastReceipt.receiptNumber}</strong>
+                <strong>Booking slip {lastReceipt.receiptNumber}</strong>
                 <div>Token {lastReceipt.tokenNumber} - {lastReceipt.patientName}</div>
                 <div>{lastReceipt.department} with {lastReceipt.doctorName} on {lastReceipt.appointmentDate} at {formatTimeLabel(lastReceipt.appointmentTime)}</div>
-                <div>Paid Rs. {lastReceipt.amount} via {lastReceipt.paymentMode}{lastReceipt.referenceNumber ? ` (${lastReceipt.referenceNumber})` : ""}</div>
+                <div>Consultation fee Rs. {lastReceipt.amount} - payable at the billing desk</div>
                 <div className="action-row" style={{ marginTop: 10 }}>
-                  <Button type="button" variant="secondary" onClick={printLastReceipt}>Print Receipt</Button>
+                  <Button type="button" variant="secondary" onClick={printLastReceipt}>Print Slip</Button>
                 </div>
               </div>
             ) : null}
@@ -569,7 +569,7 @@ export function AppointmentsPage() {
                   <div className="timeline-copy">{appointment.patientName}</div>
                   <div className="timeline-copy">{appointment.department}</div>
                   <div className="timeline-copy">{formatTimeLabel(appointment.appointmentTime)}</div>
-                  <div className="timeline-copy">Receipt {appointment.consultationPayment?.receiptNumber || "paid"}</div>
+                  <div className="timeline-copy">Slip {appointment.consultationPayment?.receiptNumber || "-"}</div>
                 </div>
                 <span className={`status-pill ${appointment.status}`}>{appointment.status}</span>
                 <div className="queue-actions">
@@ -617,7 +617,7 @@ export function AppointmentsPage() {
                 <th>Date</th>
                 <th>Time</th>
                 <th>Status</th>
-                <th>Receipt</th>
+                <th>Slip</th>
                 <th></th>
               </tr>
             </thead>
@@ -665,17 +665,17 @@ export function AppointmentsPage() {
       {lastReceipt ? (
         <section className="appointment-receipt-print-sheet" aria-hidden="true">
           <div className="receipt-hospital-name">SR-AIIMS HMS</div>
-          <div className="receipt-hospital-subtitle">Consultation Fee Receipt</div>
+          <div className="receipt-hospital-subtitle">OPD Booking Slip</div>
           <div className="receipt-token">Token {lastReceipt.tokenNumber}</div>
           <div className="receipt-grid">
-            <div><strong>Receipt No.</strong><span>{lastReceipt.receiptNumber}</span></div>
+            <div><strong>Slip No.</strong><span>{lastReceipt.receiptNumber}</span></div>
             <div><strong>Appointment No.</strong><span>{lastReceipt.appointmentNumber}</span></div>
             <div><strong>Patient</strong><span>{lastReceipt.patientName}</span></div>
             <div><strong>Doctor</strong><span>{lastReceipt.doctorName}</span></div>
             <div><strong>Department</strong><span>{lastReceipt.department}</span></div>
             <div><strong>Date / Time</strong><span>{lastReceipt.appointmentDate} {formatTimeLabel(lastReceipt.appointmentTime)}</span></div>
-            <div><strong>Amount Paid</strong><span>Rs. {lastReceipt.amount}</span></div>
-            <div><strong>Payment Mode</strong><span>{lastReceipt.paymentMode}</span></div>
+            <div><strong>Consultation Fee</strong><span>Rs. {lastReceipt.amount}</span></div>
+            <div><strong>Payable At</strong><span>Billing desk</span></div>
             <div><strong>Reference</strong><span>{lastReceipt.referenceNumber || "-"}</span></div>
           </div>
           <div className="receipt-footer">

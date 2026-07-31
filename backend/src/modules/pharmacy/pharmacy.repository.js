@@ -2,8 +2,53 @@ import { query, withTransaction } from "../../config/postgres.js";
 import { toIsoDate, toIsoDateTime } from "../../utils/dateTime.js";
 import { resolveMedicineId, toCamelBatch, toCamelMedicine, toCamelStockTransaction } from "../inventory/inventory.repository.js";
 
+const pool = { query: (text, params) => query(text, params) };
+
 function toNumber(value) {
   return Number(value || 0);
+}
+
+function medicineNameKey(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+// Dispensed quantities are tracked per medicine, keyed by master id where the
+// prescription line carries one and by name otherwise, because legacy lines and
+// hand-typed medicines do not always resolve to a medicine master row.
+function issuedQuantityFor(medicineRow, index) {
+  if (medicineRow.medicine_id && index.byId.has(medicineRow.medicine_id)) {
+    return index.byId.get(medicineRow.medicine_id);
+  }
+
+  return index.byName.get(medicineNameKey(medicineRow.medicine_name)) || 0;
+}
+
+function addIssuedQuantity(index, medicineId, medicineName, quantity) {
+  if (medicineId) {
+    index.byId.set(medicineId, (index.byId.get(medicineId) || 0) + quantity);
+  }
+
+  const nameKey = medicineNameKey(medicineName);
+  if (nameKey) {
+    index.byName.set(nameKey, (index.byName.get(nameKey) || 0) + quantity);
+  }
+}
+
+async function loadIssuedIndex(client, prescriptionId) {
+  const result = await client.query(
+    `
+    SELECT di.medicine_id, di.medicine_name, SUM(di.quantity) AS quantity
+    FROM dispensation_items di
+    JOIN dispensations d ON d.id = di.dispensation_id
+    WHERE d.prescription_id = $1
+    GROUP BY di.medicine_id, di.medicine_name
+    `,
+    [prescriptionId]
+  );
+
+  const index = { byId: new Map(), byName: new Map() };
+  result.rows.forEach((row) => addIssuedQuantity(index, row.medicine_id, row.medicine_name, toNumber(row.quantity)));
+  return index;
 }
 
 function toCamelDispensationItem(row) {
@@ -39,8 +84,29 @@ function toCamelDispensation(row, items = []) {
   };
 }
 
-function toCamelPrescription(row, medicines = [], dispensation = null) {
+// A prescription is only "completed" once every prescribed line has been fully
+// handed over. Anything in between stays in the pharmacy queue as "partial" so
+// the patient can come back for the rest of the course.
+function derivePharmacyStatus(row, issuedTotal) {
+  const explicitStatus = row.metadata?.pharmacyStatus || "";
+
+  if (explicitStatus === "cancelled") return "cancelled";
+  if (row.is_dispensed) return "completed";
+  if (explicitStatus === "reopened") return "reopened";
+  return issuedTotal > 0 ? "partial" : "pending";
+}
+
+function toCamelPrescription(row, medicines = [], dispensations = []) {
   if (!row) return null;
+
+  // Totals come off the dispensation items rather than the per-line figures so
+  // they stay exact even when a prescription repeats the same medicine twice.
+  const dispensedTotal = dispensations.reduce(
+    (sum, dispensation) => sum + dispensation.items.reduce((itemSum, item) => itemSum + toNumber(item.quantity), 0),
+    0
+  );
+  const prescribedTotal = medicines.reduce((sum, medicine) => sum + toNumber(medicine.quantityPrescribed), 0);
+
   return {
     id: row.id,
     prescriptionNumber: row.prescription_number,
@@ -52,14 +118,21 @@ function toCamelPrescription(row, medicines = [], dispensation = null) {
     diagnosis: row.diagnosis || "",
     diagnosisAyurvedic: row.diagnosis_ayurvedic || "",
     isDispensed: Boolean(row.is_dispensed),
-    pharmacyStatus: row.metadata?.pharmacyStatus || (row.is_dispensed ? "completed" : "pending"),
+    pharmacyStatus: derivePharmacyStatus(row, dispensedTotal),
+    prescribedTotal,
+    dispensedTotal,
+    balanceTotal: Math.max(prescribedTotal - dispensedTotal, 0),
     medicines,
-    dispensation,
+    dispensations,
+    dispensation: dispensations[0] || null,
     metadata: row.metadata || {}
   };
 }
 
-function toCamelPrescriptionMedicine(row) {
+function toCamelPrescriptionMedicine(row, quantityIssued = 0) {
+  const quantityPrescribed = Number(row.quantity_dispensed || 0);
+  const issued = toNumber(quantityIssued);
+
   return {
     id: row.id,
     medicineId: row.metadata?.sourceMedicineId || row.medicine_id || "",
@@ -69,7 +142,12 @@ function toCamelPrescriptionMedicine(row) {
     route: row.route || "",
     timing: row.timing || "",
     durationDays: Number(row.duration_days || 0),
-    quantityDispensed: Number(row.quantity_dispensed || 0),
+    // quantityDispensed keeps its original meaning (what the doctor prescribed)
+    // because the OPD prescription form and printable Rx both write and read it.
+    quantityDispensed: quantityPrescribed,
+    quantityPrescribed,
+    quantityIssued: issued,
+    balanceQuantity: Math.max(quantityPrescribed - issued, 0),
     specialInstructions: row.special_instructions || "",
     metadata: row.metadata || {}
   };
@@ -99,7 +177,9 @@ export async function listDispensationRecords(filters = {}) {
   return dispensationResult.rows.map((row) => toCamelDispensation(row, itemsByDispensation.get(row.id) || []));
 }
 
-export async function listPrescriptionQueueRecords(filters = {}) {
+// Reads through whichever executor is passed in so callers inside a transaction
+// see their own uncommitted writes instead of a stale pooled snapshot.
+async function loadPrescriptionQueue(executor, filters = {}) {
   const params = [];
   const conditions = ["1 = 1"];
   if (filters.status === "pending") conditions.push("p.is_dispensed = false AND COALESCE(p.metadata->>'pharmacyStatus', 'pending') <> 'cancelled'");
@@ -109,8 +189,12 @@ export async function listPrescriptionQueueRecords(filters = {}) {
     params.push(filters.patientId);
     conditions.push(`p.patient_id = $${params.length}`);
   }
+  if (filters.prescriptionId) {
+    params.push(filters.prescriptionId);
+    conditions.push(`p.id = $${params.length}`);
+  }
 
-  const prescriptionResult = await query(
+  const prescriptionResult = await executor.query(
     `
     SELECT p.*
     FROM prescriptions p
@@ -119,27 +203,66 @@ export async function listPrescriptionQueueRecords(filters = {}) {
     `,
     params
   );
-  const medicineResult = await query("SELECT * FROM prescription_medicines ORDER BY medicine_name ASC");
-  const dispensationResult = await query("SELECT * FROM dispensations ORDER BY dispensed_date DESC");
-  const itemResult = await query("SELECT * FROM dispensation_items ORDER BY medicine_name ASC");
-  const medicinesByPrescription = new Map();
-  const itemsByDispensation = new Map();
-  const dispensationByPrescription = new Map();
 
-  for (const row of medicineResult.rows) {
-    const medicine = toCamelPrescriptionMedicine(row);
-    medicinesByPrescription.set(row.prescription_id, [...(medicinesByPrescription.get(row.prescription_id) || []), medicine]);
+  if (!prescriptionResult.rows.length) {
+    return [];
   }
+
+  const prescriptionIds = prescriptionResult.rows.map((row) => row.id);
+  const medicineResult = await executor.query(
+    "SELECT * FROM prescription_medicines WHERE prescription_id = ANY($1::uuid[]) ORDER BY medicine_name ASC",
+    [prescriptionIds]
+  );
+  const dispensationResult = await executor.query(
+    "SELECT * FROM dispensations WHERE prescription_id = ANY($1::uuid[]) ORDER BY dispensed_date DESC",
+    [prescriptionIds]
+  );
+  const dispensationIds = dispensationResult.rows.map((row) => row.id);
+  const itemResult = dispensationIds.length
+    ? await executor.query(
+      "SELECT * FROM dispensation_items WHERE dispensation_id = ANY($1::uuid[]) ORDER BY medicine_name ASC",
+      [dispensationIds]
+    )
+    : { rows: [] };
+
+  const medicineRowsByPrescription = new Map();
+  for (const row of medicineResult.rows) {
+    medicineRowsByPrescription.set(row.prescription_id, [...(medicineRowsByPrescription.get(row.prescription_id) || []), row]);
+  }
+
+  const prescriptionByDispensation = new Map(dispensationResult.rows.map((row) => [row.id, row.prescription_id]));
+  const itemsByDispensation = new Map();
+  const issuedByPrescription = new Map();
+
   itemResult.rows.map(toCamelDispensationItem).forEach((item) => {
     itemsByDispensation.set(item.dispensationId, [...(itemsByDispensation.get(item.dispensationId) || []), item]);
-  });
-  dispensationResult.rows.forEach((row) => {
-    dispensationByPrescription.set(row.prescription_id, toCamelDispensation(row, itemsByDispensation.get(row.id) || []));
+
+    const prescriptionId = prescriptionByDispensation.get(item.dispensationId);
+    if (!prescriptionId) return;
+
+    const index = issuedByPrescription.get(prescriptionId) || { byId: new Map(), byName: new Map() };
+    addIssuedQuantity(index, item.medicineId, item.medicineName, toNumber(item.quantity));
+    issuedByPrescription.set(prescriptionId, index);
   });
 
-  return prescriptionResult.rows.map((row) =>
-    toCamelPrescription(row, medicinesByPrescription.get(row.id) || [], dispensationByPrescription.get(row.id) || null)
-  );
+  const dispensationsByPrescription = new Map();
+  dispensationResult.rows.forEach((row) => {
+    const dispensation = toCamelDispensation(row, itemsByDispensation.get(row.id) || []);
+    dispensationsByPrescription.set(row.prescription_id, [...(dispensationsByPrescription.get(row.prescription_id) || []), dispensation]);
+  });
+
+  return prescriptionResult.rows.map((row) => {
+    const issuedIndex = issuedByPrescription.get(row.id) || { byId: new Map(), byName: new Map() };
+    const medicines = (medicineRowsByPrescription.get(row.id) || []).map((medicineRow) =>
+      toCamelPrescriptionMedicine(medicineRow, issuedQuantityFor(medicineRow, issuedIndex))
+    );
+
+    return toCamelPrescription(row, medicines, dispensationsByPrescription.get(row.id) || []);
+  });
+}
+
+export async function listPrescriptionQueueRecords(filters = {}) {
+  return loadPrescriptionQueue(pool, filters);
 }
 
 export async function updatePrescriptionPharmacyStatusRecord(prescriptionId, payload = {}) {
@@ -148,19 +271,23 @@ export async function updatePrescriptionPharmacyStatusRecord(prescriptionId, pay
     const prescription = prescriptionResult.rows[0];
 
     if (!prescription) return null;
-    if (prescription.is_dispensed && payload.status === "cancelled") return { conflict: "dispensed" };
+    if (prescription.is_dispensed && payload.action === "cancel") return { conflict: "dispensed" };
 
+    // Reopening clears is_dispensed so the prescription lands back in the pending
+    // queue - used both for a pending balance and for a repeat of the same course.
     await client.query(
       `
       UPDATE prescriptions
-      SET metadata = metadata || $2::jsonb, updated_at = NOW()
+      SET is_dispensed = COALESCE($3::boolean, is_dispensed),
+          metadata = metadata || $2::jsonb,
+          updated_at = NOW()
       WHERE id = $1
       `,
-      [prescriptionId, JSON.stringify(payload.metadata || {})]
+      [prescriptionId, JSON.stringify(payload.metadata || {}), payload.isDispensed ?? null]
     );
 
-    const [updated] = await listPrescriptionQueueRecords({ patientId: prescription.patient_id });
-    return updated?.id === prescriptionId ? updated : (await listPrescriptionQueueRecords()).find((item) => item.id === prescriptionId);
+    const [updated] = await loadPrescriptionQueue(client, { prescriptionId });
+    return updated || null;
   });
 }
 
@@ -212,12 +339,23 @@ export async function dispensePrescriptionRecord(prescriptionId, payload) {
     const prescriptionResult = await client.query("SELECT * FROM prescriptions WHERE id = $1 FOR UPDATE", [prescriptionId]);
     const prescription = prescriptionResult.rows[0];
     if (!prescription) return null;
-    if (prescription.is_dispensed) return { conflict: "already_dispensed" };
+    if (prescription.metadata?.pharmacyStatus === "cancelled") return { conflict: "cancelled" };
 
     const medicineResult = await client.query("SELECT * FROM prescription_medicines WHERE prescription_id = $1 ORDER BY medicine_name ASC", [prescriptionId]);
-    const requestedItems = payload.items?.length
+    const issuedIndex = await loadIssuedIndex(client, prescriptionId);
+
+    // Without explicit lines the caller means "hand over whatever is still
+    // pending"; zero-quantity lines are the ones the pharmacist is not giving
+    // today and are simply skipped.
+    const requestedItems = (payload.items?.length
       ? payload.items
-      : medicineResult.rows.map((item) => ({ medicineId: item.metadata?.sourceMedicineId || item.medicine_id, quantity: item.quantity_dispensed || 0 }));
+      : medicineResult.rows.map((item) => ({
+        medicineId: item.metadata?.sourceMedicineId || item.medicine_id,
+        quantity: Math.max(toNumber(item.quantity_dispensed) - issuedQuantityFor(item, issuedIndex), 0)
+      }))
+    ).filter((item) => toNumber(item.quantity) > 0);
+
+    if (!requestedItems.length) return { conflict: "nothing_to_dispense" };
 
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", ["dispense:number"]);
     const numberResult = await client.query("SELECT COUNT(*)::int + 1 AS next_number FROM dispensations");
@@ -249,8 +387,8 @@ export async function dispensePrescriptionRecord(prescriptionId, payload) {
       if (!medicineId) return { conflict: "medicine_missing", medicineId: item.medicineId };
       const medicineResultRow = await client.query("SELECT * FROM medicine_masters WHERE id = $1", [medicineId]);
       const medicine = medicineResultRow.rows[0];
-      const quantity = Number(item.quantity || 0);
-      if (quantity <= 0) return { conflict: "invalid_quantity", medicineName: medicine.name };
+      if (!medicine) return { conflict: "medicine_missing", medicineId: item.medicineId };
+      const quantity = toNumber(item.quantity);
 
       let batch;
       if (item.batchId) {
@@ -318,8 +456,36 @@ export async function dispensePrescriptionRecord(prescriptionId, payload) {
       dispensedItems.push(toCamelDispensationItem(itemResult.rows[0]));
     }
 
-    await client.query("UPDATE prescriptions SET is_dispensed = true, updated_at = NOW() WHERE id = $1", [prescription.id]);
-    return toCamelDispensation(dispensationResult.rows[0], dispensedItems);
+    // Close the prescription only when every prescribed line is fully covered.
+    // A part-issue leaves it open so the patient can collect the balance later.
+    const issuedAfter = await loadIssuedIndex(client, prescriptionId);
+    const fullyDispensed = medicineResult.rows.every((row) => {
+      const prescribed = toNumber(row.quantity_dispensed);
+      return prescribed <= 0 || issuedQuantityFor(row, issuedAfter) >= prescribed;
+    });
+
+    await client.query(
+      `
+      UPDATE prescriptions
+      SET is_dispensed = $2, metadata = metadata || $3::jsonb, updated_at = NOW()
+      WHERE id = $1
+      `,
+      [
+        prescription.id,
+        fullyDispensed,
+        JSON.stringify({
+          pharmacyStatus: fullyDispensed ? "completed" : "partial",
+          lastDispensedAt: new Date().toISOString()
+        })
+      ]
+    );
+
+    // No bill is raised here. The dispensation itself is the charge record and
+    // stays pending until the billing desk pulls it onto the patient's bill.
+    return {
+      ...(await loadDispensationBundle(client, dispensationResult.rows[0].id)),
+      fullyDispensed
+    };
   });
 }
 

@@ -1,6 +1,24 @@
+import { randomUUID } from "crypto";
+
 import { query, withTransaction } from "../../config/postgres.js";
 import { toIsoDate, toIsoDateTime } from "../../utils/dateTime.js";
 import { nullableUuid } from "../../utils/ids.js";
+import { loadChargesForBilling, markChargesBilled } from "./charges.repository.js";
+
+const CHARGE_BILL_TYPES = {
+  consultation: "opd",
+  lab: "lab",
+  pharmacy: "pharmacy",
+  therapy: "therapy",
+  ipd: "ipd"
+};
+
+// A bill drawn from a single kind of charge keeps that type, so the pharmacy GST
+// invoice layout still triggers. Anything mixed prints on the generic invoice.
+function deriveBillType(charges) {
+  const types = new Set(charges.map((charge) => CHARGE_BILL_TYPES[charge.source] || "miscellaneous"));
+  return types.size === 1 ? [...types][0] : "miscellaneous";
+}
 
 function toNumber(value) {
   return Number(value || 0);
@@ -345,8 +363,75 @@ export async function createBillRecordWithClient(client, payload) {
   return loadBillBundle(client, result.rows[0].id);
 }
 
-export async function createBillRecord(payload) {
-  return withTransaction((client) => createBillRecordWithClient(client, payload));
+// The billing desk is the only place a bill is raised. Charges are resolved,
+// priced, consumed and marked billed inside one transaction so a charge can
+// never land on two bills.
+export async function createBillRecord(payload, chargeRefs = []) {
+  return withTransaction(async (client) => {
+    let items = payload.items || [];
+    let metadata = payload.metadata || {};
+    let visitId = payload.visitId || "";
+    let bedId = payload.bedId || "";
+    let charges = [];
+
+    if (chargeRefs.length) {
+      charges = await loadChargesForBilling(client, chargeRefs);
+
+      if (charges.length !== chargeRefs.length) {
+        return { conflict: "charge_unavailable" };
+      }
+
+      const mismatched = charges.find((charge) => charge.patientId && charge.patientId !== payload.patientId);
+      if (mismatched) {
+        return { conflict: "charge_patient_mismatch", reference: mismatched.reference };
+      }
+
+      items = [...charges.flatMap((charge) => charge.items), ...items];
+      visitId = visitId || charges.find((charge) => charge.visitId)?.visitId || "";
+      bedId = bedId || charges.find((charge) => charge.bedId)?.bedId || "";
+      metadata = {
+        ...metadata,
+        charges: charges.map((charge) => ({
+          source: charge.source,
+          sourceId: charge.sourceId,
+          reference: charge.reference,
+          total: charge.total
+        }))
+      };
+    }
+
+    if (!items.length) {
+      return { conflict: "no_items" };
+    }
+
+    const pricedItems = items.map((item) => ({ ...item, id: item.id || randomUUID() }));
+    const subtotal = pricedItems.reduce((sum, item) => sum + toNumber(item.amount), 0);
+    const discountAmount = toNumber(payload.discountAmount);
+    const taxAmount = toNumber(payload.taxAmount);
+
+    if (discountAmount > subtotal) {
+      return { conflict: "discount_too_high" };
+    }
+
+    const bill = await createBillRecordWithClient(client, {
+      ...payload,
+      visitId,
+      bedId,
+      billType: payload.billType || (charges.length ? deriveBillType(charges) : "opd"),
+      metadata,
+      items: pricedItems,
+      subtotal,
+      discountAmount,
+      taxAmount,
+      totalAmount: subtotal - discountAmount + taxAmount
+    });
+
+    if (charges.length) {
+      await markChargesBilled(client, charges, bill.id, bill.billNumber);
+    }
+
+    return bill;
+  });
 }
 
 export async function applyDiscountRecord(billId, payload = {}, actorId = "") {

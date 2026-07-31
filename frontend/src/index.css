@@ -1065,6 +1065,65 @@ textarea {
   min-width: 0;
 }
 
+.patients-filter-bar {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(16, 55, 92, 0.12);
+  border-radius: 16px;
+  background: rgba(237, 245, 255, 0.55);
+}
+
+.patients-filter-bar .field {
+  gap: 6px;
+}
+
+.patients-filter-bar .field label {
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(16, 55, 92, 0.7);
+}
+
+.patients-filter-bar .field select,
+.patients-filter-bar .field input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(16, 55, 92, 0.18);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--color-ink);
+  font-size: 14px;
+  outline: none;
+}
+
+.patients-filter-bar .field select:focus,
+.patients-filter-bar .field input:focus {
+  border-color: rgba(31, 111, 178, 0.6);
+  box-shadow: 0 0 0 4px rgba(120, 174, 232, 0.2);
+}
+
+.patients-filter-summary {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: rgba(16, 55, 92, 0.75);
+}
+
+.patients-filter-summary .button-link:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .patients-table-shell {
   flex: 1 1 auto;
   min-height: 0;
@@ -3334,4 +3393,297 @@ textarea {
 .queue-doctor-filter:focus {
   border-color: rgba(31, 111, 178, 0.6);
   box-shadow: 0 0 0 4px rgba(120, 174, 232, 0.18);
+}
+
+/* ---------------------------------------------------------------------------
+   Billing desk: pending charge rows, draft summary, and the printable invoice.
+   The invoice is rendered twice - once inside the workspace for review and once
+   as a root-level sheet that is the only thing that reaches the printer.
+   --------------------------------------------------------------------------- */
+.charge-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(16, 55, 92, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+}
+
+.charge-row-selected {
+  border-color: rgba(16, 55, 92, 0.4);
+  background: rgba(240, 248, 255, 0.95);
+}
+
+.charge-row-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.charge-row-total {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.bill-draft-summary {
+  display: grid;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 1px solid rgba(16, 55, 92, 0.12);
+  border-radius: 16px;
+  background: rgba(248, 252, 255, 0.9);
+}
+
+.bill-draft-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bill-draft-total {
+  padding-top: 8px;
+  border-top: 1px solid rgba(16, 55, 92, 0.15);
+  font-size: 16px;
+}
+
+.bill-invoice-sheet {
+  display: grid;
+  gap: 16px;
+  color: #1c1c1c;
+}
+
+.bill-invoice-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid rgba(28, 28, 28, 0.75);
+}
+
+.bill-invoice-org-name {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.bill-invoice-org div {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bill-invoice-meta {
+  display: grid;
+  gap: 3px;
+  min-width: 210px;
+  font-size: 12px;
+}
+
+.bill-invoice-meta > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bill-invoice-title {
+  margin-bottom: 4px;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-align: right;
+}
+
+.bill-invoice-party {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid rgba(28, 28, 28, 0.35);
+}
+
+.bill-invoice-party > div {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+
+.bill-invoice-party > div + div {
+  border-left: 1px solid rgba(28, 28, 28, 0.35);
+}
+
+.bill-invoice-party > div > div {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  gap: 8px;
+}
+
+.bill-invoice-party span {
+  color: rgba(28, 28, 28, 0.65);
+}
+
+.bill-invoice-table-shell {
+  border: 1px solid rgba(28, 28, 28, 0.35);
+  border-radius: 0;
+}
+
+.bill-invoice-table {
+  font-size: 12px;
+}
+
+.bill-invoice-table th,
+.bill-invoice-table td {
+  padding: 7px 10px;
+}
+
+.bill-invoice-table .col-num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.bill-invoice-table .col-sn {
+  width: 42px;
+  text-align: center;
+}
+
+.bill-invoice-group-row td {
+  padding-top: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+  background: rgba(16, 55, 92, 0.07);
+}
+
+.bill-invoice-subtotal-row td {
+  text-align: right;
+  font-weight: 600;
+  border-top: 1px solid rgba(28, 28, 28, 0.2);
+}
+
+.bill-invoice-foot {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 20px;
+  align-items: start;
+}
+
+.bill-invoice-notes {
+  display: grid;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.bill-invoice-words strong {
+  display: block;
+  margin-top: 2px;
+}
+
+.bill-invoice-words span,
+.bill-invoice-remark span,
+.bill-invoice-receipts > span {
+  color: rgba(28, 28, 28, 0.6);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.bill-invoice-receipts {
+  display: grid;
+  gap: 2px;
+}
+
+.bill-invoice-terms {
+  padding-top: 8px;
+  border-top: 1px dashed rgba(28, 28, 28, 0.3);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.bill-invoice-totals {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid rgba(28, 28, 28, 0.35);
+  font-size: 12px;
+}
+
+.bill-invoice-totals > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.bill-invoice-grand,
+.bill-invoice-balance {
+  padding-top: 7px;
+  margin-top: 3px;
+  border-top: 1px solid rgba(28, 28, 28, 0.45);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.bill-invoice-signature {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 34px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(28, 28, 28, 0.7);
+}
+
+.bill-print-sheet {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .bill-invoice-head,
+  .bill-invoice-foot,
+  .bill-invoice-party {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .bill-invoice-party > div + div {
+    border-left: 0;
+    border-top: 1px solid rgba(28, 28, 28, 0.35);
+  }
+
+  .bill-invoice-title {
+    text-align: left;
+  }
+}
+
+@media print {
+  body.print-bill-invoice .main-panel > :not(.bill-print-sheet) {
+    display: none !important;
+  }
+
+  body.print-bill-invoice .bill-print-sheet {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #1c1c1c !important;
+  }
+
+  body.print-bill-invoice .bill-invoice-sheet {
+    gap: 12px;
+  }
+
+  body.print-bill-invoice .bill-invoice-table-shell {
+    overflow: visible !important;
+  }
+
+  body.print-bill-invoice .bill-invoice-table tr,
+  body.print-bill-invoice .bill-invoice-party,
+  body.print-bill-invoice .bill-invoice-totals {
+    page-break-inside: avoid;
+  }
+
+  body.print-bill-invoice .bill-invoice-table thead {
+    display: table-header-group;
+  }
 }

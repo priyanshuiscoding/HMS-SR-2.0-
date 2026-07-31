@@ -13,13 +13,15 @@ import {
   invoiceHandler,
   listBillsHandler,
   listPaymentsHandler,
-  listRefundsHandler
+  listRefundsHandler,
+  pendingChargesHandler
 } from "./billing.controller.js";
 
 const billingRouter = Router();
 
 billingRouter.get("/masters", authorize(["admin", "accounts", "doctor", "reception"]), billingMastersHandler);
 billingRouter.get("/summary", authorize(["admin", "accounts", "doctor", "reception"]), billingSummaryHandler);
+billingRouter.get("/pending-charges", authorize(["admin", "accounts", "doctor", "reception"]), pendingChargesHandler);
 billingRouter.get("/bills", authorize(["admin", "accounts", "doctor", "reception"]), listBillsHandler);
 billingRouter.get("/payments", authorize(["admin", "accounts", "doctor", "reception"]), listPaymentsHandler);
 billingRouter.get("/refunds", authorize(["admin", "accounts"]), listRefundsHandler);

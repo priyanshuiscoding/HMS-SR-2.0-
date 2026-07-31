@@ -9,6 +9,8 @@ import { createError } from "../../utils/errors.js";
 import { appendWorkflowMetadata, workflowMetadata } from "../../utils/workflow.js";
 import { getAppointmentById, updateAppointmentStatus } from "../appointments/appointments.service.js";
 import { admitPatient } from "../ipd/ipd.service.js";
+import { listBillRecords } from "../billing/billing.repository.js";
+import { listLabOrderRecords } from "../laboratory/laboratory.repository.js";
 import { createLabOrder, getLabMasters } from "../laboratory/laboratory.service.js";
 import { listDoctors } from "../users/users.service.js";
 import {
@@ -146,8 +148,8 @@ export async function getVisitDetails(visitId) {
     assessment,
     prescription,
     dischargeSummary,
-    labOrders: db.labOrders.filter((entry) => entry.visitId === visitId),
-    bills: db.bills.filter((entry) => entry.visitId === visitId)
+    labOrders: await listLabOrderRecords({ visitId }),
+    bills: await listBillRecords({ visitId })
   };
 }
 

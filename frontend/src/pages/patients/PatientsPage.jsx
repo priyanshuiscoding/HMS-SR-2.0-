@@ -44,6 +44,109 @@ const initialForm = {
   referredBy: "Front Desk"
 };
 
+const initialFilters = {
+  patientType: "all",
+  gender: "all",
+  city: "all",
+  fromDate: "",
+  toDate: ""
+};
+
+const sortOptions = [
+  { value: "newest", label: "Newest first" },
+  { value: "oldest", label: "Oldest first" },
+  { value: "name_asc", label: "Name (A-Z)" },
+  { value: "name_desc", label: "Name (Z-A)" },
+  { value: "regno_asc", label: "Reg no. (low to high)" },
+  { value: "regno_desc", label: "Reg no. (high to low)" },
+  { value: "city_asc", label: "City / District (A-Z)" },
+  { value: "relevance", label: "Search relevance" }
+];
+
+const patientTypeLabels = {
+  new: "New",
+  follow_up: "Follow-up",
+  old: "Old"
+};
+
+function toTimestamp(value) {
+  const parsed = Date.parse(value || "");
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+// Registration date + time is what the receptionist sees, but two patients saved in
+// the same minute share it, so created_at breaks the tie and keeps the newest on top.
+function registrationTimestamp(patient) {
+  if (!patient.registrationDate) {
+    return toTimestamp(patient.createdAt);
+  }
+
+  const time = patient.registrationTime || "00:00";
+  const stamp = Date.parse(`${patient.registrationDate}T${time.length === 5 ? `${time}:00` : time}`);
+
+  return Number.isNaN(stamp) ? toTimestamp(patient.createdAt) : stamp;
+}
+
+function compareByRecency(first, second) {
+  return (registrationTimestamp(second) - registrationTimestamp(first))
+    || (toTimestamp(second.createdAt) - toTimestamp(first.createdAt));
+}
+
+function patientName(patient) {
+  return `${patient.firstName || ""} ${patient.lastName || ""}`.trim().toLowerCase();
+}
+
+function registrationNumberValue(patient) {
+  const digits = String(patient.registrationNumber || patient.ppin || "").replace(/\D/g, "");
+  return digits ? Number(digits) : null;
+}
+
+function compareRegistrationNumbers(first, second, direction) {
+  const firstValue = registrationNumberValue(first);
+  const secondValue = registrationNumberValue(second);
+
+  if (firstValue === null && secondValue === null) {
+    return compareByRecency(first, second);
+  }
+
+  if (firstValue === null) {
+    return 1;
+  }
+
+  if (secondValue === null) {
+    return -1;
+  }
+
+  return direction === "asc" ? firstValue - secondValue : secondValue - firstValue;
+}
+
+function sortPatients(items, sort) {
+  const sorted = [...items];
+
+  switch (sort) {
+    case "oldest":
+      return sorted.sort((first, second) => compareByRecency(second, first));
+    case "name_asc":
+      return sorted.sort((first, second) => patientName(first).localeCompare(patientName(second)));
+    case "name_desc":
+      return sorted.sort((first, second) => patientName(second).localeCompare(patientName(first)));
+    case "regno_asc":
+      return sorted.sort((first, second) => compareRegistrationNumbers(first, second, "asc"));
+    case "regno_desc":
+      return sorted.sort((first, second) => compareRegistrationNumbers(first, second, "desc"));
+    case "city_asc":
+      return sorted.sort((first, second) => {
+        const firstCity = String(first.cityDistrict || first.city || "").toLowerCase();
+        const secondCity = String(second.cityDistrict || second.city || "").toLowerCase();
+        return firstCity.localeCompare(secondCity) || compareByRecency(first, second);
+      });
+    case "relevance":
+      return sorted;
+    default:
+      return sorted.sort(compareByRecency);
+  }
+}
+
 function calculateAge(dateOfBirth) {
   if (!dateOfBirth) {
     return "";
@@ -77,6 +180,8 @@ export function PatientsPage() {
   const { user } = useAuth();
   const [patients, setPatients] = useState([]);
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState(initialFilters);
+  const [sort, setSort] = useState("newest");
   const [formState, setFormState] = useState(initialForm);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
@@ -110,6 +215,54 @@ export function PatientsPage() {
       fromSagar: patients.filter((patient) => (patient.cityDistrict || patient.city) === "Sagar").length
     };
   }, [patients]);
+
+  const cityOptions = useMemo(() => {
+    const uniqueCities = new Map();
+
+    patients.forEach((patient) => {
+      const label = String(patient.cityDistrict || patient.city || "").trim();
+      if (label) {
+        uniqueCities.set(label.toLowerCase(), label);
+      }
+    });
+
+    return [...uniqueCities.entries()].sort((first, second) => first[1].localeCompare(second[1]));
+  }, [patients]);
+
+  const visiblePatients = useMemo(() => {
+    const filtered = patients.filter((patient) => {
+      if (filters.patientType !== "all" && (patient.patientType || "new") !== filters.patientType) {
+        return false;
+      }
+
+      if (filters.gender !== "all" && String(patient.gender || "").toLowerCase() !== filters.gender) {
+        return false;
+      }
+
+      if (filters.city !== "all" && String(patient.cityDistrict || patient.city || "").toLowerCase() !== filters.city) {
+        return false;
+      }
+
+      const registeredOn = patient.registrationDate || "";
+
+      if (filters.fromDate && (!registeredOn || registeredOn < filters.fromDate)) {
+        return false;
+      }
+
+      if (filters.toDate && (!registeredOn || registeredOn > filters.toDate)) {
+        return false;
+      }
+
+      return true;
+    });
+
+    return sortPatients(filtered, sort);
+  }, [patients, filters, sort]);
+
+  const activeFilterCount = useMemo(
+    () => Object.entries(initialFilters).filter(([key, emptyValue]) => filters[key] !== emptyValue).length,
+    [filters]
+  );
 
   const canRegisterPatient = ["admin", "reception"].includes(user?.role);
   const canDeletePatients = canDeletePatientRecord(user);
@@ -147,6 +300,16 @@ export function PatientsPage() {
     setFormError("");
   };
 
+  const handleFilterChange = (event) => {
+    const { name, value } = event.target;
+    setFilters((current) => ({ ...current, [name]: value }));
+  };
+
+  const handleResetFilters = () => {
+    setFilters(initialFilters);
+    setSort("newest");
+  };
+
   const handleSearchSubmit = async (event) => {
     event.preventDefault();
     setError("");
@@ -168,6 +331,9 @@ export function PatientsPage() {
       const response = await createPatient(formState);
       setSuccess(response.message);
       setPatients((current) => [response.item, ...current.filter((patient) => patient.id !== response.item.id)]);
+      // Clear any active filter/sort so the freshly registered patient is visible at the top.
+      setFilters(initialFilters);
+      setSort("newest");
       setFormState(initialForm);
       setIsFormOpen(false);
     } catch (apiError) {
@@ -260,6 +426,84 @@ export function PatientsPage() {
             <Button type="submit">Search</Button>
           </form>
 
+          <div className="patients-filter-bar">
+            <div className="field">
+              <label htmlFor="filter-patient-type">Patient type</label>
+              <select
+                id="filter-patient-type"
+                name="patientType"
+                value={filters.patientType}
+                onChange={handleFilterChange}
+              >
+                <option value="all">All types</option>
+                <option value="new">New</option>
+                <option value="follow_up">Follow-up</option>
+                <option value="old">Old</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="filter-gender">Gender</label>
+              <select id="filter-gender" name="gender" value={filters.gender} onChange={handleFilterChange}>
+                <option value="all">All genders</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="filter-city">City / District</label>
+              <select id="filter-city" name="city" value={filters.city} onChange={handleFilterChange}>
+                <option value="all">All cities</option>
+                {cityOptions.map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="filter-from-date">Registered from</label>
+              <input
+                id="filter-from-date"
+                name="fromDate"
+                type="date"
+                value={filters.fromDate}
+                onChange={handleFilterChange}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="filter-to-date">Registered to</label>
+              <input
+                id="filter-to-date"
+                name="toDate"
+                type="date"
+                value={filters.toDate}
+                onChange={handleFilterChange}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="registry-sort">Sort by</label>
+              <select id="registry-sort" value={sort} onChange={(event) => setSort(event.target.value)}>
+                {sortOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="patients-filter-summary">
+            <span>
+              Showing {visiblePatients.length} of {patients.length} patients
+              {activeFilterCount ? ` (${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""} applied)` : ""}
+            </span>
+            <button
+              className="table-link button-link"
+              type="button"
+              onClick={handleResetFilters}
+              disabled={!activeFilterCount && sort === "newest"}
+            >
+              Reset filters
+            </button>
+          </div>
+
           {error ? <div className="error-text">{error}</div> : null}
           {success ? <div className="success-text">{success}</div> : null}
           {!canRegisterPatient ? (
@@ -281,17 +525,17 @@ export function PatientsPage() {
                     <th>Mobile</th>
                     <th>City / District</th>
                     <th>Registered</th>
-                    {canDeletePatients ? <th></th> : null}
                     <th></th>
+                    {canDeletePatients ? <th></th> : null}
                   </tr>
                 </thead>
                 <tbody>
-                  {patients.map((patient) => (
+                  {visiblePatients.map((patient) => (
                     <tr key={patient.id}>
                       <td>{patient.uhid}</td>
                       <td>{patient.registrationNumber || patient.ppin || "Not assigned"}</td>
                       <td>{patient.title ? `${patient.title} ` : ""}{patient.firstName} {patient.lastName}</td>
-                      <td>{patient.patientType || "new"}</td>
+                      <td>{patientTypeLabels[patient.patientType] || patient.patientType || "New"}</td>
                       <td>{patient.phone}</td>
                       <td>{patient.cityDistrict || patient.city}</td>
                       <td>{patient.registrationDate}</td>
@@ -317,7 +561,13 @@ export function PatientsPage() {
                 </tbody>
               </table>
 
-              {!patients.length ? <div className="empty-state">No patients found for the current search.</div> : null}
+              {!visiblePatients.length ? (
+                <div className="empty-state">
+                  {patients.length
+                    ? "No patients match the selected filters."
+                    : "No patients found for the current search."}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </article>

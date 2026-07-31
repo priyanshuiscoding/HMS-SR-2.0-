@@ -1,6 +1,5 @@
 import {
   collectLabSample,
-  createLabBill,
   createLabOrder,
   getLabMasters,
   getLabOrderDetails,
@@ -61,14 +60,6 @@ export async function collectSampleHandler(req, res, next) {
 export async function saveResultsHandler(req, res, next) {
   try {
     res.json({ item: await saveLabResults(req.params.id, req.body, req.user.sub), message: "Lab results saved successfully." });
-  } catch (error) {
-    next(error);
-  }
-}
-
-export async function createBillHandler(req, res, next) {
-  try {
-    res.json({ item: await createLabBill(req.params.id, req.body, req.user.sub), message: "Lab bill created successfully." });
   } catch (error) {
     next(error);
   }

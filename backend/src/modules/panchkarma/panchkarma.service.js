@@ -2,6 +2,7 @@ import { createId, db } from "../../data/store.js";
 import { todayDate } from "../../utils/dateTime.js";
 import { createError } from "../../utils/errors.js";
 import { appendWorkflowMetadata } from "../../utils/workflow.js";
+import { findBillById } from "../billing/billing.repository.js";
 import { getPatientById } from "../patients/patients.service.js";
 import { listDoctors, listTherapists } from "../users/users.service.js";
 import {
@@ -118,7 +119,7 @@ async function enrichSchedule(schedule) {
   const therapyRoom = schedule.therapyRoomId ? db.rooms.find((entry) => entry.id === schedule.therapyRoomId) || null : null;
   const recoveryBed = schedule.recoveryBedId ? db.beds.find((entry) => entry.id === schedule.recoveryBedId) || null : null;
   const recoveryRoom = recoveryBed ? db.rooms.find((entry) => entry.id === recoveryBed.roomId) || null : null;
-  const bill = schedule.billId ? db.bills.find((entry) => entry.id === schedule.billId) || null : null;
+  const bill = schedule.billId ? await findBillById(schedule.billId).catch(() => null) : null;
 
   return {
     ...schedule,
@@ -402,36 +403,16 @@ export async function completePanchkarmaSession(scheduleId, payload, userId) {
       notes: item.notes || ""
     };
   });
-  const billItems = payload.createBill
-    ? billItemsForCompletion({ therapy, materialsUsed: materialPreview, materialMedicines, payload })
-    : [];
+  // The session prices itself at completion and keeps the breakdown; the billing
+  // desk pulls it onto the patient's bill later.
+  const billItems = billItemsForCompletion({ therapy, materialsUsed: materialPreview, materialMedicines, payload });
   const subtotal = billItems.reduce((sum, item) => sum + Number(item.amount || 0), 0);
 
   const result = await completeSessionRecord(scheduleId, {
     createId,
     materialsUsed: materialInputs,
-    bill: payload.createBill
-      ? {
-          id: createId(),
-          patientId: schedule.patientId,
-          patientName: schedule.patientName,
-          billType: "therapy",
-          billDate: payload.billDate || todayDate(),
-          subtotal,
-          discountAmount: 0,
-          taxAmount: 0,
-          totalAmount: subtotal,
-          paymentStatus: payload.paymentStatus || "unpaid",
-          createdBy: userId,
-          notes: `Generated from Panchkarma session ${schedule.scheduleNumber}`,
-          invoiceMeta: {},
-          metadata: {
-            panchkarmaSessionId: schedule.id,
-            panchkarmaScheduleNumber: schedule.scheduleNumber
-          },
-          items: billItems
-        }
-      : null,
+    bill: null,
+    billItems,
     sessionCompletedAt: payload.sessionCompletedAt || "",
     executionNotes: payload.executionNotes || "",
     followUpAdvice: payload.followUpAdvice || "",

@@ -6,7 +6,6 @@ import { useAuth } from "../../hooks/useAuth.js";
 import { formatCurrency } from "../../utils/format.js";
 import {
   collectLabSample,
-  createLabBill,
   getLabOrder,
   getLabOrders,
   getLabSummary,
@@ -32,7 +31,6 @@ export function LaboratoryPage() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [sampleForm, setSampleForm] = useState(initialSampleForm);
   const [resultForm, setResultForm] = useState({ processingSummary: "", markReported: false, tests: [] });
-  const [billPaymentStatus, setBillPaymentStatus] = useState("unpaid");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -93,7 +91,6 @@ export function LaboratoryPage() {
 
   const canCollectSamples = ["admin", "lab", "reception", "doctor"].includes(user?.role);
   const canSaveResults = ["admin", "lab", "doctor"].includes(user?.role);
-  const canCreateBills = ["admin", "accounts", "reception", "doctor", "lab"].includes(user?.role);
 
   const selectedOrderCharge = useMemo(() => {
     return selectedOrder?.tests?.reduce((sum, test) => {
@@ -188,24 +185,6 @@ export function LaboratoryPage() {
       await loadAll(filters, response.item.id);
     } catch (apiError) {
       setError(apiError.message || "Unable to save lab results.");
-    }
-  };
-
-  const handleCreateBill = async () => {
-    if (!selectedOrder?.id) {
-      return;
-    }
-    if (!canCreateBills) {
-      setError("You do not have permission to create lab bills.");
-      return;
-    }
-
-    try {
-      const response = await createLabBill(selectedOrder.id, { paymentStatus: billPaymentStatus });
-      setMessage(response.message);
-      await loadAll(filters, response.item.id);
-    } catch (apiError) {
-      setError(apiError.message || "Unable to create lab bill.");
     }
   };
 
@@ -488,7 +467,7 @@ export function LaboratoryPage() {
             <div className="section-header">
               <div>
                 <div className="eyebrow">Billing Link</div>
-                <h3>Create lab invoice</h3>
+                <h3>Investigation charges</h3>
               </div>
             </div>
 
@@ -497,18 +476,10 @@ export function LaboratoryPage() {
             ) : (
               <div className="detail-list">
                 <div><strong>Investigation total:</strong> Rs. {formatCurrency(selectedOrderCharge)}</div>
-                <div><strong>Bill status:</strong> {selectedOrder.bill?.billNumber || "Not generated"}</div>
-                <div className="field">
-                  <label>Initial payment status</label>
-                  <select value={billPaymentStatus} onChange={(event) => setBillPaymentStatus(event.target.value)}>
-                    <option value="unpaid">unpaid</option>
-                    <option value="partial">partial</option>
-                    <option value="paid">paid</option>
-                  </select>
+                <div><strong>Bill:</strong> {selectedOrder.bill?.billNumber || "Pending at billing desk"}</div>
+                <div className="empty-state">
+                  Lab charges are billed at the Billing Desk along with the rest of the patient's visit.
                 </div>
-                <Button onClick={handleCreateBill} disabled={!canCreateBills || Boolean(selectedOrder.bill)}>
-                  {selectedOrder.bill ? "Bill Already Created" : "Create Lab Bill"}
-                </Button>
               </div>
             )}
           </article>

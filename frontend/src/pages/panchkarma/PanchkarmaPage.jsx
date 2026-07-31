@@ -50,7 +50,6 @@ const initialCompletionForm = {
   followUpAdvice: "",
   sessionCharge: "",
   paymentStatus: "unpaid",
-  createBill: true,
   addMaterialCharges: true,
   materialsUsed: [{ ...emptyMaterial }]
 };
@@ -108,7 +107,6 @@ export function PanchkarmaPage() {
           outcome: detail.outcome || "",
           followUpAdvice: detail.followUpAdvice || "",
           sessionCharge: detail.therapy?.price || "",
-          createBill: !detail.billId,
           materialsUsed: detail.materialsUsed?.length
             ? detail.materialsUsed.map((item) => ({
                 medicineId: item.medicineId,
@@ -185,7 +183,6 @@ export function PanchkarmaPage() {
         outcome: detail.outcome || "",
         followUpAdvice: detail.followUpAdvice || "",
         sessionCharge: detail.therapy?.price || "",
-        createBill: !detail.billId,
         materialsUsed: detail.materialsUsed?.length
           ? detail.materialsUsed.map((item) => ({
               medicineId: item.medicineId,
@@ -692,12 +689,8 @@ export function PanchkarmaPage() {
                   </select>
                 </div>
                 <label className="checkbox-chip">
-                  <input type="checkbox" name="createBill" checked={completionForm.createBill} onChange={handleCompletionChange} />
-                  <span>Create therapy bill</span>
-                </label>
-                <label className="checkbox-chip">
                   <input type="checkbox" name="addMaterialCharges" checked={completionForm.addMaterialCharges} onChange={handleCompletionChange} />
-                  <span>Add material charges to bill</span>
+                  <span>Add material charges to the therapy charge</span>
                 </label>
 
                 <div className="field field-span-2">
