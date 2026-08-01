@@ -229,7 +229,9 @@ function applyHistoryToPrescription(prescription, history) {
   const snapshot = history?.prescriptionSnapshot || {};
   if (!Object.keys(snapshot).length) return prescription;
   const metadata = prescription.metadata || {};
-  const complaintRows = Array.from({ length: 10 }, (_, index) => snapshot.complaintRows?.[index] || metadata.complaintRows?.[index] || { complaint: "", duration: "", severity: "" });
+  const complaintRows = normalizePrescriptionComplaintRows(
+    Array.from({ length: MAX_PRESCRIPTION_COMPLAINTS }, (_, index) => snapshot.complaintRows?.[index] || metadata.complaintRows?.[index] || emptyPrescriptionComplaint())
+  );
   return {
     ...prescription,
     metadata: {
@@ -270,6 +272,23 @@ const emptyMedicine = {
   specialInstructions: ""
 };
 
+const DEFAULT_PRESCRIPTION_COMPLAINTS = 3;
+const MAX_PRESCRIPTION_COMPLAINTS = 10;
+const emptyPrescriptionComplaint = () => ({ complaint: "", duration: "", severity: "" });
+
+function normalizePrescriptionComplaintRows(rows = []) {
+  const source = Array.isArray(rows) ? rows.slice(0, MAX_PRESCRIPTION_COMPLAINTS) : [];
+  const lastCompletedIndex = source.reduce((lastIndex, row, index) => (
+    row?.complaint || row?.duration || row?.severity ? index : lastIndex
+  ), -1);
+  const visibleCount = Math.max(DEFAULT_PRESCRIPTION_COMPLAINTS, lastCompletedIndex + 1);
+
+  return Array.from({ length: visibleCount }, (_, index) => ({
+    ...emptyPrescriptionComplaint(),
+    ...(source[index] || {})
+  }));
+}
+
 const initialPrescription = {
   diagnosis: "",
   diagnosisAyurvedic: "",
@@ -284,7 +303,7 @@ const initialPrescription = {
       { diagnosis: "", icdCode: "", type: "secondary" },
       { diagnosis: "", icdCode: "", type: "secondary" }
     ],
-    complaintRows: Array.from({ length: 10 }, () => ({ complaint: "", duration: "", severity: "" })),
+    complaintRows: Array.from({ length: DEFAULT_PRESCRIPTION_COMPLAINTS }, emptyPrescriptionComplaint),
     patientDetails: { category: "" },
     medicalHistory: {
       conditions: [], surgicalHistory: "", surgicalDetails: "", menstrualLmp: "", menstrualPreviousLmp: "",
@@ -388,6 +407,7 @@ function mergePrescription(prescription) {
     metadata: {
       ...base.metadata,
       ...storedMetadata,
+      complaintRows: normalizePrescriptionComplaintRows(prescription?.metadata?.complaintRows),
       therapyPlan: normalizeTherapyPlan({
         ...base.metadata.therapyPlan,
         ...(prescription?.metadata?.therapyPlan || {})
@@ -1081,6 +1101,21 @@ export function OpdPage() {
     }
   };
 
+  const addComplaintRow = () => {
+    setPrescriptionForm((current) => {
+      const complaintRows = current.metadata?.complaintRows || [];
+      if (complaintRows.length >= MAX_PRESCRIPTION_COMPLAINTS) return current;
+
+      return {
+        ...current,
+        metadata: {
+          ...current.metadata,
+          complaintRows: [...complaintRows, emptyPrescriptionComplaint()]
+        }
+      };
+    });
+  };
+
   const saveHistoryTakingAction = async () => {
     if (!visitPayload?.visit?.id) return;
     if (!canClinicalDocument) {
@@ -1513,14 +1548,16 @@ export function OpdPage() {
                     <div className="eyebrow">Prescription</div>
                     <h3>Starter prescription builder</h3>
                   </div>
-                  <div className="action-row">
-                    <Button variant="secondary" onClick={addMedicineRow} disabled={!canClinicalDocument}>Add Medicine</Button>
-                    <Button onClick={savePrescriptionAction} disabled={!canClinicalDocument}>Save Prescription</Button>
-                  </div>
+                  <Button onClick={savePrescriptionAction} disabled={!canClinicalDocument}>Save Prescription</Button>
                 </div>
 
                 <div className="form-subsection prescription-complaints-top">
-                  <h4>Chief complaints</h4>
+                  <div className="prescription-subsection-heading">
+                    <h4>Chief complaints</h4>
+                    {prescriptionForm.metadata.complaintRows.length < MAX_PRESCRIPTION_COMPLAINTS ? (
+                      <Button variant="secondary" onClick={addComplaintRow} disabled={!canClinicalDocument}>+ Add complaint</Button>
+                    ) : null}
+                  </div>
                   <div className="table-shell compact-table-shell">
                     <table className="data-table compact-table prescription-complaint-editor">
                       <thead>
@@ -1644,55 +1681,11 @@ export function OpdPage() {
                   </div>
                 </div>
 
-                <div className="form-subsection">
-                  <h4>Medical, allergy, and family history</h4>
-                  <div className="field field-span-2">
-                    <label>Known medical conditions</label>
-                    <div className="checkbox-grid clinical-checkbox-grid">
-                      {[
-                        ["dm", "Diabetes mellitus"], ["htn", "Hypertension"], ["cad", "Coronary artery disease"],
-                        ["cva", "CVA"], ["respiratory", "Respiratory disease"], ["thyroid", "Thyroid disease"],
-                        ["renal", "Renal disease"], ["neurological", "Neurological disease"],
-                        ["psychiatric", "Psychiatric disease"], ["malignancy", "Malignancy / cancer"]
-                      ].map(([value, label]) => (
-                        <label className="checkbox-chip" key={value}>
-                          <input type="checkbox" checked={prescriptionForm.metadata.medicalHistory.conditions.includes(value)} onChange={(event) => handlePrescriptionMetadataListChange("medicalHistory", "conditions", value, event.target.checked)} />
-                          <span>{label}</span>
-                        </label>
-                      ))}
-                    </div>
+                <div className="form-subsection prescription-medicine-section">
+                  <div className="prescription-subsection-heading">
+                    <h4>Medicines</h4>
                   </div>
-                  <div className="form-grid clinical-form-grid">
-                    <div className="field"><label>Surgical history</label><input value={prescriptionForm.metadata.medicalHistory.surgicalHistory} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "surgicalHistory", event.target.value)} /></div>
-                    <div className="field"><label>Surgical details</label><input value={prescriptionForm.metadata.medicalHistory.surgicalDetails} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "surgicalDetails", event.target.value)} /></div>
-                    <div className="field"><label>LMP</label><input type="date" value={prescriptionForm.metadata.medicalHistory.menstrualLmp} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menstrualLmp", event.target.value)} /></div>
-                    <div className="field"><label>Previous LMP</label><input type="date" value={prescriptionForm.metadata.medicalHistory.menstrualPreviousLmp} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menstrualPreviousLmp", event.target.value)} /></div>
-                    <div className="field"><label>Cycle days</label><input value={prescriptionForm.metadata.medicalHistory.menstrualDays} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menstrualDays", event.target.value)} /></div>
-                    <div className="field"><label>Cycle</label><select value={prescriptionForm.metadata.medicalHistory.menstrualCycle} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menstrualCycle", event.target.value)}><option value="">Select</option><option value="regular">Regular</option><option value="irregular">Irregular</option></select></div>
-                    <div className="field"><label>Menarche</label><input value={prescriptionForm.metadata.medicalHistory.menarche} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menarche", event.target.value)} /></div>
-                    <div className="field"><label>Menopause</label><input value={prescriptionForm.metadata.medicalHistory.menopause} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menopause", event.target.value)} /></div>
-                    <div className="field"><label>Clotting</label><input value={prescriptionForm.metadata.medicalHistory.clotting} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "clotting", event.target.value)} /></div>
-                    <div className="field"><label>Pain severity</label><input value={prescriptionForm.metadata.medicalHistory.painSeverity} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "painSeverity", event.target.value)} /></div>
-                    <div className="field field-span-2"><label>Obstetric history</label><input value={prescriptionForm.metadata.medicalHistory.obstetricHistory} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "obstetricHistory", event.target.value)} /></div>
-                    <div className="field field-span-2"><label>Other medical history</label><input value={prescriptionForm.metadata.medicalHistory.other} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "other", event.target.value)} /></div>
-                    <div className="field"><label>Drug allergies</label><input value={prescriptionForm.metadata.allergies.drug} onChange={(event) => handlePrescriptionMetadataChange("allergies", "drug", event.target.value)} /></div>
-                    <div className="field"><label>Food allergies</label><input value={prescriptionForm.metadata.allergies.food} onChange={(event) => handlePrescriptionMetadataChange("allergies", "food", event.target.value)} /></div>
-                    <div className="field field-span-2"><label>Environmental allergies</label><input value={prescriptionForm.metadata.allergies.environmental} onChange={(event) => handlePrescriptionMetadataChange("allergies", "environmental", event.target.value)} /></div>
-                    <label className="checkbox-chip"><input type="checkbox" checked={prescriptionForm.metadata.familyHistory.geneticConditions} onChange={(event) => handlePrescriptionMetadataChange("familyHistory", "geneticConditions", event.target.checked)} /><span>Genetic / hereditary condition</span></label>
-                    <div className="field"><label>Genetic condition details</label><input value={prescriptionForm.metadata.familyHistory.geneticDetails} onChange={(event) => handlePrescriptionMetadataChange("familyHistory", "geneticDetails", event.target.value)} /></div>
-                  </div>
-                  <div className="field field-span-2">
-                    <label>Family history</label>
-                    <div className="checkbox-grid clinical-checkbox-grid">
-                      {[["diabetes", "Diabetes"], ["htn", "HTN"], ["cad", "CAD"], ["cancer", "Cancer"], ["renal", "Renal"], ["arthritis", "Arthritis"]].map(([value, label]) => (
-                        <label className="checkbox-chip" key={value}><input type="checkbox" checked={prescriptionForm.metadata.familyHistory.conditions.includes(value)} onChange={(event) => handlePrescriptionMetadataListChange("familyHistory", "conditions", value, event.target.checked)} /><span>{label}</span></label>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="field field-span-2"><label>Other family history</label><input value={prescriptionForm.metadata.familyHistory.others} onChange={(event) => handlePrescriptionMetadataChange("familyHistory", "others", event.target.value)} /></div>
-                </div>
-
-                <div className="medicine-stack">
+                  <div className="medicine-stack">
                   {prescriptionForm.medicines.map((medicine, index) => (
                     <div className="medicine-card" key={`${medicine.id || "new"}-${index}`}>
                       <div className="medicine-card-head">
@@ -1789,12 +1782,13 @@ export function OpdPage() {
                       </div>
                     </div>
                   ))}
-                </div>
+                  </div>
 
-                <div className="medicine-add-row">
-                  <Button variant="secondary" onClick={addMedicineRow} disabled={!canClinicalDocument}>
-                    + Add medicine
-                  </Button>
+                  <div className="medicine-add-row">
+                    <Button variant="secondary" onClick={addMedicineRow} disabled={!canClinicalDocument}>
+                      + Add medicine
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="form-subsection">
@@ -1846,8 +1840,16 @@ export function OpdPage() {
                     <div className="field"><label>Follow-up interval</label><select value={prescriptionForm.metadata.followUpMonitoring.interval} onChange={(event) => handlePrescriptionMetadataChange("followUpMonitoring", "interval", event.target.value)}><option value="">Select</option><option value="1-week">1 week</option><option value="2-weeks">2 weeks</option><option value="1-month">1 month</option></select></div>
                     <div className="field field-span-2">
                       <label>Monitoring parameters</label>
-                      <div className="checkbox-grid clinical-checkbox-grid">
-                        {[["bp", "BP"], ["weight", "Weight"], ["fbs", "FBS"], ["symptoms", "Symptoms"]].map(([value, label]) => <label className="checkbox-chip" key={value}><input type="checkbox" checked={prescriptionForm.metadata.followUpMonitoring.parameters.includes(value)} onChange={(event) => handlePrescriptionMetadataListChange("followUpMonitoring", "parameters", value, event.target.checked)} /><span>{label}</span></label>)}
+                      <div className="monitoring-parameter-grid">
+                        {[["bp", "Blood pressure"], ["weight", "Weight"], ["fbs", "Fasting blood sugar"], ["symptoms", "Symptoms / clinical response"]].map(([value, label]) => {
+                          const isSelected = prescriptionForm.metadata.followUpMonitoring.parameters.includes(value);
+                          return (
+                            <label className={`monitoring-parameter-option ${isSelected ? "is-selected" : ""}`} key={value}>
+                              <input type="checkbox" checked={isSelected} onChange={(event) => handlePrescriptionMetadataListChange("followUpMonitoring", "parameters", value, event.target.checked)} />
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
                       </div>
                     </div>
                     <div className="field field-span-2"><label>Other monitoring parameters</label><input value={prescriptionForm.metadata.followUpMonitoring.others} onChange={(event) => handlePrescriptionMetadataChange("followUpMonitoring", "others", event.target.value)} /></div>
@@ -1886,7 +1888,10 @@ export function OpdPage() {
                           <h4>{group.name}</h4>
                           <div className="lab-order-checkboxes">
                             {group.tests.map((test) => (
-                              <label key={test.id} className="checkbox-chip lab-order-checkbox">
+                              <label
+                                key={test.id}
+                                className={`checkbox-chip lab-order-checkbox ${labOrderForm.tests.includes(test.id) ? "is-selected" : ""}`}
+                              >
                                 <input
                                   type="checkbox"
                                   name="tests"

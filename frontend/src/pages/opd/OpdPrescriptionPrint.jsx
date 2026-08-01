@@ -158,7 +158,7 @@ export function OpdPrescriptionPrint({ visitPayload, selectedQueueItem, vitalsFo
         <SectionTitle>FOLLOW-UP &amp; CLINICAL MONITORING</SectionTitle>
         <table className="opd-rx-table opd-rx-followup-table"><tbody>
           <tr><th>Follow-up Interval:</th><td><Choice checked={followUp.interval === "1-week"}>1 week</Choice> <Choice checked={followUp.interval === "2-weeks"}>2 weeks</Choice> <Choice checked={followUp.interval === "1-month"}>1 month</Choice></td><th>Follow-up Date:</th><td>{formatDate(prescriptionForm.followUpDate)}</td></tr>
-          <tr><th>Monitoring Parameters:</th><td colSpan="3">{[["bp", "BP"], ["weight", "Weight"], ["fbs", "FBS"], ["symptoms", "Symptoms"]].map(([value, label]) => <Choice key={value} checked={includesValue(followUp.parameters, value)}>{label}</Choice>)} &nbsp; Others: {text(followUp.others)}</td></tr>
+          <tr><th>Monitoring Parameters:</th><td colSpan="3">{[["bp", "Blood pressure"], ["weight", "Weight"], ["fbs", "Fasting blood sugar"], ["symptoms", "Symptoms / clinical response"]].map(([value, label]) => <Choice key={value} checked={includesValue(followUp.parameters, value)}>{label}</Choice>)} &nbsp; Others: {text(followUp.others)}</td></tr>
         </tbody></table>
 
         <div className="opd-rx-validity">

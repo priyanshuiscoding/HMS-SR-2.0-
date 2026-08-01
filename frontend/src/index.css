@@ -1894,6 +1894,21 @@ textarea {
   margin-top: 16px;
 }
 
+.prescription-subsection-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.prescription-subsection-heading .secondary-button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
 .prescription-complaint-editor,
 .prescription-diagnosis-editor {
   width: 100%;
@@ -1968,44 +1983,113 @@ textarea {
 
 .lab-order-groups {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
 .lab-order-group {
   min-width: 0;
-  padding: 13px;
+  padding: 14px;
   border: 1px solid rgba(16, 55, 92, 0.1);
   border-radius: 14px;
   background: rgba(248, 252, 255, 0.88);
 }
 
 .lab-order-group h4 {
-  margin: 0 0 10px;
+  margin: 0 0 11px;
   color: #245587;
   font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
 }
 
 .lab-order-checkboxes {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 8px;
 }
 
 .lab-order-checkbox {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-height: 54px;
   min-width: 0;
-  align-items: flex-start;
+  align-items: center;
+  gap: 10px;
   margin: 0;
+  padding: 10px 12px;
+  border-radius: 11px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.lab-order-checkbox:hover {
+  border-color: rgba(47, 105, 201, 0.34);
+  background: rgba(240, 247, 255, 0.92);
+}
+
+.lab-order-checkbox.is-selected {
+  border-color: rgba(47, 105, 201, 0.62);
+  background: rgba(47, 125, 185, 0.1);
+  box-shadow: inset 3px 0 0 #2f69c9;
+}
+
+.lab-order-checkbox input[type="checkbox"] {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  place-content: center;
+  border: 1.5px solid rgba(36, 85, 135, 0.5);
+  border-radius: 5px;
+  background: #ffffff;
+  appearance: none;
+  cursor: pointer;
+}
+
+.lab-order-checkbox input[type="checkbox"]::after {
+  width: 8px;
+  height: 4px;
+  border-bottom: 2px solid #ffffff;
+  border-left: 2px solid #ffffff;
+  content: "";
+  transform: translateY(-1px) rotate(-45deg) scale(0);
+  transition: transform 0.12s ease;
+}
+
+.lab-order-checkbox input[type="checkbox"]:checked {
+  border-color: #2f69c9;
+  background: #2f69c9;
+}
+
+.lab-order-checkbox input[type="checkbox"]:checked::after {
+  transform: translateY(-1px) rotate(-45deg) scale(1);
+}
+
+.lab-order-checkbox input[type="checkbox"]:focus-visible {
+  outline: 3px solid rgba(47, 105, 201, 0.2);
+  outline-offset: 2px;
 }
 
 .lab-order-checkbox > span {
   min-width: 0;
-  overflow-wrap: anywhere;
+  color: var(--color-ink);
+  line-height: 1.35;
+  overflow-wrap: break-word;
+  text-align: left;
+  word-break: normal;
 }
 
 .lab-order-checkbox strong,
 .lab-order-checkbox small {
   display: block;
+}
+
+.lab-order-checkbox strong {
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .lab-order-checkbox small {
@@ -2025,6 +2109,62 @@ textarea {
   display: grid;
   gap: 14px;
   margin-top: 18px;
+}
+
+.prescription-medicine-section .medicine-stack {
+  margin-top: 0;
+}
+
+.monitoring-parameter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.monitoring-parameter-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 46px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid rgba(16, 55, 92, 0.12);
+  border-radius: 11px;
+  background: #ffffff;
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.monitoring-parameter-option:hover {
+  border-color: rgba(47, 105, 201, 0.34);
+  background: rgba(240, 247, 255, 0.92);
+}
+
+.monitoring-parameter-option.is-selected {
+  border-color: rgba(47, 105, 201, 0.62);
+  background: rgba(47, 125, 185, 0.1);
+  box-shadow: inset 3px 0 0 #2f69c9;
+}
+
+.monitoring-parameter-option input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: #2f69c9;
+  cursor: pointer;
+}
+
+.monitoring-parameter-option span {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+  text-align: left;
+  word-break: normal;
 }
 
 .medicine-card {
@@ -2995,6 +3135,10 @@ textarea {
   .general-exam-intro,
   .general-exam-grid,
   .history-examination-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .monitoring-parameter-grid {
     grid-template-columns: 1fr;
   }
 
