@@ -9,25 +9,37 @@ import {
   resetPassword
 } from "./auth.service.js";
 
+function refreshCookieOptions(req, expiresAt) {
+  const secure = env.cookieSecure || req.secure;
+  return {
+    httpOnly: true,
+    sameSite: env.cookieSameSite,
+    secure,
+    path: "/api/v1/auth",
+    ...(expiresAt ? { expires: new Date(expiresAt) } : {})
+  };
+}
+
+function publicAuthResult(result) {
+  const { refreshToken: _refreshToken, refreshExpiresAt: _refreshExpiresAt, ...publicResult } = result;
+  return publicResult;
+}
+
 export async function loginHandler(req, res, next) {
   try {
     const result = await issueTokens(req.body);
-    res.cookie("refreshToken", result.refreshToken, {
-      httpOnly: true,
-      sameSite: env.cookieSecure || req.secure ? "none" : "lax",
-      secure: env.cookieSecure || req.secure
-    });
+    res.cookie("refreshToken", result.refreshToken, refreshCookieOptions(req, result.refreshExpiresAt));
 
-    res.json(result);
+    res.json(publicAuthResult(result));
   } catch (error) {
     next(error);
   }
 }
 
-export function logoutHandler(req, res, next) {
+export async function logoutHandler(req, res, next) {
   try {
-    logoutUser(req.cookies.refreshToken);
-    res.clearCookie("refreshToken");
+    await logoutUser(req.cookies.refreshToken);
+    res.clearCookie("refreshToken", refreshCookieOptions(req));
     res.json({ message: "Logged out successfully." });
   } catch (error) {
     next(error);
@@ -37,7 +49,8 @@ export function logoutHandler(req, res, next) {
 export async function refreshHandler(req, res, next) {
   try {
     const result = await refreshAccessToken(req.cookies.refreshToken);
-    res.json(result);
+    res.cookie("refreshToken", result.refreshToken, refreshCookieOptions(req, result.refreshExpiresAt));
+    res.json(publicAuthResult(result));
   } catch (error) {
     next(error);
   }

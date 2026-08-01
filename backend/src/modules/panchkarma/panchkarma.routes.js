@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { authorize } from "../../middleware/rbac.js";
+import { authorize, authorizeRolesOnly } from "../../middleware/rbac.js";
 import {
   completePanchkarmaSessionHandler,
   createPanchkarmaScheduleHandler,
@@ -48,22 +48,22 @@ panchkarmaRouter.get(
 );
 panchkarmaRouter.post(
   "/schedule",
-  authorize(["admin", "doctor", "reception", "therapist"]),
+  authorizeRolesOnly(["admin", "doctor", "reception", "therapist"]),
   createPanchkarmaScheduleHandler
 );
 panchkarmaRouter.post(
   "/schedule/:id/start",
-  authorize(["admin", "doctor", "therapist"]),
+  authorizeRolesOnly(["admin", "doctor", "therapist"]),
   startPanchkarmaSessionHandler
 );
 panchkarmaRouter.post(
   "/schedule/:id/complete",
-  authorize(["admin", "doctor", "therapist", "accounts"]),
+  authorizeRolesOnly(["admin", "doctor", "therapist", "accounts"]),
   completePanchkarmaSessionHandler
 );
 panchkarmaRouter.put(
   "/schedule/:id/workflow",
-  authorize(["admin", "doctor", "reception", "therapist", "accounts"]),
+  authorizeRolesOnly(["admin", "doctor", "reception", "therapist", "accounts"]),
   panchkarmaWorkflowActionHandler
 );
 

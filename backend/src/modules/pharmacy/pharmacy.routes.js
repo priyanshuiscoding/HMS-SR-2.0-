@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { authorize } from "../../middleware/rbac.js";
+import { authorize, authorizeRolesOnly } from "../../middleware/rbac.js";
 import {
   dispenseHandler,
   dispensationsHandler,
@@ -22,12 +22,12 @@ pharmacyRouter.get("/prescriptions", authorize(["admin", "pharmacy", "doctor"]),
 pharmacyRouter.get("/dispensations", authorize(["admin", "pharmacy", "accounts"]), dispensationsHandler);
 pharmacyRouter.post(
   "/prescriptions/:prescriptionId/dispense",
-  authorize(["admin", "pharmacy"]),
+  authorizeRolesOnly(["admin", "pharmacy"]),
   dispenseHandler
 );
 pharmacyRouter.put(
   "/prescriptions/:prescriptionId/workflow",
-  authorize(["admin", "pharmacy", "doctor"]),
+  authorizeRolesOnly(["admin", "pharmacy", "doctor"]),
   prescriptionWorkflowActionHandler
 );
 

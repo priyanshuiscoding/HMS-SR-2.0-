@@ -5,7 +5,7 @@ import { env } from "./env.js";
 const poolConfig = env.databaseUrl
   ? {
     connectionString: env.databaseUrl,
-    ssl: env.dbSsl ? { rejectUnauthorized: false } : false
+    ssl: env.dbSsl ? { rejectUnauthorized: env.dbSslRejectUnauthorized } : false
   }
   : {
     host: env.dbHost,
@@ -13,8 +13,11 @@ const poolConfig = env.databaseUrl
     database: env.dbName,
     user: env.dbUser,
     password: env.dbPassword,
-    ssl: env.dbSsl ? { rejectUnauthorized: false } : false
+    ssl: env.dbSsl ? { rejectUnauthorized: env.dbSslRejectUnauthorized } : false
   };
+
+poolConfig.connectionTimeoutMillis = env.dbConnectionTimeoutMs;
+poolConfig.application_name = "sr-aiims-hms-api";
 
 export const pgPool = new Pool(poolConfig);
 

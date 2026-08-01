@@ -6,6 +6,11 @@
     "backend",
     "frontend"
   ],
+  "allowScripts": {
+    "bcrypt@6.0.0": true,
+    "esbuild@0.25.12": true,
+    "fsevents": false
+  },
   "scripts": {
     "dev:frontend": "npm --workspace frontend run dev",
     "dev:backend": "npm --workspace backend run dev",
@@ -13,11 +18,13 @@
     "start:backend": "npm --workspace backend run start",
     "db:migrate": "npm --workspace backend run db:migrate",
     "db:seed": "npm --workspace backend run db:seed",
+    "db:bootstrap-admin": "npm --workspace backend run db:bootstrap-admin",
     "db:setup": "npm --workspace backend run db:setup",
     "db:import-old-patients": "npm --workspace backend run db:import-old-patients",
     "db:backup": "node scripts/db-backup.mjs",
     "db:restore": "node scripts/db-restore.mjs",
     "check:deployment": "node scripts/check-deployment.mjs",
+    "check:api": "node scripts/api-smoke-test.mjs",
     "validate:workflows": "node scripts/validate-workflows.mjs"
   }
 }

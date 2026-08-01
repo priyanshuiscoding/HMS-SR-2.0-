@@ -5,8 +5,13 @@ import { env } from "../../config/env.js";
 import { logger } from "../../config/logger.js";
 import { createError } from "../../utils/errors.js";
 import { findUserByEmail, hashPasswordForStorage, updateUserPasswordHash, updateUserRecord, verifyPassword } from "../users/users.repository.js";
+import {
+  createRefreshSession,
+  deleteExpiredRefreshSessions,
+  revokeRefreshSession,
+  rotateRefreshSession
+} from "./auth.repository.js";
 
-const refreshStore = new Map();
 const resetOtpStore = new Map();
 
 function sanitizeUser(user) {
@@ -20,10 +25,11 @@ function createAccessToken(user) {
       sub: user.id,
       email: user.email,
       role: user.role,
-      fullName: user.fullName
+      fullName: user.fullName,
+      type: "access"
     },
     env.jwtAccessSecret,
-    { expiresIn: env.jwtAccessExpires }
+    { algorithm: "HS256", expiresIn: env.jwtAccessExpires, issuer: env.jwtIssuer, audience: env.jwtAudience }
   );
 }
 
@@ -32,11 +38,17 @@ function createRefreshToken(user) {
     {
       sub: user.id,
       email: user.email,
-      type: "refresh"
+      type: "refresh",
+      jti: crypto.randomUUID()
     },
     env.jwtRefreshSecret,
-    { expiresIn: env.jwtRefreshExpires }
+    { algorithm: "HS256", expiresIn: env.jwtRefreshExpires, issuer: env.jwtIssuer, audience: env.jwtAudience }
   );
+}
+
+function tokenExpiry(token) {
+  const decoded = jwt.decode(token);
+  return new Date(Number(decoded?.exp || 0) * 1000);
 }
 
 export async function issueTokens({ email, password }) {
@@ -64,11 +76,15 @@ export async function issueTokens({ email, password }) {
   const accessToken = createAccessToken(user);
   const refreshToken = createRefreshToken(user);
 
-  refreshStore.set(refreshToken, user.email);
+  await createRefreshSession({ userId: user.id, token: refreshToken, expiresAt: tokenExpiry(refreshToken) });
+  deleteExpiredRefreshSessions().catch((error) => {
+    logger.error(`Refresh-session cleanup failed: ${error.message}`);
+  });
 
   return {
     accessToken,
     refreshToken,
+    refreshExpiresAt: tokenExpiry(refreshToken),
     user: sanitizeUser(user)
   };
 }
@@ -78,24 +94,48 @@ export async function refreshAccessToken(refreshToken) {
     throw createError("Refresh token is required.", 401);
   }
 
-  if (!refreshStore.has(refreshToken)) {
+  let payload;
+
+  try {
+    payload = jwt.verify(refreshToken, env.jwtRefreshSecret, {
+      algorithms: ["HS256"],
+      issuer: env.jwtIssuer,
+      audience: env.jwtAudience
+    });
+  } catch {
+    throw createError("Invalid or expired refresh token.", 401);
+  }
+  if (payload.type !== "refresh" || !payload.sub) {
+    throw createError("Invalid refresh token.", 401);
+  }
+  const user = await findUserByEmail(payload.email);
+
+  if (!user || user.id !== payload.sub || user.isActive === false) {
     throw createError("Refresh token is not active.", 401);
   }
 
-  const payload = jwt.verify(refreshToken, env.jwtRefreshSecret);
-  const user = await findUserByEmail(payload.email);
+  const nextRefreshToken = createRefreshToken(user);
+  const rotated = await rotateRefreshSession({
+    currentToken: refreshToken,
+    userId: user.id,
+    nextToken: nextRefreshToken,
+    nextExpiresAt: tokenExpiry(nextRefreshToken)
+  });
 
-  if (!user) {
-    throw createError("User no longer exists.", 404);
+  if (!rotated) {
+    throw createError("Refresh token is not active.", 401);
   }
 
-  return { accessToken: createAccessToken(user) };
+  return {
+    accessToken: createAccessToken(user),
+    refreshToken: nextRefreshToken,
+    refreshExpiresAt: tokenExpiry(nextRefreshToken),
+    user: sanitizeUser(user)
+  };
 }
 
-export function logoutUser(refreshToken) {
-  if (refreshToken) {
-    refreshStore.delete(refreshToken);
-  }
+export async function logoutUser(refreshToken) {
+  await revokeRefreshSession(refreshToken);
 }
 
 export async function getCurrentUser(email) {
@@ -109,6 +149,10 @@ export async function getCurrentUser(email) {
 }
 
 export async function requestPasswordReset(email) {
+  if (env.otpDeliveryMode === "disabled") {
+    return { message: "If the account exists, contact an administrator to reset the password." };
+  }
+
   const user = await findUserByEmail(email);
 
   if (!user) {
@@ -152,13 +196,7 @@ async function deliverResetOtp(user, otp) {
     return;
   }
 
-  if (["email", "email_sms"].includes(env.otpDeliveryMode)) {
-    logger.info(`Email OTP requested for ${user.email}. Configure SMTP integration to send it.`);
-  }
-
-  if (["sms", "email_sms"].includes(env.otpDeliveryMode)) {
-    logger.info(`SMS OTP requested for ${user.phone || user.email}. Configure SMS_PROVIDER_URL/SMS_PROVIDER_TOKEN to send it.`);
-  }
+  throw createError("Password-reset delivery is not configured. Contact an administrator.", 503);
 }
 
 export async function changePassword(email, payload) {

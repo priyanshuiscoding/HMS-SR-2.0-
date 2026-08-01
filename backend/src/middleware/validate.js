@@ -21,6 +21,19 @@ export const validators = {
   minLength(label, min) {
     return (value) => (!isBlank(value) && !hasMinLength(value, min) ? `${label} must be at least ${min} characters.` : "");
   },
+  password(label = "Password") {
+    return (value) => {
+      if (isBlank(value)) return "";
+      const password = String(value);
+      return password.length >= 12
+        && /[a-z]/.test(password)
+        && /[A-Z]/.test(password)
+        && /\d/.test(password)
+        && /[^A-Za-z0-9]/.test(password)
+        ? ""
+        : `${label} must be at least 12 characters and include upper/lowercase, a number, and a symbol.`;
+    };
+  },
   uuid(label = "ID") {
     return (value) => (!isBlank(value) && !UUID_PATTERN.test(String(value).trim()) ? `${label} must be a valid UUID.` : "");
   },

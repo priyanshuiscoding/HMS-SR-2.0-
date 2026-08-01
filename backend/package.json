@@ -8,6 +8,7 @@
     "start": "node server.js",
     "db:migrate": "node src/database/migrate.js",
     "db:seed": "node src/database/seed.js",
+    "db:bootstrap-admin": "node src/database/bootstrapAdmin.js",
     "db:setup": "npm run db:migrate && npm run db:seed",
     "db:import-old-patients": "node src/database/importOldPatients.js"
   },

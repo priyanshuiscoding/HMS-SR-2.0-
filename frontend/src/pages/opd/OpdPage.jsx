@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "../../components/common/Button.jsx";
 import { MultiSelectPicker } from "../../components/common/MultiSelectPicker.jsx";
@@ -6,6 +6,10 @@ import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { Toast } from "../../components/common/Toast.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { GeneralExaminationForm } from "./GeneralExaminationForm.jsx";
+import { createInitialHistoryTaking, HistoryTakingForm, normalizeHistoryTaking } from "./HistoryTakingForm.jsx";
+import { OpdPrescriptionPrint } from "./OpdPrescriptionPrint.jsx";
+import { calculateSystemicExamination, initialSystemicExamination, SystemicExaminationForm } from "./SystemicExaminationForm.jsx";
 import {
   completeOpdVisit,
   createLabOrder,
@@ -13,32 +17,126 @@ import {
   getOpdMasters,
   getOpdQueue,
   getOpdVisit,
-  saveAyurvedaAssessment,
   saveOpdDischargeSummary,
   saveOpdVitals,
+  saveHistoryTaking,
   savePrescription,
+  saveSystemicExamination,
   updateOpdVisitWorkflow
 } from "../../services/api.js";
 
-const opdTabs = ["Vitals", "Assessment", "Prescription", "Lab Orders", "Billing", "Printable Rx", "Complete"];
+const opdTabs = ["General Examination", "Systemic Examination", "History Taking", "Prescription", "Lab Orders", "Billing", "Printable Rx", "Complete"];
 
 const initialVitals = {
+  examDate: "",
   vitalsBp: "",
   vitalsPulse: "",
   vitalsTemp: "",
+  temperatureSite: "",
+  temperatureUnit: "",
+  pulseRhythm: "",
+  pulseVolume: "",
+  pulseCharacter: "",
+  pulseTension: "",
+  pulseVesselWall: "",
+  bpRightSystolic: "",
+  bpRightDiastolic: "",
+  bpLeftSystolic: "",
+  bpLeftDiastolic: "",
+  bpPosition: "",
   vitalsWeight: "",
   vitalsHeight: "",
   vitalsSpo2: "",
+  spo2Condition: "",
   vitalsRr: "",
+  respiratoryPattern: "",
+  bmi: "",
+  bmiCategory: "",
+  waistCircumference: "",
+  hipCircumference: "",
+  waistHipRatio: "",
+  bloodGlucoseType: "",
+  bloodGlucoseValue: "",
+  builtMorphology: "",
+  bodyBuild: "",
+  nourishment: "",
+  posture: "",
+  gait: "",
+  decubitus: "",
+  facialExpression: "",
+  consciousLevel: "",
+  orientationTime: "",
+  orientationPlace: "",
+  orientationPerson: "",
+  cooperation: "",
+  speech: "",
+  skinColour: "",
+  skinTexture: "",
+  skinTurgor: "",
+  rashesLesions: "",
+  oedemaType: "",
+  oedemaDistribution: "",
+  oedemaGrade: "",
+  lymphSite: "",
+  lymphSize: "",
+  lymphConsistency: "",
+  lymphTenderness: "",
+  lymphMobility: "",
+  hair: "",
+  nails: "",
+  conjunctiva: "",
+  sclera: "",
+  pupilsSize: "",
+  pupilsShape: "",
+  pupilsDirectReflex: "",
+  pupilsConsensualReflex: "",
+  pupilsPerrla: "",
+  tongueAppearance: "",
+  tongueCoatingColor: "",
+  tongueMoisture: "",
+  tongueTremors: "",
+  tongueMacroglossia: "",
+  oralMucosa: "",
+  throatCongestion: "",
+  tonsillarGrade: "",
+  throatExudates: "",
   physicalExam: ""
 };
+
+function adultBmiCategory(bmi) {
+  if (!bmi) return "";
+  if (bmi < 18.5) return "Underweight";
+  if (bmi < 25) return "Normal";
+  if (bmi < 30) return "Overweight";
+  return "Obese";
+}
+
+function calculateGeneralExamination(form) {
+  const weight = Number(form.vitalsWeight);
+  const height = Number(form.vitalsHeight);
+  const waist = Number(form.waistCircumference);
+  const hip = Number(form.hipCircumference);
+  const bmi = weight > 0 && height > 0 ? (weight / ((height / 100) ** 2)).toFixed(2) : "";
+  const waistHipRatio = waist > 0 && hip > 0 ? (waist / hip).toFixed(3) : "";
+  const primarySystolic = form.bpRightSystolic || form.bpLeftSystolic;
+  const primaryDiastolic = form.bpRightDiastolic || form.bpLeftDiastolic;
+  const vitalsBp = [primarySystolic, primaryDiastolic].filter((value) => value !== "").join("/");
+
+  return {
+    ...form,
+    vitalsBp,
+    bmi,
+    bmiCategory: adultBmiCategory(Number(bmi)),
+    waistHipRatio
+  };
+}
 
 const vitalsDraftKey = (visitId) => `hms-opd-vitals-draft-${visitId}`;
 
 function readVitalsDraft(visitId) {
   try {
     const raw = window.localStorage.getItem(vitalsDraftKey(visitId));
-    return raw ? { ...initialVitals, ...JSON.parse(raw) } : null;
+    return raw ? calculateGeneralExamination({ ...initialVitals, ...JSON.parse(raw) }) : null;
   } catch (storageError) {
     return null;
   }
@@ -65,6 +163,85 @@ function sameVitals(left, right) {
   return Object.keys(initialVitals).every((field) => (left[field] || "") === (right[field] || ""));
 }
 
+const systemicDraftKey = (visitId) => `hms-opd-systemic-examination-draft-${visitId}`;
+
+function readSystemicDraft(visitId) {
+  try {
+    const raw = window.localStorage.getItem(systemicDraftKey(visitId));
+    return raw ? calculateSystemicExamination({ ...initialSystemicExamination, ...JSON.parse(raw) }) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSystemicDraft(visitId, form) {
+  try {
+    window.localStorage.setItem(systemicDraftKey(visitId), JSON.stringify(form));
+  } catch {
+    /* Draft recovery is best-effort and must never interrupt clinical entry. */
+  }
+}
+
+function clearSystemicDraft(visitId) {
+  try {
+    window.localStorage.removeItem(systemicDraftKey(visitId));
+  } catch {
+    /* ignore */
+  }
+}
+
+function sameSystemicExamination(left, right) {
+  return Object.keys(initialSystemicExamination).every((field) => (left[field] || "") === (right[field] || ""));
+}
+
+const historyDraftKey = (visitId) => `hms-opd-history-taking-draft-${visitId}`;
+
+function readHistoryDraft(visitId) {
+  try {
+    const raw = window.localStorage.getItem(historyDraftKey(visitId));
+    return raw ? normalizeHistoryTaking(JSON.parse(raw)) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeHistoryDraft(visitId, form) {
+  try {
+    window.localStorage.setItem(historyDraftKey(visitId), JSON.stringify(form));
+  } catch {
+    /* Draft recovery must never interrupt clinical entry. */
+  }
+}
+
+function clearHistoryDraft(visitId) {
+  try {
+    window.localStorage.removeItem(historyDraftKey(visitId));
+  } catch {
+    /* ignore */
+  }
+}
+
+function sameHistoryTaking(left, right) {
+  return JSON.stringify(normalizeHistoryTaking(left)) === JSON.stringify(normalizeHistoryTaking(right));
+}
+
+function applyHistoryToPrescription(prescription, history) {
+  const snapshot = history?.prescriptionSnapshot || {};
+  if (!Object.keys(snapshot).length) return prescription;
+  const metadata = prescription.metadata || {};
+  const complaintRows = Array.from({ length: 10 }, (_, index) => snapshot.complaintRows?.[index] || metadata.complaintRows?.[index] || { complaint: "", duration: "", severity: "" });
+  return {
+    ...prescription,
+    metadata: {
+      ...metadata,
+      complaintRows,
+      medicalHistory: { ...(metadata.medicalHistory || {}), ...(snapshot.medicalHistory || {}) },
+      allergies: { ...(metadata.allergies || {}), ...(snapshot.allergies || {}) },
+      familyHistory: { ...(metadata.familyHistory || {}), ...(snapshot.familyHistory || {}) }
+    }
+  };
+}
+
 const initialAssessment = {
   prakritiVata: "",
   prakritiPitta: "",
@@ -82,6 +259,7 @@ const initialAssessment = {
 const emptyMedicine = {
   medicineId: "",
   medicineName: "",
+  strength: "",
   dose: "",
   frequency: "BD",
   route: "oral",
@@ -108,7 +286,16 @@ const initialPrescription = {
       { diagnosis: "", icdCode: "", type: "secondary" },
       { diagnosis: "", icdCode: "", type: "secondary" }
     ],
-    complaintRows: Array.from({ length: 8 }, () => ({ complaint: "", duration: "" })),
+    complaintRows: Array.from({ length: 10 }, () => ({ complaint: "", duration: "", severity: "" })),
+    patientDetails: { category: "" },
+    medicalHistory: {
+      conditions: [], surgicalHistory: "", surgicalDetails: "", menstrualLmp: "", menstrualPreviousLmp: "",
+      menstrualDays: "", menarche: "", menopause: "", menstrualCycle: "", clotting: "", painSeverity: "",
+      obstetricHistory: "", other: ""
+    },
+    allergies: { drug: "", food: "", environmental: "" },
+    familyHistory: { geneticConditions: false, geneticDetails: "", conditions: [], others: "" },
+    followUpMonitoring: { interval: "", parameters: [], others: "" },
     therapyPlan: {
       yoga: [{ asanas: "Surya Namaskar, Tadasana, Bhujangasana", pranayama: "Anulom-Vilom, Bhastrika", durationMinutes: "" }],
       panchkarma: [
@@ -125,7 +312,10 @@ const initialPrescription = {
     },
     dietPlan: { recommendedDiet: "", foodsToInclude: "", foodsToAvoid: "" },
     lifestylePlan: { activityType: "", frequency: "", duration: "", bestTime: "", precautions: "", stressManagement: "" },
-    investigations: { bloodTests: false, imaging: "", specialtyTests: "" }
+    investigations: {
+      bloodTests: false, labTests: [], otherTests: "", xray: [], xrayOther: "", ultrasound: [], ultrasoundOther: "",
+      ct: [], ctOther: "", mri: [], mriOther: "", imaging: "", specialtyTests: ""
+    }
   },
   medicines: [{ ...emptyMedicine }]
 };
@@ -192,7 +382,35 @@ function mergePrescription(prescription) {
       },
       investigations: {
         ...base.metadata.investigations,
-        ...(prescription?.metadata?.investigations || {})
+        ...(prescription?.metadata?.investigations || {}),
+        labTests: prescription?.metadata?.investigations?.labTests || [],
+        xray: prescription?.metadata?.investigations?.xray || [],
+        ultrasound: prescription?.metadata?.investigations?.ultrasound || [],
+        ct: prescription?.metadata?.investigations?.ct || [],
+        mri: prescription?.metadata?.investigations?.mri || []
+      },
+      medicalHistory: {
+        ...base.metadata.medicalHistory,
+        ...(prescription?.metadata?.medicalHistory || {}),
+        conditions: prescription?.metadata?.medicalHistory?.conditions || []
+      },
+      patientDetails: {
+        ...base.metadata.patientDetails,
+        ...(prescription?.metadata?.patientDetails || {})
+      },
+      allergies: {
+        ...base.metadata.allergies,
+        ...(prescription?.metadata?.allergies || {})
+      },
+      familyHistory: {
+        ...base.metadata.familyHistory,
+        ...(prescription?.metadata?.familyHistory || {}),
+        conditions: prescription?.metadata?.familyHistory?.conditions || []
+      },
+      followUpMonitoring: {
+        ...base.metadata.followUpMonitoring,
+        ...(prescription?.metadata?.followUpMonitoring || {}),
+        parameters: prescription?.metadata?.followUpMonitoring?.parameters || []
       }
     },
     dietToTake: prescription?.dietToTake || [],
@@ -293,14 +511,24 @@ export function OpdPage() {
   const [visitPayload, setVisitPayload] = useState(null);
   const [vitalsForm, setVitalsForm] = useState(initialVitals);
   const [pendingVitalsDraft, setPendingVitalsDraft] = useState(null);
+  const vitalsDraftDirtyRef = useRef(false);
+  const vitalsLatestFormRef = useRef(initialVitals);
   const [assessmentForm, setAssessmentForm] = useState(initialAssessment);
+  const [systemicForm, setSystemicForm] = useState(initialSystemicExamination);
+  const [pendingSystemicDraft, setPendingSystemicDraft] = useState(null);
+  const systemicDraftDirtyRef = useRef(false);
+  const systemicLatestFormRef = useRef(initialSystemicExamination);
+  const [historyForm, setHistoryForm] = useState(createInitialHistoryTaking);
+  const [pendingHistoryDraft, setPendingHistoryDraft] = useState(null);
+  const historyDraftDirtyRef = useRef(false);
+  const historyLatestFormRef = useRef(createInitialHistoryTaking());
   const [prescriptionForm, setPrescriptionForm] = useState(initialPrescription);
   const [dischargeForm, setDischargeForm] = useState(initialDischargeSummary);
   const [filterDoctorId, setFilterDoctorId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [labOrderForm, setLabOrderForm] = useState(initialLabOrder);
-  const [activeOpdTab, setActiveOpdTab] = useState("Vitals");
+  const [activeOpdTab, setActiveOpdTab] = useState("General Examination");
 
   async function loadQueue(doctorId = filterDoctorId) {
     try {
@@ -316,17 +544,15 @@ export function OpdPage() {
       const response = await getOpdVisit(visitId);
       setSelectedQueueItem(queueItem);
       setVisitPayload(response);
-      setActiveOpdTab("Vitals");
-      const savedVitals = {
-        vitalsBp: response.visit.vitalsBp || "",
-        vitalsPulse: response.visit.vitalsPulse || "",
-        vitalsTemp: response.visit.vitalsTemp || "",
-        vitalsWeight: response.visit.vitalsWeight || "",
-        vitalsHeight: response.visit.vitalsHeight || "",
-        vitalsSpo2: response.visit.vitalsSpo2 || "",
-        vitalsRr: response.visit.vitalsRr || "",
-        physicalExam: response.visit.metadata?.physicalExam || ""
-      };
+      setActiveOpdTab("General Examination");
+      const generalExamination = response.generalExamination;
+      const savedVitals = calculateGeneralExamination({
+        ...initialVitals,
+        ...(generalExamination || {}),
+        examDate: generalExamination?.examDate || response.visit.visitDate || ""
+      });
+      vitalsDraftDirtyRef.current = false;
+      vitalsLatestFormRef.current = savedVitals;
       setVitalsForm(savedVitals);
 
       const draft = readVitalsDraft(visitId);
@@ -342,7 +568,36 @@ export function OpdPage() {
         ...initialAssessment,
         ...(response.assessment || {})
       });
-      const nextPrescription = mergePrescription(response.prescription);
+      const savedSystemic = calculateSystemicExamination({
+        ...initialSystemicExamination,
+        ...(response.systemicExamination || {}),
+        examDate: response.systemicExamination?.examDate || response.visit.visitDate || ""
+      });
+      systemicDraftDirtyRef.current = false;
+      systemicLatestFormRef.current = savedSystemic;
+      setSystemicForm(savedSystemic);
+      const systemicDraft = readSystemicDraft(visitId);
+      if (systemicDraft && !sameSystemicExamination(systemicDraft, savedSystemic)) {
+        setPendingSystemicDraft(systemicDraft);
+      } else {
+        if (systemicDraft) clearSystemicDraft(visitId);
+        setPendingSystemicDraft(null);
+      }
+      const savedHistory = normalizeHistoryTaking({
+        ...(response.historyTaking || {}),
+        historyDate: response.historyTaking?.historyDate || response.visit.visitDate || ""
+      });
+      historyDraftDirtyRef.current = false;
+      historyLatestFormRef.current = savedHistory;
+      setHistoryForm(savedHistory);
+      const historyDraft = readHistoryDraft(visitId);
+      if (historyDraft && !sameHistoryTaking(historyDraft, savedHistory)) {
+        setPendingHistoryDraft(historyDraft);
+      } else {
+        if (historyDraft) clearHistoryDraft(visitId);
+        setPendingHistoryDraft(null);
+      }
+      const nextPrescription = applyHistoryToPrescription(mergePrescription(response.prescription), savedHistory);
       setPrescriptionForm(nextPrescription);
       setDischargeForm(mergeDischargeSummary(response.dischargeSummary, nextPrescription, response.visit));
       setLabOrderForm(initialLabOrder);
@@ -372,6 +627,104 @@ export function OpdPage() {
     bootstrap();
     loadQueue("");
   }, []);
+
+  useEffect(() => {
+    const visitId = visitPayload?.visit?.id;
+    if (!visitId || !vitalsDraftDirtyRef.current) return undefined;
+
+    const timer = window.setTimeout(() => {
+      writeVitalsDraft(visitId, vitalsForm);
+      vitalsDraftDirtyRef.current = false;
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [vitalsForm, visitPayload?.visit?.id]);
+
+  useEffect(() => {
+    const visitId = visitPayload?.visit?.id;
+    if (!visitId) return undefined;
+
+    const flushDraft = () => {
+      if (vitalsDraftDirtyRef.current) {
+        writeVitalsDraft(visitId, vitalsLatestFormRef.current);
+        vitalsDraftDirtyRef.current = false;
+      }
+    };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === "hidden") flushDraft();
+    };
+
+    window.addEventListener("pagehide", flushDraft);
+    document.addEventListener("visibilitychange", flushWhenHidden);
+    return () => {
+      window.removeEventListener("pagehide", flushDraft);
+      document.removeEventListener("visibilitychange", flushWhenHidden);
+    };
+  }, [visitPayload?.visit?.id]);
+
+  useEffect(() => {
+    const visitId = visitPayload?.visit?.id;
+    if (!visitId || !historyDraftDirtyRef.current) return undefined;
+    const timer = window.setTimeout(() => {
+      writeHistoryDraft(visitId, historyForm);
+      historyDraftDirtyRef.current = false;
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [historyForm, visitPayload?.visit?.id]);
+
+  useEffect(() => {
+    const visitId = visitPayload?.visit?.id;
+    if (!visitId) return undefined;
+    const flushDraft = () => {
+      if (historyDraftDirtyRef.current) {
+        writeHistoryDraft(visitId, historyLatestFormRef.current);
+        historyDraftDirtyRef.current = false;
+      }
+    };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === "hidden") flushDraft();
+    };
+    window.addEventListener("pagehide", flushDraft);
+    document.addEventListener("visibilitychange", flushWhenHidden);
+    return () => {
+      window.removeEventListener("pagehide", flushDraft);
+      document.removeEventListener("visibilitychange", flushWhenHidden);
+    };
+  }, [visitPayload?.visit?.id]);
+
+  useEffect(() => {
+    const visitId = visitPayload?.visit?.id;
+    if (!visitId || !systemicDraftDirtyRef.current) return undefined;
+
+    const timer = window.setTimeout(() => {
+      writeSystemicDraft(visitId, systemicForm);
+      systemicDraftDirtyRef.current = false;
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [systemicForm, visitPayload?.visit?.id]);
+
+  useEffect(() => {
+    const visitId = visitPayload?.visit?.id;
+    if (!visitId) return undefined;
+
+    const flushDraft = () => {
+      if (systemicDraftDirtyRef.current) {
+        writeSystemicDraft(visitId, systemicLatestFormRef.current);
+        systemicDraftDirtyRef.current = false;
+      }
+    };
+    const flushWhenHidden = () => {
+      if (document.visibilityState === "hidden") flushDraft();
+    };
+
+    window.addEventListener("pagehide", flushDraft);
+    document.addEventListener("visibilitychange", flushWhenHidden);
+    return () => {
+      window.removeEventListener("pagehide", flushDraft);
+      document.removeEventListener("visibilitychange", flushWhenHidden);
+    };
+  }, [visitPayload?.visit?.id]);
 
   const queueStats = useMemo(() => {
     return {
@@ -415,12 +768,13 @@ export function OpdPage() {
   };
 
   const handleVitalsChange = (event) => {
-    const nextVitals = { ...vitalsForm, [event.target.name]: event.target.value };
-    setVitalsForm(nextVitals);
-
-    if (visitPayload?.visit?.id) {
-      writeVitalsDraft(visitPayload.visit.id, nextVitals);
-    }
+    const { name, value } = event.target;
+    setVitalsForm((current) => {
+      const nextVitals = calculateGeneralExamination({ ...current, [name]: value });
+      vitalsDraftDirtyRef.current = true;
+      vitalsLatestFormRef.current = nextVitals;
+      return nextVitals;
+    });
   };
 
   const restoreVitalsDraft = () => {
@@ -428,9 +782,12 @@ export function OpdPage() {
       return;
     }
 
-    setVitalsForm(pendingVitalsDraft);
+    const restored = calculateGeneralExamination(pendingVitalsDraft);
+    vitalsDraftDirtyRef.current = false;
+    vitalsLatestFormRef.current = restored;
+    setVitalsForm(restored);
     setPendingVitalsDraft(null);
-    setMessage("Restored the unsaved vitals draft. Review the values, then Save & Forward.");
+    setMessage("Restored the unsaved general examination draft. Review it, then save and forward.");
   };
 
   const discardVitalsDraft = () => {
@@ -438,14 +795,58 @@ export function OpdPage() {
       clearVitalsDraft(visitPayload.visit.id);
     }
 
+    vitalsDraftDirtyRef.current = false;
     setPendingVitalsDraft(null);
   };
 
-  const handleAssessmentChange = (event) => {
-    setAssessmentForm((current) => ({
-      ...current,
-      [event.target.name]: event.target.value
-    }));
+  const handleSystemicChange = useCallback((name, value) => {
+    systemicDraftDirtyRef.current = true;
+    setSystemicForm((current) => {
+      const next = calculateSystemicExamination({ ...current, [name]: value });
+      systemicLatestFormRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const restoreSystemicDraft = () => {
+    if (!pendingSystemicDraft) return;
+    systemicDraftDirtyRef.current = false;
+    const restored = calculateSystemicExamination(pendingSystemicDraft);
+    systemicLatestFormRef.current = restored;
+    setSystemicForm(restored);
+    setPendingSystemicDraft(null);
+    setMessage("Restored the unsaved systemic examination draft. Review it, then save.");
+  };
+
+  const discardSystemicDraft = () => {
+    if (visitPayload?.visit?.id) clearSystemicDraft(visitPayload.visit.id);
+    systemicDraftDirtyRef.current = false;
+    setPendingSystemicDraft(null);
+  };
+
+  const handleHistoryChange = useCallback((name, value) => {
+    historyDraftDirtyRef.current = true;
+    setHistoryForm((current) => {
+      const next = normalizeHistoryTaking({ ...current, [name]: value });
+      historyLatestFormRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const restoreHistoryDraft = () => {
+    if (!pendingHistoryDraft) return;
+    const restored = normalizeHistoryTaking(pendingHistoryDraft);
+    historyDraftDirtyRef.current = false;
+    historyLatestFormRef.current = restored;
+    setHistoryForm(restored);
+    setPendingHistoryDraft(null);
+    setMessage("Restored the unsaved history-taking draft. Review it, then save and forward.");
+  };
+
+  const discardHistoryDraft = () => {
+    if (visitPayload?.visit?.id) clearHistoryDraft(visitPayload.visit.id);
+    historyDraftDirtyRef.current = false;
+    setPendingHistoryDraft(null);
   };
 
   const handlePrescriptionChange = (event) => {
@@ -473,6 +874,26 @@ export function OpdPage() {
         }
       }
     }));
+  };
+
+  const handlePrescriptionMetadataListChange = (section, field, value, checked) => {
+    setPrescriptionForm((current) => {
+      const values = current.metadata?.[section]?.[field] || [];
+      const nextValues = checked
+        ? [...new Set([...values, value])]
+        : values.filter((item) => item !== value);
+
+      return {
+        ...current,
+        metadata: {
+          ...current.metadata,
+          [section]: {
+            ...(current.metadata?.[section] || {}),
+            [field]: nextValues
+          }
+        }
+      };
+    });
   };
 
   const handlePrescriptionRowChange = (section, index, field, value) => {
@@ -598,40 +1019,76 @@ export function OpdPage() {
     }
 
     if (!canSaveVitals) {
-      setError("Only screening/nursing, doctors, and admin can save vitals and physical examination.");
+      setError("Only screening/nursing, doctors, and admin can save the general examination.");
       return;
     }
 
     setError("");
     try {
       await saveOpdVitals(visitPayload.visit.id, vitalsForm);
+      vitalsDraftDirtyRef.current = false;
       clearVitalsDraft(visitPayload.visit.id);
       setPendingVitalsDraft(null);
       await loadVisit(visitPayload.visit.id, selectedQueueItem);
       await loadQueue(filterDoctorId);
-      setMessage("Screening saved vitals and physical examination, then forwarded the OPD form to doctor.");
+      setMessage("General examination saved to the dated patient history and forwarded to the doctor.");
     } catch (apiError) {
-      setError(apiError.message || "Unable to save vitals.");
+      setError(apiError.message || "Unable to save the general examination.");
     }
   };
 
-  const saveAssessmentAction = async () => {
+  const saveSystemicExaminationAction = async () => {
     if (!visitPayload?.visit?.id) {
       return;
     }
 
     if (!canClinicalDocument) {
-      setError("You do not have permission to save the Ayurvedic assessment.");
+      setError("You do not have permission to save the systemic examination.");
       return;
     }
 
     setError("");
     try {
-      await saveAyurvedaAssessment(visitPayload.visit.id, assessmentForm);
-      await loadVisit(visitPayload.visit.id, selectedQueueItem);
-      setMessage("Ayurvedic assessment saved.");
+      const response = await saveSystemicExamination(visitPayload.visit.id, systemicForm);
+      const savedSystemic = calculateSystemicExamination({ ...initialSystemicExamination, ...(response.item || {}) });
+      systemicDraftDirtyRef.current = false;
+      systemicLatestFormRef.current = savedSystemic;
+      clearSystemicDraft(visitPayload.visit.id);
+      setPendingSystemicDraft(null);
+      setSystemicForm(savedSystemic);
+      setVisitPayload((current) => current ? { ...current, systemicExamination: response.item } : current);
+      setMessage("Systemic examination saved to the dated patient history.");
     } catch (apiError) {
-      setError(apiError.message || "Unable to save assessment.");
+      setError(apiError.message || "Unable to save the systemic examination.");
+    }
+  };
+
+  const saveHistoryTakingAction = async () => {
+    if (!visitPayload?.visit?.id) return;
+    if (!canClinicalDocument) {
+      setError("You do not have permission to save history taking.");
+      return;
+    }
+    setError("");
+    try {
+      const response = await saveHistoryTaking(visitPayload.visit.id, historyForm);
+      const savedHistory = normalizeHistoryTaking(response.item || {});
+      historyDraftDirtyRef.current = false;
+      historyLatestFormRef.current = savedHistory;
+      clearHistoryDraft(visitPayload.visit.id);
+      setPendingHistoryDraft(null);
+      setHistoryForm(savedHistory);
+      setPrescriptionForm((current) => applyHistoryToPrescription(current, savedHistory));
+      const firstComplaint = savedHistory.complaints.find((item) => item.complaint.trim())?.complaint.trim();
+      setVisitPayload((current) => current ? {
+        ...current,
+        historyTaking: response.item,
+        visit: firstComplaint ? { ...current.visit, chiefComplaint: firstComplaint } : current.visit
+      } : current);
+      setActiveOpdTab("Prescription");
+      setMessage("History taking saved to the patient record and forwarded to the OPD prescription.");
+    } catch (apiError) {
+      setError(apiError.message || "Unable to save history taking.");
     }
   };
 
@@ -797,7 +1254,7 @@ export function OpdPage() {
         <article className="stat-card">
           <div className="stat-label">Waiting</div>
           <div className="stat-value">{queueStats.waiting}</div>
-          <div className="stat-note">Pending vitals or start</div>
+          <div className="stat-note">Pending general examination or start</div>
         </article>
         <article className="stat-card">
           <div className="stat-label">In Consultation</div>
@@ -947,23 +1404,23 @@ export function OpdPage() {
                 ))}
               </div>
 
-              {activeOpdTab === "Vitals" ? (
+              {activeOpdTab === "General Examination" ? (
               <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
-                    <div className="eyebrow">Vitals</div>
-                    <h3>Clinical vitals capture</h3>
+                    <div className="eyebrow">General Examination</div>
+                    <h3>Modern medicine clinical examination</h3>
                   </div>
-                  <Button onClick={saveVitalsAction} disabled={!canSaveVitals}>Save & Forward</Button>
+                  <Button onClick={saveVitalsAction} disabled={!canSaveVitals}>Save Examination &amp; Forward</Button>
                 </div>
 
                 {pendingVitalsDraft ? (
                   <div className="draft-banner">
                     <div>
-                      <strong>Unsaved vitals draft found</strong>
+                      <strong>Unsaved general examination draft found</strong>
                       <p>
-                        Vitals were typed for this visit but never saved, possibly due to a power cut or a closed
-                        browser. Restore them, or discard to keep the currently saved values.
+                        Examination findings were entered for this visit but not saved, possibly due to a power cut
+                        or closed browser. Restore them, or discard to keep the currently saved record.
                       </p>
                     </div>
                     <div className="draft-banner-actions">
@@ -973,115 +1430,61 @@ export function OpdPage() {
                   </div>
                 ) : null}
 
-                <div className="form-grid vitals-grid">
-                  <div className="field">
-                    <label>BP</label>
-                    <input name="vitalsBp" value={vitalsForm.vitalsBp} onChange={handleVitalsChange} />
-                  </div>
-                  <div className="field">
-                    <label>Pulse</label>
-                    <input name="vitalsPulse" value={vitalsForm.vitalsPulse} onChange={handleVitalsChange} />
-                  </div>
-                  <div className="field">
-                    <label>Temperature</label>
-                    <input name="vitalsTemp" value={vitalsForm.vitalsTemp} onChange={handleVitalsChange} />
-                  </div>
-                  <div className="field">
-                    <label>Weight</label>
-                    <input name="vitalsWeight" value={vitalsForm.vitalsWeight} onChange={handleVitalsChange} />
-                  </div>
-                  <div className="field">
-                    <label>Height</label>
-                    <input name="vitalsHeight" value={vitalsForm.vitalsHeight} onChange={handleVitalsChange} />
-                  </div>
-                  <div className="field">
-                    <label>SpO2</label>
-                    <input name="vitalsSpo2" value={vitalsForm.vitalsSpo2} onChange={handleVitalsChange} />
-                  </div>
-                  <div className="field">
-                    <label>Respiratory rate</label>
-                    <input name="vitalsRr" value={vitalsForm.vitalsRr} onChange={handleVitalsChange} />
-                  </div>
-                  <div className="field field-span-2">
-                    <label>Physical examination</label>
-                    <textarea name="physicalExam" value={vitalsForm.physicalExam} onChange={handleVitalsChange} />
-                  </div>
-                </div>
+                <GeneralExaminationForm form={vitalsForm} onChange={handleVitalsChange} />
               </article>
               ) : null}
 
-              {activeOpdTab === "Assessment" ? (
+              {activeOpdTab === "Systemic Examination" ? (
               <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
-                    <div className="eyebrow">Ayurvedic Assessment</div>
-                    <h3>Prakriti and clinical observations</h3>
+                    <div className="eyebrow">Systemic Examination</div>
+                    <h3>Modern medicine system-wise examination</h3>
                   </div>
-                  <Button onClick={saveAssessmentAction} disabled={!canClinicalDocument}>Save Assessment</Button>
+                  <Button onClick={saveSystemicExaminationAction} disabled={!canClinicalDocument}>Save Systemic Examination</Button>
                 </div>
 
-                <div className="form-grid clinical-form-grid">
-                  <div className="field">
-                    <label>Prakriti Vata</label>
-                    <input name="prakritiVata" value={assessmentForm.prakritiVata} onChange={handleAssessmentChange} />
+                {pendingSystemicDraft ? (
+                  <div className="draft-banner">
+                    <div>
+                      <strong>Unsaved systemic examination draft found</strong>
+                      <p>The earlier entries were recovered after an interrupted or closed session. Restore them, or discard the draft.</p>
+                    </div>
+                    <div className="draft-banner-actions">
+                      <Button onClick={restoreSystemicDraft}>Restore draft</Button>
+                      <Button variant="secondary" onClick={discardSystemicDraft}>Discard</Button>
+                    </div>
                   </div>
-                  <div className="field">
-                    <label>Prakriti Pitta</label>
-                    <input name="prakritiPitta" value={assessmentForm.prakritiPitta} onChange={handleAssessmentChange} />
+                ) : null}
+
+                <SystemicExaminationForm form={systemicForm} onFieldChange={handleSystemicChange} />
+              </article>
+              ) : null}
+
+              {activeOpdTab === "History Taking" ? (
+              <article className="content-card compact-form-card">
+                <div className="section-header">
+                  <div>
+                    <div className="eyebrow">History Taking</div>
+                    <h3>Structured complaints and clinical history</h3>
                   </div>
-                  <div className="field">
-                    <label>Prakriti Kapha</label>
-                    <input name="prakritiKapha" value={assessmentForm.prakritiKapha} onChange={handleAssessmentChange} />
-                  </div>
-                  <div className="field">
-                    <label>Dominant dosha</label>
-                    <input name="prakritiDominant" value={assessmentForm.prakritiDominant} onChange={handleAssessmentChange} />
-                  </div>
-                  <div className="field">
-                    <label>Nadi type</label>
-                    <select name="nadiType" value={assessmentForm.nadiType} onChange={handleAssessmentChange}>
-                      {masters.nadiTypes.map((item) => (
-                        <option key={item} value={item}>{item}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label>Agni status</label>
-                    <select name="agniStatus" value={assessmentForm.agniStatus} onChange={handleAssessmentChange}>
-                      {masters.agniStatuses.map((item) => (
-                        <option key={item} value={item}>{item}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="field">
-                    <label>Koshtha nature</label>
-                    <select name="koshthaNature" value={assessmentForm.koshthaNature} onChange={handleAssessmentChange}>
-                      {masters.koshthaTypes.map((item) => (
-                        <option key={item} value={item}>{item}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="field field-span-2">
-                    <label>Nadi Pariksha</label>
-                    <input name="nadiPariksha" value={assessmentForm.nadiPariksha} onChange={handleAssessmentChange} />
-                  </div>
-                  <div className="field field-span-2">
-                    <label>Jihva Pariksha</label>
-                    <input name="jihvaPariksha" value={assessmentForm.jihvaPariksha} onChange={handleAssessmentChange} />
-                  </div>
-                  <div className="field field-span-2">
-                    <label>Vikriti assessment</label>
-                    <input
-                      name="vikritiAssessment"
-                      value={assessmentForm.vikritiAssessment}
-                      onChange={handleAssessmentChange}
-                    />
-                  </div>
-                  <div className="field field-span-2">
-                    <label>Observations</label>
-                    <input name="observations" value={assessmentForm.observations} onChange={handleAssessmentChange} />
-                  </div>
+                  <Button onClick={saveHistoryTakingAction} disabled={!canClinicalDocument}>Save &amp; Forward</Button>
                 </div>
+
+                {pendingHistoryDraft ? (
+                  <div className="draft-banner">
+                    <div>
+                      <strong>Unsaved history-taking draft found</strong>
+                      <p>The earlier entries were recovered after an interrupted or closed session. Restore them, or discard the draft.</p>
+                    </div>
+                    <div className="draft-banner-actions">
+                      <Button onClick={restoreHistoryDraft}>Restore draft</Button>
+                      <Button variant="secondary" onClick={discardHistoryDraft}>Discard</Button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <HistoryTakingForm form={historyForm} onFieldChange={handleHistoryChange} />
               </article>
               ) : null}
 
@@ -1166,6 +1569,16 @@ export function OpdPage() {
                       onChange={handlePrescriptionChange}
                     />
                   </div>
+                  <div className="field">
+                    <label>Patient category</label>
+                    <select value={prescriptionForm.metadata.patientDetails.category} onChange={(event) => handlePrescriptionMetadataChange("patientDetails", "category", event.target.value)}>
+                      <option value="">Not specified</option>
+                      <option value="general">General</option>
+                      <option value="obc">OBC</option>
+                      <option value="sc">SC</option>
+                      <option value="st">ST</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="form-subsection">
@@ -1202,9 +1615,58 @@ export function OpdPage() {
                         <label>Complaint {index + 1}</label>
                         <input value={row.complaint} onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "complaint", event.target.value)} />
                         <input value={row.duration} placeholder="Duration" onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "duration", event.target.value)} />
+                        <input value={row.severity || ""} placeholder="Severity" onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "severity", event.target.value)} />
                       </div>
                     ))}
                   </div>
+                </div>
+
+                <div className="form-subsection">
+                  <h4>Medical, allergy, and family history</h4>
+                  <div className="field field-span-2">
+                    <label>Known medical conditions</label>
+                    <div className="checkbox-grid clinical-checkbox-grid">
+                      {[
+                        ["dm", "Diabetes mellitus"], ["htn", "Hypertension"], ["cad", "Coronary artery disease"],
+                        ["cva", "CVA"], ["respiratory", "Respiratory disease"], ["thyroid", "Thyroid disease"],
+                        ["renal", "Renal disease"], ["neurological", "Neurological disease"],
+                        ["psychiatric", "Psychiatric disease"], ["malignancy", "Malignancy / cancer"]
+                      ].map(([value, label]) => (
+                        <label className="checkbox-chip" key={value}>
+                          <input type="checkbox" checked={prescriptionForm.metadata.medicalHistory.conditions.includes(value)} onChange={(event) => handlePrescriptionMetadataListChange("medicalHistory", "conditions", value, event.target.checked)} />
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="form-grid clinical-form-grid">
+                    <div className="field"><label>Surgical history</label><input value={prescriptionForm.metadata.medicalHistory.surgicalHistory} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "surgicalHistory", event.target.value)} /></div>
+                    <div className="field"><label>Surgical details</label><input value={prescriptionForm.metadata.medicalHistory.surgicalDetails} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "surgicalDetails", event.target.value)} /></div>
+                    <div className="field"><label>LMP</label><input type="date" value={prescriptionForm.metadata.medicalHistory.menstrualLmp} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menstrualLmp", event.target.value)} /></div>
+                    <div className="field"><label>Previous LMP</label><input type="date" value={prescriptionForm.metadata.medicalHistory.menstrualPreviousLmp} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menstrualPreviousLmp", event.target.value)} /></div>
+                    <div className="field"><label>Cycle days</label><input value={prescriptionForm.metadata.medicalHistory.menstrualDays} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menstrualDays", event.target.value)} /></div>
+                    <div className="field"><label>Cycle</label><select value={prescriptionForm.metadata.medicalHistory.menstrualCycle} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menstrualCycle", event.target.value)}><option value="">Select</option><option value="regular">Regular</option><option value="irregular">Irregular</option></select></div>
+                    <div className="field"><label>Menarche</label><input value={prescriptionForm.metadata.medicalHistory.menarche} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menarche", event.target.value)} /></div>
+                    <div className="field"><label>Menopause</label><input value={prescriptionForm.metadata.medicalHistory.menopause} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "menopause", event.target.value)} /></div>
+                    <div className="field"><label>Clotting</label><input value={prescriptionForm.metadata.medicalHistory.clotting} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "clotting", event.target.value)} /></div>
+                    <div className="field"><label>Pain severity</label><input value={prescriptionForm.metadata.medicalHistory.painSeverity} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "painSeverity", event.target.value)} /></div>
+                    <div className="field field-span-2"><label>Obstetric history</label><input value={prescriptionForm.metadata.medicalHistory.obstetricHistory} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "obstetricHistory", event.target.value)} /></div>
+                    <div className="field field-span-2"><label>Other medical history</label><input value={prescriptionForm.metadata.medicalHistory.other} onChange={(event) => handlePrescriptionMetadataChange("medicalHistory", "other", event.target.value)} /></div>
+                    <div className="field"><label>Drug allergies</label><input value={prescriptionForm.metadata.allergies.drug} onChange={(event) => handlePrescriptionMetadataChange("allergies", "drug", event.target.value)} /></div>
+                    <div className="field"><label>Food allergies</label><input value={prescriptionForm.metadata.allergies.food} onChange={(event) => handlePrescriptionMetadataChange("allergies", "food", event.target.value)} /></div>
+                    <div className="field field-span-2"><label>Environmental allergies</label><input value={prescriptionForm.metadata.allergies.environmental} onChange={(event) => handlePrescriptionMetadataChange("allergies", "environmental", event.target.value)} /></div>
+                    <label className="checkbox-chip"><input type="checkbox" checked={prescriptionForm.metadata.familyHistory.geneticConditions} onChange={(event) => handlePrescriptionMetadataChange("familyHistory", "geneticConditions", event.target.checked)} /><span>Genetic / hereditary condition</span></label>
+                    <div className="field"><label>Genetic condition details</label><input value={prescriptionForm.metadata.familyHistory.geneticDetails} onChange={(event) => handlePrescriptionMetadataChange("familyHistory", "geneticDetails", event.target.value)} /></div>
+                  </div>
+                  <div className="field field-span-2">
+                    <label>Family history</label>
+                    <div className="checkbox-grid clinical-checkbox-grid">
+                      {[["diabetes", "Diabetes"], ["htn", "HTN"], ["cad", "CAD"], ["cancer", "Cancer"], ["renal", "Renal"], ["arthritis", "Arthritis"]].map(([value, label]) => (
+                        <label className="checkbox-chip" key={value}><input type="checkbox" checked={prescriptionForm.metadata.familyHistory.conditions.includes(value)} onChange={(event) => handlePrescriptionMetadataListChange("familyHistory", "conditions", value, event.target.checked)} /><span>{label}</span></label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="field field-span-2"><label>Other family history</label><input value={prescriptionForm.metadata.familyHistory.others} onChange={(event) => handlePrescriptionMetadataChange("familyHistory", "others", event.target.value)} /></div>
                 </div>
 
                 <div className="medicine-stack">
@@ -1242,6 +1704,10 @@ export function OpdPage() {
                         <div className="field">
                           <label>Dose</label>
                           <input value={medicine.dose} onChange={(event) => handleMedicineChange(index, "dose", event.target.value)} />
+                        </div>
+                        <div className="field">
+                          <label>Strength</label>
+                          <input value={medicine.strength || ""} onChange={(event) => handleMedicineChange(index, "strength", event.target.value)} placeholder="e.g. 500 mg" />
                         </div>
                         <div className="field">
                           <label>Frequency</label>
@@ -1354,18 +1820,37 @@ export function OpdPage() {
                       <label>Exercise frequency</label>
                       <input value={prescriptionForm.metadata.lifestylePlan.frequency} onChange={(event) => handlePrescriptionMetadataChange("lifestylePlan", "frequency", event.target.value)} />
                     </div>
-                    <label className="checkbox-chip">
-                      <input type="checkbox" checked={prescriptionForm.metadata.investigations.bloodTests} onChange={(event) => handleInvestigationChange("bloodTests", event.target.checked)} />
-                      <span>Blood tests advised</span>
-                    </label>
-                    <div className="field">
-                      <label>Imaging</label>
-                      <input value={prescriptionForm.metadata.investigations.imaging} onChange={(event) => handleInvestigationChange("imaging", event.target.value)} />
+                    <div className="field field-span-2">
+                      <label>Laboratory investigations</label>
+                      <div className="checkbox-grid clinical-checkbox-grid">
+                        {["CBC", "RFT", "LFT", "FBS", "RBS", "HbA1c", "Lipid Profile", "Thyroid Profile", "RA Factor", "CRP"].map((testName) => (
+                          <label className="checkbox-chip" key={testName}><input type="checkbox" checked={prescriptionForm.metadata.investigations.labTests.includes(testName)} onChange={(event) => handlePrescriptionMetadataListChange("investigations", "labTests", testName, event.target.checked)} /><span>{testName}</span></label>
+                        ))}
+                      </div>
                     </div>
-                    <div className="field">
-                      <label>Specialty tests</label>
-                      <input value={prescriptionForm.metadata.investigations.specialtyTests} onChange={(event) => handleInvestigationChange("specialtyTests", event.target.value)} />
+                    <div className="field field-span-2"><label>Other specific tests</label><input value={prescriptionForm.metadata.investigations.otherTests} onChange={(event) => handleInvestigationChange("otherTests", event.target.value)} /></div>
+                    {[
+                      ["xray", "X-Ray", [["chest", "Chest"], ["abdomen", "Abdomen"], ["extremity", "Extremity"]]],
+                      ["ultrasound", "Ultrasound", [["abdomen", "Abdomen"], ["pelvis", "Pelvis"], ["breast", "Breast"], ["thyroid", "Thyroid"]]],
+                      ["ct", "CT scan", [["head", "Head"], ["chest", "Chest"], ["abdomen", "Abdomen"]]],
+                      ["mri", "MRI", [["brain", "Brain"], ["spine", "Spine"]]]
+                    ].map(([field, label, options]) => (
+                      <div className="field" key={field}>
+                        <label>{label}</label>
+                        <div className="checkbox-grid clinical-checkbox-grid">
+                          {options.map(([value, optionLabel]) => <label className="checkbox-chip" key={value}><input type="checkbox" checked={prescriptionForm.metadata.investigations[field].includes(value)} onChange={(event) => handlePrescriptionMetadataListChange("investigations", field, value, event.target.checked)} /><span>{optionLabel}</span></label>)}
+                        </div>
+                        <input value={prescriptionForm.metadata.investigations[`${field}Other`]} placeholder="Other" onChange={(event) => handleInvestigationChange(`${field}Other`, event.target.value)} />
+                      </div>
+                    ))}
+                    <div className="field"><label>Follow-up interval</label><select value={prescriptionForm.metadata.followUpMonitoring.interval} onChange={(event) => handlePrescriptionMetadataChange("followUpMonitoring", "interval", event.target.value)}><option value="">Select</option><option value="1-week">1 week</option><option value="2-weeks">2 weeks</option><option value="1-month">1 month</option></select></div>
+                    <div className="field field-span-2">
+                      <label>Monitoring parameters</label>
+                      <div className="checkbox-grid clinical-checkbox-grid">
+                        {[["bp", "BP"], ["weight", "Weight"], ["fbs", "FBS"], ["symptoms", "Symptoms"]].map(([value, label]) => <label className="checkbox-chip" key={value}><input type="checkbox" checked={prescriptionForm.metadata.followUpMonitoring.parameters.includes(value)} onChange={(event) => handlePrescriptionMetadataListChange("followUpMonitoring", "parameters", value, event.target.checked)} /><span>{label}</span></label>)}
+                      </div>
                     </div>
+                    <div className="field field-span-2"><label>Other monitoring parameters</label><input value={prescriptionForm.metadata.followUpMonitoring.others} onChange={(event) => handlePrescriptionMetadataChange("followUpMonitoring", "others", event.target.value)} /></div>
                   </div>
                 </div>
               </article>
@@ -1491,7 +1976,15 @@ export function OpdPage() {
                   </div>
                 </div>
 
-                <div className="opd-prescription-print-sheet">
+                <OpdPrescriptionPrint
+                  visitPayload={visitPayload}
+                  selectedQueueItem={selectedQueueItem}
+                  vitalsForm={vitalsForm}
+                  assessmentForm={assessmentForm}
+                  prescriptionForm={prescriptionForm}
+                />
+
+                <div className="legacy-opd-prescription-print-sheet no-print" hidden>
                   <div className="print-hospital-name">SHANTI-RATNAM AYUSH INSTITUTE OF INDIAN MEDICAL SCIENCES</div>
                   <div className="print-hospital-subtitle">Lane No. 3, Nehanagar, Makronia, Sagar (M.P) | 07582357300, 8989927755 | www.shantiratnam.com</div>
                   <h2>OPD Prescription</h2>

@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { authorize } from "../../middleware/rbac.js";
+import { authorize, authorizeRolesOnly } from "../../middleware/rbac.js";
 import {
   assignShiftHandler,
   attendanceHandler,
@@ -25,19 +25,19 @@ const hrRoles = ["admin", "hr"];
 
 hrRouter.get("/overview", authorize(hrRoles), hrOverviewHandler);
 hrRouter.get("/employees", authorize(hrRoles), hrEmployeesHandler);
-hrRouter.post("/employees/profile", authorize(hrRoles), saveEmployeeProfileHandler);
+hrRouter.post("/employees/profile", authorizeRolesOnly(hrRoles), saveEmployeeProfileHandler);
 hrRouter.get("/attendance", authorize(hrRoles), attendanceHandler);
-hrRouter.post("/attendance", authorize(hrRoles), saveAttendanceHandler);
-hrRouter.post("/attendance/bulk", authorize(hrRoles), saveAttendanceBulkHandler);
+hrRouter.post("/attendance", authorizeRolesOnly(hrRoles), saveAttendanceHandler);
+hrRouter.post("/attendance/bulk", authorizeRolesOnly(hrRoles), saveAttendanceBulkHandler);
 hrRouter.get("/shifts", authorize(hrRoles), shiftsHandler);
-hrRouter.post("/shifts", authorize(hrRoles), createShiftHandler);
-hrRouter.post("/shifts/assign", authorize(hrRoles), assignShiftHandler);
+hrRouter.post("/shifts", authorizeRolesOnly(hrRoles), createShiftHandler);
+hrRouter.post("/shifts/assign", authorizeRolesOnly(hrRoles), assignShiftHandler);
 hrRouter.get("/leaves", authorize(hrRoles), leavesHandler);
-hrRouter.post("/leaves", authorize(hrRoles), createLeaveHandler);
-hrRouter.put("/leaves/:id/status", authorize(hrRoles), updateLeaveStatusHandler);
+hrRouter.post("/leaves", authorizeRolesOnly(hrRoles), createLeaveHandler);
+hrRouter.put("/leaves/:id/status", authorizeRolesOnly(hrRoles), updateLeaveStatusHandler);
 hrRouter.get("/payroll", authorize(hrRoles), payrollHandler);
-hrRouter.post("/payroll", authorize(hrRoles), savePayrollHandler);
+hrRouter.post("/payroll", authorizeRolesOnly(hrRoles), savePayrollHandler);
 hrRouter.get("/documents", authorize(hrRoles), documentsHandler);
-hrRouter.post("/documents", authorize(hrRoles), createDocumentHandler);
+hrRouter.post("/documents", authorizeRolesOnly(hrRoles), createDocumentHandler);
 
 export { hrRouter };

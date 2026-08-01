@@ -41,7 +41,7 @@ authRouter.post(
   validateBody({
     email: [validators.required("Email"), validators.email()],
     otp: [validators.required("OTP"), validators.minLength("OTP", 6)],
-    newPassword: [validators.required("New password"), validators.minLength("New password", 8)]
+    newPassword: [validators.required("New password"), validators.password("New password")]
   }),
   resetPasswordHandler
 );
@@ -51,7 +51,7 @@ authRouter.put(
   auditWrites,
   validateBody({
     currentPassword: [validators.required("Current password")],
-    newPassword: [validators.required("New password"), validators.minLength("New password", 8)]
+    newPassword: [validators.required("New password"), validators.password("New password")]
   }),
   changePasswordHandler
 );

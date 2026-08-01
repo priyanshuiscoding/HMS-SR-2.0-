@@ -1,4 +1,4 @@
-FROM node:20-alpine AS build
+FROM node:24.18.0-alpine3.23 AS build
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ COPY frontend ./frontend
 
 RUN npm --workspace frontend run build
 
-FROM nginx:1.27-alpine
+FROM nginx:1.30.4-alpine
 
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/frontend/dist /usr/share/nginx/html

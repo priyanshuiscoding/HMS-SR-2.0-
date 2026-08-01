@@ -20,7 +20,7 @@ import { listAppointmentRecords } from "../appointments/appointments.repository.
 import { listBillRecords, listPaymentRecords } from "../billing/billing.repository.js";
 import { listAdmissionRecords } from "../ipd/ipd.repository.js";
 import { listLabOrderRecords } from "../laboratory/laboratory.repository.js";
-import { listAssessmentRecords, listPrescriptionRecords, listVisitRecords } from "../opd/opd.repository.js";
+import { listAssessmentRecords, listGeneralExaminationRecords, listHistoryTakingRecords, listPrescriptionRecords, listSystemicExaminationRecords, listVisitRecords } from "../opd/opd.repository.js";
 import { listSessionRecords } from "../panchkarma/panchkarma.repository.js";
 import { listDispensationRecords } from "../pharmacy/pharmacy.repository.js";
 
@@ -119,6 +119,9 @@ export async function getPatientHistory(id) {
     certificates,
     appointmentHistory,
     opdVisits,
+    generalExaminations,
+    systemicExaminations,
+    historyTakingRecords,
     assessments,
     prescriptions,
     ipdAdmissions,
@@ -132,6 +135,9 @@ export async function getPatientHistory(id) {
     listCertificateRecords({ patientId: id }),
     listAppointmentRecords({ patientId: id }),
     listVisitRecords({ patientId: id }),
+    listGeneralExaminationRecords({ patientId: id }),
+    listSystemicExaminationRecords({ patientId: id }),
+    listHistoryTakingRecords({ patientId: id }),
     listAssessmentRecords({ patientId: id }),
     listPrescriptionRecords({ patientId: id }),
     listAdmissionRecords({ patientId: id }),
@@ -146,6 +152,9 @@ export async function getPatientHistory(id) {
     `${b.appointmentDate} ${b.appointmentTime}`.localeCompare(`${a.appointmentDate} ${a.appointmentTime}`)
   );
   opdVisits.sort((a, b) => String(b.visitDate).localeCompare(String(a.visitDate)));
+  generalExaminations.sort((a, b) => String(b.examDate).localeCompare(String(a.examDate)));
+  systemicExaminations.sort((a, b) => String(b.examDate).localeCompare(String(a.examDate)));
+  historyTakingRecords.sort((a, b) => String(b.historyDate).localeCompare(String(a.historyDate)));
   assessments.sort((a, b) => String(b.assessmentDate).localeCompare(String(a.assessmentDate)));
   prescriptions.sort((a, b) => String(b.prescriptionDate).localeCompare(String(a.prescriptionDate)));
   ipdAdmissions.sort((a, b) =>
@@ -175,6 +184,30 @@ export async function getPatientHistory(id) {
       title: visit.opdNumber,
       summary: `OPD visit - ${visit.status}`,
       detail: visit.chiefComplaint || "Consultation visit"
+    })),
+    ...generalExaminations.map((examination) => ({
+      id: `general-exam-${examination.id}`,
+      type: "general_examination",
+      date: examination.examDate,
+      title: "General Examination",
+      summary: `BP ${examination.vitalsBp || "-"} | Pulse ${examination.vitalsPulse || "-"} | SpO₂ ${examination.vitalsSpo2 || "-"}%`,
+      detail: `BMI ${examination.bmi || "-"}${examination.bmiCategory ? ` (${examination.bmiCategory})` : ""} | ${examination.physicalExam || "Clinical examination recorded"}`
+    })),
+    ...systemicExaminations.map((examination) => ({
+      id: `systemic-exam-${examination.id}`,
+      type: "systemic_examination",
+      date: examination.examDate,
+      title: "Systemic Examination",
+      summary: `CVS ${examination.heartSoundS1 || "-"}/${examination.heartSoundS2 || "-"} | RS ${examination.breathSounds || "-"} | GIT ${examination.abdomenShape || "-"}`,
+      detail: examination.systemicNotes || examination.cnsConsciousness || examination.mskSpecialTests || "System-wise examination recorded"
+    })),
+    ...historyTakingRecords.map((history) => ({
+      id: `history-taking-${history.id}`,
+      type: "history_taking",
+      date: history.historyDate,
+      title: "History Taking",
+      summary: history.complaints.filter((item) => item.complaint).slice(0, 3).map((item) => item.complaint).join(" | ") || "Structured history recorded",
+      detail: history.historyNotes || history.previousSimilarComplaints || "Clinical history saved"
     })),
     ...assessments.map((assessment) => ({
       id: `ayu-${assessment.id}`,
@@ -262,6 +295,9 @@ export async function getPatientHistory(id) {
     patient,
     appointments: appointmentHistory,
     opdVisits,
+    generalExaminations,
+    systemicExaminations,
+    historyTakingRecords,
     assessments,
     prescriptions,
     ipdAdmissions,

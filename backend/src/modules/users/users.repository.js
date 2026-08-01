@@ -45,7 +45,10 @@ function publicUser(user) {
 }
 
 export async function hashPasswordForStorage(_email, password) {
-  return bcrypt.hash(String(password || "Welcome@123"), BCRYPT_ROUNDS);
+  if (!password) {
+    throw new Error("Password is required for secure storage.");
+  }
+  return bcrypt.hash(String(password), BCRYPT_ROUNDS);
 }
 
 export async function verifyPassword(user, password) {
@@ -196,7 +199,7 @@ export async function emailExists(email, excludeId = "") {
 }
 
 export async function createUserRecord(payload) {
-  const passwordHash = await hashPasswordForStorage(payload.email, payload.password || "Welcome@123");
+  const passwordHash = await hashPasswordForStorage(payload.email, payload.password);
   const result = await query(
     `
     INSERT INTO users (

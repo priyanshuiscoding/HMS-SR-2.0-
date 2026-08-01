@@ -65,6 +65,150 @@ function toCamelAssessment(row) {
   };
 }
 
+function toCamelGeneralExamination(row) {
+  if (!row) return null;
+
+  const vitalSigns = row.vital_sign_details || {};
+  const appearance = row.general_appearance || {};
+  const skin = row.skin_hair_nails || {};
+  const eyes = row.eyes_tongue_mucosa || {};
+  const rightBp = [row.bp_right_systolic, row.bp_right_diastolic].filter((value) => value !== null && value !== undefined).join("/");
+  const leftBp = [row.bp_left_systolic, row.bp_left_diastolic].filter((value) => value !== null && value !== undefined).join("/");
+
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    visitId: row.visit_id,
+    examinedBy: row.examined_by || "",
+    examDate: toIsoDate(row.examination_date),
+    vitalsTemp: row.temperature_value ?? "",
+    temperatureSite: vitalSigns.temperatureSite || "",
+    temperatureUnit: vitalSigns.temperatureUnit || "",
+    vitalsPulse: row.pulse_rate ?? "",
+    pulseRhythm: vitalSigns.pulseRhythm || "",
+    pulseVolume: vitalSigns.pulseVolume || "",
+    pulseCharacter: vitalSigns.pulseCharacter || "",
+    pulseTension: vitalSigns.pulseTension || "",
+    pulseVesselWall: vitalSigns.pulseVesselWall || "",
+    bpRightSystolic: row.bp_right_systolic ?? "",
+    bpRightDiastolic: row.bp_right_diastolic ?? "",
+    bpLeftSystolic: row.bp_left_systolic ?? "",
+    bpLeftDiastolic: row.bp_left_diastolic ?? "",
+    bpPosition: vitalSigns.bpPosition || "",
+    vitalsBp: rightBp || leftBp,
+    vitalsRr: row.respiratory_rate ?? "",
+    respiratoryPattern: vitalSigns.respiratoryPattern || "",
+    vitalsSpo2: row.spo2 ?? "",
+    spo2Condition: vitalSigns.spo2Condition || "",
+    vitalsWeight: row.weight_kg ?? "",
+    vitalsHeight: row.height_cm ?? "",
+    bmi: row.bmi ?? "",
+    bmiCategory: row.bmi_category || "",
+    waistCircumference: row.waist_circumference_cm ?? "",
+    hipCircumference: row.hip_circumference_cm ?? "",
+    waistHipRatio: row.waist_hip_ratio ?? "",
+    bloodGlucoseValue: row.blood_glucose_mg_dl ?? "",
+    bloodGlucoseType: row.blood_glucose_type || "",
+    builtMorphology: appearance.builtMorphology || "",
+    bodyBuild: appearance.bodyBuild || "",
+    nourishment: appearance.nourishment || "",
+    posture: appearance.posture || "",
+    gait: appearance.gait || "",
+    decubitus: appearance.decubitus || "",
+    facialExpression: appearance.facialExpression || "",
+    consciousLevel: appearance.consciousLevel || "",
+    orientationTime: appearance.orientationTime || "",
+    orientationPlace: appearance.orientationPlace || "",
+    orientationPerson: appearance.orientationPerson || "",
+    cooperation: appearance.cooperation || "",
+    speech: appearance.speech || "",
+    skinColour: skin.skinColour || "",
+    skinTexture: skin.skinTexture || "",
+    skinTurgor: skin.skinTurgor || "",
+    rashesLesions: skin.rashesLesions || "",
+    oedemaType: skin.oedemaType || "",
+    oedemaDistribution: skin.oedemaDistribution || "",
+    oedemaGrade: skin.oedemaGrade || "",
+    lymphSite: skin.lymphSite || "",
+    lymphSize: skin.lymphSize || "",
+    lymphConsistency: skin.lymphConsistency || "",
+    lymphTenderness: skin.lymphTenderness || "",
+    lymphMobility: skin.lymphMobility || "",
+    hair: skin.hair || "",
+    nails: skin.nails || "",
+    conjunctiva: eyes.conjunctiva || "",
+    sclera: eyes.sclera || "",
+    pupilsSize: eyes.pupilsSize || "",
+    pupilsShape: eyes.pupilsShape || "",
+    pupilsDirectReflex: eyes.pupilsDirectReflex || "",
+    pupilsConsensualReflex: eyes.pupilsConsensualReflex || "",
+    pupilsPerrla: eyes.pupilsPerrla || "",
+    tongueAppearance: eyes.tongueAppearance || "",
+    tongueCoatingColor: eyes.tongueCoatingColor || "",
+    tongueMoisture: eyes.tongueMoisture || "",
+    tongueTremors: eyes.tongueTremors || "",
+    tongueMacroglossia: eyes.tongueMacroglossia || "",
+    oralMucosa: eyes.oralMucosa || "",
+    throatCongestion: eyes.throatCongestion || "",
+    tonsillarGrade: eyes.tonsillarGrade || "",
+    throatExudates: eyes.throatExudates || "",
+    physicalExam: row.notes || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function toCamelSystemicExamination(row) {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    visitId: row.visit_id,
+    examinedBy: row.examined_by || "",
+    examDate: toIsoDate(row.examination_date),
+    ...(row.cardiovascular || {}),
+    ...(row.respiratory || {}),
+    ...(row.gastrointestinal || {}),
+    ...(row.central_nervous_system || {}),
+    ...(row.musculoskeletal || {}),
+    ...(row.genitourinary || {}),
+    ...(row.endocrine || {}),
+    ...(row.eye_ent || {}),
+    systemicNotes: row.notes || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function toCamelHistoryTaking(row) {
+  if (!row) return null;
+
+  const drugHistory = row.drug_history || {};
+  return {
+    id: row.id,
+    patientId: row.patient_id,
+    visitId: row.visit_id,
+    recordedBy: row.recorded_by || "",
+    historyDate: toIsoDate(row.history_date),
+    complaints: Array.isArray(row.chief_complaints) ? row.chief_complaints : [],
+    ...(row.past_history || {}),
+    ...drugHistory,
+    currentMedications: Array.isArray(drugHistory.currentMedications) ? drugHistory.currentMedications : [],
+    ...(row.family_history || {}),
+    ...(row.personal_history || {}),
+    ...(row.obstetric_gynaecological || {}),
+    ...(row.paediatric_history || {}),
+    ...(row.mental_health_history || {}),
+    ...(row.dietary_history || {}),
+    ...(row.travel_history || {}),
+    prescriptionSnapshot: row.prescription_snapshot || {},
+    historyNotes: row.notes || "",
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function toCamelPrescription(row, medicines = []) {
   if (!row) return null;
 
@@ -120,6 +264,7 @@ function toCamelPrescriptionMedicine(row) {
     id: row.id,
     medicineId: row.metadata?.sourceMedicineId || row.medicine_id || "",
     medicineName: row.medicine_name || "",
+    strength: row.metadata?.strength || "",
     dose: row.dose || "",
     frequency: row.frequency || "",
     route: row.route || "oral",
@@ -231,6 +376,115 @@ export async function listVisitRecords(filters = {}) {
     params
   );
   return result.rows.map(toCamelVisit);
+}
+
+export async function findGeneralExaminationByVisitId(visitId) {
+  const result = await query("SELECT * FROM opd_general_examinations WHERE visit_id = $1", [visitId]);
+  return toCamelGeneralExamination(result.rows[0]);
+}
+
+export async function listGeneralExaminationRecords(filters = {}) {
+  const params = [];
+  const conditions = ["1 = 1"];
+
+  if (filters.patientId) {
+    params.push(filters.patientId);
+    conditions.push(`patient_id = $${params.length}`);
+  }
+
+  if (filters.visitId) {
+    params.push(filters.visitId);
+    conditions.push(`visit_id = $${params.length}`);
+  }
+
+  const result = await query(
+    `SELECT * FROM opd_general_examinations WHERE ${conditions.join(" AND ")} ORDER BY examination_date DESC, created_at DESC`,
+    params
+  );
+  return result.rows.map(toCamelGeneralExamination);
+}
+
+export async function upsertGeneralExaminationRecord(examination) {
+  const result = await query(
+    `
+    INSERT INTO opd_general_examinations (
+      id, patient_id, visit_id, examined_by, examination_date,
+      temperature_value, pulse_rate, bp_right_systolic, bp_right_diastolic, bp_left_systolic, bp_left_diastolic,
+      respiratory_rate, spo2, weight_kg, height_cm, bmi, bmi_category,
+      waist_circumference_cm, hip_circumference_cm, waist_hip_ratio,
+      blood_glucose_mg_dl, blood_glucose_type, vital_sign_details,
+      general_appearance, skin_hair_nails, eyes_tongue_mucosa, notes
+    )
+    VALUES (
+      $1, $2, $3, $4, $5,
+      $6, $7, $8, $9, $10, $11,
+      $12, $13, $14, $15, $16, $17,
+      $18, $19, $20,
+      $21, $22, $23::jsonb,
+      $24::jsonb, $25::jsonb, $26::jsonb, $27
+    )
+    ON CONFLICT (visit_id) DO UPDATE
+    SET
+      patient_id = EXCLUDED.patient_id,
+      examined_by = EXCLUDED.examined_by,
+      examination_date = EXCLUDED.examination_date,
+      temperature_value = EXCLUDED.temperature_value,
+      pulse_rate = EXCLUDED.pulse_rate,
+      bp_right_systolic = EXCLUDED.bp_right_systolic,
+      bp_right_diastolic = EXCLUDED.bp_right_diastolic,
+      bp_left_systolic = EXCLUDED.bp_left_systolic,
+      bp_left_diastolic = EXCLUDED.bp_left_diastolic,
+      respiratory_rate = EXCLUDED.respiratory_rate,
+      spo2 = EXCLUDED.spo2,
+      weight_kg = EXCLUDED.weight_kg,
+      height_cm = EXCLUDED.height_cm,
+      bmi = EXCLUDED.bmi,
+      bmi_category = EXCLUDED.bmi_category,
+      waist_circumference_cm = EXCLUDED.waist_circumference_cm,
+      hip_circumference_cm = EXCLUDED.hip_circumference_cm,
+      waist_hip_ratio = EXCLUDED.waist_hip_ratio,
+      blood_glucose_mg_dl = EXCLUDED.blood_glucose_mg_dl,
+      blood_glucose_type = EXCLUDED.blood_glucose_type,
+      vital_sign_details = EXCLUDED.vital_sign_details,
+      general_appearance = EXCLUDED.general_appearance,
+      skin_hair_nails = EXCLUDED.skin_hair_nails,
+      eyes_tongue_mucosa = EXCLUDED.eyes_tongue_mucosa,
+      notes = EXCLUDED.notes,
+      updated_at = NOW()
+    RETURNING *
+    `,
+    [
+      examination.id,
+      examination.patientId,
+      examination.visitId,
+      nullableUuid(examination.examinedBy),
+      examination.examDate,
+      examination.temperatureValue,
+      examination.pulseRate,
+      examination.bpRightSystolic,
+      examination.bpRightDiastolic,
+      examination.bpLeftSystolic,
+      examination.bpLeftDiastolic,
+      examination.respiratoryRate,
+      examination.spo2,
+      examination.weightKg,
+      examination.heightCm,
+      examination.bmi,
+      examination.bmiCategory || "",
+      examination.waistCircumference,
+      examination.hipCircumference,
+      examination.waistHipRatio,
+      examination.bloodGlucoseValue,
+      examination.bloodGlucoseType || "",
+      JSON.stringify(examination.vitalSigns || {}),
+      JSON.stringify(examination.generalAppearance || {}),
+      JSON.stringify(examination.skinHairNails || {}),
+      JSON.stringify(examination.eyesTongueMucosa || {}),
+      examination.notes || ""
+    ]
+  );
+
+  return toCamelGeneralExamination(result.rows[0]);
 }
 
 export async function createVisitRecord(payload) {
@@ -395,6 +649,163 @@ export async function upsertAssessmentRecord(assessment) {
   );
 
   return toCamelAssessment(result.rows[0]);
+}
+
+export async function findSystemicExaminationByVisitId(visitId) {
+  const result = await query("SELECT * FROM opd_systemic_examinations WHERE visit_id = $1", [visitId]);
+  return toCamelSystemicExamination(result.rows[0]);
+}
+
+export async function listSystemicExaminationRecords(filters = {}) {
+  const params = [];
+  const conditions = ["1 = 1"];
+
+  if (filters.patientId) {
+    params.push(filters.patientId);
+    conditions.push(`patient_id = $${params.length}`);
+  }
+
+  const result = await query(
+    `SELECT * FROM opd_systemic_examinations WHERE ${conditions.join(" AND ")} ORDER BY examination_date DESC, created_at DESC`,
+    params
+  );
+  return result.rows.map(toCamelSystemicExamination);
+}
+
+export async function upsertSystemicExaminationRecord(examination) {
+  const result = await query(
+    `
+    INSERT INTO opd_systemic_examinations (
+      id, patient_id, visit_id, examined_by, examination_date,
+      cardiovascular, respiratory, gastrointestinal, central_nervous_system,
+      musculoskeletal, genitourinary, endocrine, eye_ent, notes
+    )
+    VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14)
+    ON CONFLICT (visit_id) DO UPDATE
+    SET
+      patient_id = EXCLUDED.patient_id,
+      examined_by = EXCLUDED.examined_by,
+      examination_date = EXCLUDED.examination_date,
+      cardiovascular = EXCLUDED.cardiovascular,
+      respiratory = EXCLUDED.respiratory,
+      gastrointestinal = EXCLUDED.gastrointestinal,
+      central_nervous_system = EXCLUDED.central_nervous_system,
+      musculoskeletal = EXCLUDED.musculoskeletal,
+      genitourinary = EXCLUDED.genitourinary,
+      endocrine = EXCLUDED.endocrine,
+      eye_ent = EXCLUDED.eye_ent,
+      notes = EXCLUDED.notes,
+      updated_at = NOW()
+    RETURNING *
+    `,
+    [
+      examination.id,
+      examination.patientId,
+      examination.visitId,
+      examination.examinedBy || null,
+      examination.examDate,
+      JSON.stringify(examination.cardiovascular || {}),
+      JSON.stringify(examination.respiratory || {}),
+      JSON.stringify(examination.gastrointestinal || {}),
+      JSON.stringify(examination.centralNervousSystem || {}),
+      JSON.stringify(examination.musculoskeletal || {}),
+      JSON.stringify(examination.genitourinary || {}),
+      JSON.stringify(examination.endocrine || {}),
+      JSON.stringify(examination.eyeEnt || {}),
+      examination.systemicNotes || ""
+    ]
+  );
+
+  return toCamelSystemicExamination(result.rows[0]);
+}
+
+export async function findHistoryTakingByVisitId(visitId) {
+  const result = await query("SELECT * FROM opd_history_taking WHERE visit_id = $1", [visitId]);
+  return toCamelHistoryTaking(result.rows[0]);
+}
+
+export async function listHistoryTakingRecords(filters = {}) {
+  const params = [];
+  const conditions = ["1 = 1"];
+  if (filters.patientId) {
+    params.push(filters.patientId);
+    conditions.push(`patient_id = $${params.length}`);
+  }
+  const result = await query(
+    `SELECT * FROM opd_history_taking WHERE ${conditions.join(" AND ")} ORDER BY history_date DESC, created_at DESC`,
+    params
+  );
+  return result.rows.map(toCamelHistoryTaking);
+}
+
+export async function upsertHistoryTakingRecord(history) {
+  const result = await query(
+    `
+    INSERT INTO opd_history_taking (
+      id, patient_id, visit_id, recorded_by, history_date, chief_complaints, past_history,
+      drug_history, family_history, personal_history, obstetric_gynaecological,
+      paediatric_history, mental_health_history, dietary_history, travel_history,
+      prescription_snapshot, notes
+    )
+    VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::jsonb, $15::jsonb, $16::jsonb, $17)
+    ON CONFLICT (visit_id) DO UPDATE SET
+      patient_id = EXCLUDED.patient_id,
+      recorded_by = EXCLUDED.recorded_by,
+      history_date = EXCLUDED.history_date,
+      chief_complaints = EXCLUDED.chief_complaints,
+      past_history = EXCLUDED.past_history,
+      drug_history = EXCLUDED.drug_history,
+      family_history = EXCLUDED.family_history,
+      personal_history = EXCLUDED.personal_history,
+      obstetric_gynaecological = EXCLUDED.obstetric_gynaecological,
+      paediatric_history = EXCLUDED.paediatric_history,
+      mental_health_history = EXCLUDED.mental_health_history,
+      dietary_history = EXCLUDED.dietary_history,
+      travel_history = EXCLUDED.travel_history,
+      prescription_snapshot = EXCLUDED.prescription_snapshot,
+      notes = EXCLUDED.notes,
+      updated_at = NOW()
+    RETURNING *
+    `,
+    [
+      history.id, history.patientId, history.visitId, history.recordedBy || null, history.historyDate,
+      JSON.stringify(history.complaints || []), JSON.stringify(history.pastHistory || {}), JSON.stringify(history.drugHistory || {}),
+      JSON.stringify(history.familyHistory || {}), JSON.stringify(history.personalHistory || {}), JSON.stringify(history.obstetricGynaecological || {}),
+      JSON.stringify(history.paediatricHistory || {}), JSON.stringify(history.mentalHealthHistory || {}), JSON.stringify(history.dietaryHistory || {}),
+      JSON.stringify(history.travelHistory || {}), JSON.stringify(history.prescriptionSnapshot || {}), history.historyNotes || ""
+    ]
+  );
+  return toCamelHistoryTaking(result.rows[0]);
+}
+
+export async function mergePrescriptionMetadataByVisitId(visitId, metadata) {
+  const result = await query(
+    `
+    UPDATE prescriptions
+    SET metadata = jsonb_set(
+      jsonb_set(
+        jsonb_set(
+          jsonb_set(COALESCE(metadata, '{}'::jsonb), '{complaintRows}', COALESCE($2::jsonb->'complaintRows', metadata->'complaintRows', '[]'::jsonb), true),
+          '{medicalHistory}', COALESCE(metadata->'medicalHistory', '{}'::jsonb) || COALESCE($2::jsonb->'medicalHistory', '{}'::jsonb), true
+        ),
+        '{allergies}', COALESCE(metadata->'allergies', '{}'::jsonb) || COALESCE($2::jsonb->'allergies', '{}'::jsonb), true
+      ),
+      '{familyHistory}', COALESCE(metadata->'familyHistory', '{}'::jsonb) || COALESCE($2::jsonb->'familyHistory', '{}'::jsonb), true
+    ), updated_at = NOW()
+    WHERE visit_id = $1
+    RETURNING id
+    `,
+    [visitId, JSON.stringify(metadata || {})]
+  );
+  return Boolean(result.rowCount);
+}
+
+export async function updateVisitChiefComplaintRecord(visitId, chiefComplaint) {
+  const result = await query(
+    "UPDATE opd_visits SET chief_complaint = $2, updated_at = NOW() WHERE id = $1 RETURNING *",
+    [visitId, chiefComplaint]
+  );
+  return toCamelVisit(result.rows[0]);
 }
 
 export async function findPrescriptionByVisitId(visitId) {

@@ -12,11 +12,15 @@ import { admitPatient } from "../ipd/ipd.service.js";
 import { listBillRecords } from "../billing/billing.repository.js";
 import { listLabOrderRecords } from "../laboratory/laboratory.repository.js";
 import { createLabOrder, getLabMasters } from "../laboratory/laboratory.service.js";
+import { findPatientById } from "../patients/patients.repository.js";
 import { listDoctors } from "../users/users.service.js";
 import {
   createVisitRecord,
   findAssessmentByVisitId,
   findDischargeSummaryByVisitId,
+  findGeneralExaminationByVisitId,
+  findHistoryTakingByVisitId,
+  findSystemicExaminationByVisitId,
   findPrescriptionByVisitId,
   findOrCreateDietItemRecord,
   findVisitByAppointmentId,
@@ -27,9 +31,14 @@ import {
   listPrescriptionRecords,
   listVisitRecords,
   updateVisitStatusRecord,
+  updateVisitChiefComplaintRecord,
   updateVisitVitalsRecord,
   upsertAssessmentRecord,
   upsertDischargeSummaryRecord,
+  upsertGeneralExaminationRecord,
+  upsertHistoryTakingRecord,
+  mergePrescriptionMetadataByVisitId,
+  upsertSystemicExaminationRecord,
   upsertPrescriptionRecord
 } from "./opd.repository.js";
 
@@ -137,29 +146,191 @@ export async function createVisit({ appointmentId }, actor = {}) {
 
 export async function getVisitDetails(visitId) {
   const visit = await getVisitById(visitId);
-  const doctors = await listDoctors();
-  const assessment = await findAssessmentByVisitId(visitId);
-  const prescription = await findPrescriptionByVisitId(visitId);
-  const dischargeSummary = await findDischargeSummaryByVisitId(visitId);
+  const [
+    doctors,
+    patient,
+    assessment,
+    generalExamination,
+    historyTaking,
+    systemicExamination,
+    prescription,
+    dischargeSummary,
+    labOrders,
+    bills
+  ] = await Promise.all([
+    listDoctors(),
+    visit.patientId ? findPatientById(visit.patientId) : Promise.resolve(null),
+    findAssessmentByVisitId(visitId),
+    findGeneralExaminationByVisitId(visitId),
+    findHistoryTakingByVisitId(visitId),
+    findSystemicExaminationByVisitId(visitId),
+    findPrescriptionByVisitId(visitId),
+    findDischargeSummaryByVisitId(visitId),
+    listLabOrderRecords({ visitId }),
+    listBillRecords({ visitId })
+  ]);
 
   return {
     visit,
+    patient,
     doctorName: doctors.find((doctor) => doctor.id === visit.doctorId)?.fullName || "Unassigned",
+    generalExamination,
+    historyTaking,
+    systemicExamination,
     assessment,
     prescription,
     dischargeSummary,
-    labOrders: await listLabOrderRecords({ visitId }),
-    bills: await listBillRecords({ visitId })
+    labOrders,
+    bills
+  };
+}
+
+function clinicalNumber(value, label, { min = 0, max = Number.MAX_SAFE_INTEGER, integer = false } = {}) {
+  if (value === "" || value === null || value === undefined) return null;
+  const number = Number(value);
+
+  if (!Number.isFinite(number) || number < min || number > max) {
+    throw createError(`${label} must be a valid number between ${min} and ${max}.`);
+  }
+
+  return integer ? Math.round(number) : number;
+}
+
+function adultBmiCategory(bmi) {
+  if (!bmi) return "";
+  if (bmi < 18.5) return "Underweight";
+  if (bmi < 25) return "Normal";
+  if (bmi < 30) return "Overweight";
+  return "Obese";
+}
+
+function existingBpParts(value) {
+  const [systolic = "", diastolic = ""] = String(value || "").split(/[\/\\-]/).map((part) => part.trim());
+  return { systolic, diastolic };
+}
+
+function generalExaminationFromPayload(payload, visit, actor) {
+  const existingBp = existingBpParts(payload.vitalsBp);
+  const weightKg = clinicalNumber(payload.vitalsWeight, "Weight", { max: 500 });
+  const heightCm = clinicalNumber(payload.vitalsHeight, "Height", { max: 300 });
+  const waistCircumference = clinicalNumber(payload.waistCircumference, "Waist circumference", { max: 400 });
+  const hipCircumference = clinicalNumber(payload.hipCircumference, "Hip circumference", { max: 400 });
+  const bmi = weightKg && heightCm ? Number((weightKg / ((heightCm / 100) ** 2)).toFixed(2)) : null;
+  const waistHipRatio = waistCircumference && hipCircumference
+    ? Number((waistCircumference / hipCircumference).toFixed(3))
+    : null;
+
+  return {
+    id: createId(),
+    patientId: visit.patientId,
+    visitId: visit.id,
+    examinedBy: actor.sub || "",
+    examDate: payload.examDate || visit.visitDate || todayDate(),
+    temperatureValue: clinicalNumber(payload.vitalsTemp, "Temperature", { max: 120 }),
+    pulseRate: clinicalNumber(payload.vitalsPulse, "Pulse rate", { max: 300, integer: true }),
+    bpRightSystolic: clinicalNumber(payload.bpRightSystolic || existingBp.systolic, "Right-arm systolic pressure", { max: 300, integer: true }),
+    bpRightDiastolic: clinicalNumber(payload.bpRightDiastolic || existingBp.diastolic, "Right-arm diastolic pressure", { max: 200, integer: true }),
+    bpLeftSystolic: clinicalNumber(payload.bpLeftSystolic, "Left-arm systolic pressure", { max: 300, integer: true }),
+    bpLeftDiastolic: clinicalNumber(payload.bpLeftDiastolic, "Left-arm diastolic pressure", { max: 200, integer: true }),
+    respiratoryRate: clinicalNumber(payload.vitalsRr, "Respiratory rate", { max: 100, integer: true }),
+    spo2: clinicalNumber(payload.vitalsSpo2, "SpO₂", { max: 100 }),
+    weightKg,
+    heightCm,
+    bmi,
+    bmiCategory: adultBmiCategory(bmi),
+    waistCircumference,
+    hipCircumference,
+    waistHipRatio,
+    bloodGlucoseValue: clinicalNumber(payload.bloodGlucoseValue, "Blood glucose", { max: 1000 }),
+    bloodGlucoseType: payload.bloodGlucoseType || "",
+    vitalSigns: {
+      temperatureSite: payload.temperatureSite || "",
+      temperatureUnit: payload.temperatureUnit || "",
+      pulseRhythm: payload.pulseRhythm || "",
+      pulseVolume: payload.pulseVolume || "",
+      pulseCharacter: payload.pulseCharacter || "",
+      pulseTension: payload.pulseTension || "",
+      pulseVesselWall: payload.pulseVesselWall || "",
+      bpPosition: payload.bpPosition || "",
+      respiratoryPattern: payload.respiratoryPattern || "",
+      spo2Condition: payload.spo2Condition || ""
+    },
+    generalAppearance: {
+      builtMorphology: payload.builtMorphology || "",
+      bodyBuild: payload.bodyBuild || "",
+      nourishment: payload.nourishment || "",
+      posture: payload.posture || "",
+      gait: payload.gait || "",
+      decubitus: payload.decubitus || "",
+      facialExpression: payload.facialExpression || "",
+      consciousLevel: payload.consciousLevel || "",
+      orientationTime: payload.orientationTime || "",
+      orientationPlace: payload.orientationPlace || "",
+      orientationPerson: payload.orientationPerson || "",
+      cooperation: payload.cooperation || "",
+      speech: payload.speech || ""
+    },
+    skinHairNails: {
+      skinColour: payload.skinColour || "",
+      skinTexture: payload.skinTexture || "",
+      skinTurgor: payload.skinTurgor || "",
+      rashesLesions: payload.rashesLesions || "",
+      oedemaType: payload.oedemaType || "",
+      oedemaDistribution: payload.oedemaDistribution || "",
+      oedemaGrade: payload.oedemaGrade || "",
+      lymphSite: payload.lymphSite || "",
+      lymphSize: payload.lymphSize || "",
+      lymphConsistency: payload.lymphConsistency || "",
+      lymphTenderness: payload.lymphTenderness || "",
+      lymphMobility: payload.lymphMobility || "",
+      hair: payload.hair || "",
+      nails: payload.nails || ""
+    },
+    eyesTongueMucosa: {
+      conjunctiva: payload.conjunctiva || "",
+      sclera: payload.sclera || "",
+      pupilsSize: payload.pupilsSize || "",
+      pupilsShape: payload.pupilsShape || "",
+      pupilsDirectReflex: payload.pupilsDirectReflex || "",
+      pupilsConsensualReflex: payload.pupilsConsensualReflex || "",
+      pupilsPerrla: payload.pupilsPerrla || "",
+      tongueAppearance: payload.tongueAppearance || "",
+      tongueCoatingColor: payload.tongueCoatingColor || "",
+      tongueMoisture: payload.tongueMoisture || "",
+      tongueTremors: payload.tongueTremors || "",
+      tongueMacroglossia: payload.tongueMacroglossia || "",
+      oralMucosa: payload.oralMucosa || "",
+      throatCongestion: payload.throatCongestion || "",
+      tonsillarGrade: payload.tonsillarGrade || "",
+      throatExudates: payload.throatExudates || ""
+    },
+    notes: payload.physicalExam || ""
   };
 }
 
 export async function saveVitals(visitId, payload, actor = {}) {
-  await getVisitById(visitId);
-  const visit = await updateVisitVitalsRecord(visitId, payload, {
+  const existingVisit = await getVisitById(visitId);
+  const examination = generalExaminationFromPayload(payload, existingVisit, actor);
+  const savedExamination = await upsertGeneralExaminationRecord(examination);
+  const primaryBp = [savedExamination.bpRightSystolic || savedExamination.bpLeftSystolic, savedExamination.bpRightDiastolic || savedExamination.bpLeftDiastolic]
+    .filter((value) => value !== "" && value !== null && value !== undefined)
+    .join("/");
+  const visit = await updateVisitVitalsRecord(visitId, {
+    vitalsBp: primaryBp,
+    vitalsPulse: savedExamination.vitalsPulse,
+    vitalsTemp: savedExamination.vitalsTemp,
+    vitalsWeight: savedExamination.vitalsWeight,
+    vitalsHeight: savedExamination.vitalsHeight,
+    // The legacy visit snapshot stores whole percentages; the examination table
+    // retains the more precise value entered by the clinician.
+    vitalsSpo2: savedExamination.vitalsSpo2 === "" ? "" : Math.round(Number(savedExamination.vitalsSpo2)),
+    vitalsRr: savedExamination.vitalsRr
+  }, {
     workflowStage: "doctor",
     screeningCompletedAt: new Date().toISOString(),
     screeningCompletedBy: actor.sub || "",
-    physicalExam: payload.physicalExam || "",
+    physicalExam: savedExamination.physicalExam || "",
+    generalExaminationId: savedExamination.id,
     forwardedTo: ["doctor"]
   });
   syncVisitMirror(visit);
@@ -201,6 +372,184 @@ export async function saveAssessment(visitId, payload, doctorId) {
   const savedAssessment = await upsertAssessmentRecord(assessment);
   syncAssessmentMirror(savedAssessment);
   return savedAssessment;
+}
+
+const systemicSectionFields = {
+  cardiovascular: [
+    "precordiumShape", "apexBeatLocation", "apexBeatCharacter", "heartSoundS1", "heartSoundS2", "additionalHeartSounds",
+    "murmurTiming", "murmurSite", "murmurRadiation", "murmurGrade", "jvpStatus", "jvpWaveform", "pulseRadial",
+    "pulseBrachial", "pulseCarotid", "pulseFemoral", "pulsePopliteal", "pulsePosteriorTibial", "pulseDorsalisPedis", "capillaryRefillTime"
+  ],
+  respiratory: [
+    "chestShape", "chestMovement", "chestMovementSide", "tracheaPosition", "tracheaDeviationSide", "percussionNote",
+    "percussionArea", "airEntry", "airEntryDistribution", "breathSounds", "addedSounds", "crepitationsType",
+    "vocalResonance", "tactileFremitus"
+  ],
+  gastrointestinal: [
+    "abdomenShape", "umbilicus", "umbilicalDischarge", "visiblePeristalsis", "dilatedVeins", "dilatedVeinPattern",
+    "tendernessLocation", "guarding", "rigidity", "reboundTenderness", "liverSpan", "liverTexture", "liverTenderness",
+    "liverSurface", "liverEdge", "spleenGrade", "kidneysBallotable", "ascitesFluidThrill", "ascitesShiftingDullness",
+    "ascitesPuddleSign", "bowelSounds", "herniaOrifices", "dreFindings"
+  ],
+  centralNervousSystem: [
+    "cnsConsciousness", "gcsEye", "gcsVerbal", "gcsMotor", "gcsTotal", "cnsOrientation", "memoryImmediate",
+    "memoryRecent", "memoryRemote", "intelligence", "judgement", "behaviour", "mood", "cn1Olfactory", "cn2Optic",
+    "cn346Ocular", "cn5Trigeminal", "cn7Facial", "cn8Vestibulocochlear", "cn910GlossopharyngealVagus",
+    "cn11Accessory", "cn12Hypoglossal", "muscleBulk", "muscleTone", "musclePower", "coordination", "involuntaryMovements",
+    "sensoryPain", "sensoryTemperature", "sensoryLightTouch", "sensoryVibration", "sensoryProprioception", "dermatomalMapping",
+    "reflexBiceps", "reflexTriceps", "reflexSupinator", "reflexKnee", "reflexAnkle", "plantarResponse", "abdominalReflex",
+    "cremastericReflex", "neckStiffness", "kernigSign", "brudzinskiSign"
+  ],
+  musculoskeletal: [
+    "jointExamined1", "jointExamined2", "jointExamined3", "jointExamined4", "jointInspection", "jointPalpation",
+    "activeRom", "passiveRom", "jointSpecialTests", "cervicalSpine", "thoracicSpine", "lumbarSpine", "spineMovements",
+    "spineTenderness", "slrt", "fnst", "muscleWasting", "weaknessPattern", "mskSpecialTests"
+  ],
+  genitourinary: [
+    "renalAngleRight", "renalAngleLeft", "bladderStatus", "urethralDischarge", "maleTestes", "maleEpididymis",
+    "maleVaricocele", "maleHydrocele", "gynaecologyReferral", "genitourinaryNotes"
+  ],
+  endocrine: [
+    "thyroidGoitre", "thyroidSize", "thyroidConsistency", "thyroidNodularity", "thyroidBruit", "hypothyroidSigns",
+    "hyperthyroidSigns", "acanthosis", "diabeticFootExam", "cushingMoonFace", "cushingBuffaloHump", "cushingStriae",
+    "addisonPigmentation", "addisonHypotension", "tannerStage"
+  ],
+  eyeEnt: [
+    "eyeVisualAcuity", "eyeIop", "eyeFundoscopy", "eyeSlitLamp", "earExternalCanal", "earTmIntegrity", "earHearing",
+    "earWhisperTest", "earRinne", "earWeber", "earDischarge", "noseSeptum", "noseTurbinates", "nosePolyp",
+    "noseDischarge", "sinusTransillumination", "entTonsils", "entAdenoids", "posteriorPharyngealWall", "laryngoscopy"
+  ]
+};
+
+function pickSystemicFields(payload, fields) {
+  return Object.fromEntries(fields.map((field) => [field, payload[field] ?? ""]));
+}
+
+export async function saveSystemicExamination(visitId, payload, actor = {}) {
+  const visit = await getVisitById(visitId);
+  const current = await findSystemicExaminationByVisitId(visitId);
+  const gcsParts = [payload.gcsEye, payload.gcsVerbal, payload.gcsMotor].map(Number);
+  const gcsTotal = gcsParts.every((value) => Number.isFinite(value) && value > 0)
+    ? String(gcsParts.reduce((sum, value) => sum + value, 0))
+    : "";
+  const normalizedPayload = { ...payload, gcsTotal };
+
+  return upsertSystemicExaminationRecord({
+    id: current?.id || createId(),
+    patientId: visit.patientId,
+    visitId,
+    examinedBy: actor.sub || visit.doctorId,
+    examDate: payload.examDate || visit.visitDate || todayDate(),
+    cardiovascular: pickSystemicFields(normalizedPayload, systemicSectionFields.cardiovascular),
+    respiratory: pickSystemicFields(normalizedPayload, systemicSectionFields.respiratory),
+    gastrointestinal: pickSystemicFields(normalizedPayload, systemicSectionFields.gastrointestinal),
+    centralNervousSystem: pickSystemicFields(normalizedPayload, systemicSectionFields.centralNervousSystem),
+    musculoskeletal: pickSystemicFields(normalizedPayload, systemicSectionFields.musculoskeletal),
+    genitourinary: pickSystemicFields(normalizedPayload, systemicSectionFields.genitourinary),
+    endocrine: pickSystemicFields(normalizedPayload, systemicSectionFields.endocrine),
+    eyeEnt: pickSystemicFields(normalizedPayload, systemicSectionFields.eyeEnt),
+    systemicNotes: payload.systemicNotes || ""
+  });
+}
+
+function pickHistoryFields(payload, prefixes) {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([key]) => prefixes.some((prefix) => key.startsWith(prefix)))
+  );
+}
+
+function cleanRows(rows, fields, limit) {
+  return (Array.isArray(rows) ? rows : []).slice(0, limit).map((row) =>
+    Object.fromEntries(fields.map((field) => [field, String(row?.[field] ?? "").slice(0, 1000)]))
+  );
+}
+
+function historyPrescriptionSnapshot(payload, complaints) {
+  const compact = (object) => Object.fromEntries(Object.entries(object).filter(([, value]) => value !== "" && value !== null && value !== undefined && (!Array.isArray(value) || value.length)));
+  const present = (value) => String(value || "").toLowerCase() === "yes";
+  const conditions = [
+    present(payload.pastDmStatus) && "dm",
+    present(payload.pastHtnStatus) && "htn",
+    present(payload.pastCadStatus) && "cad",
+    present(payload.pastAsthmaStatus) && "respiratory",
+    present(payload.pastTbStatus) && "respiratory",
+    present(payload.pastEpilepsyStatus) && "neurological"
+  ].filter(Boolean);
+  const hereditaryText = String(payload.hereditaryConditions || "").toLowerCase();
+  const familyConditions = [
+    hereditaryText.includes("dm") || hereditaryText.includes("diabetes") ? "diabetes" : "",
+    hereditaryText.includes("htn") || hereditaryText.includes("hypertension") ? "htn" : "",
+    hereditaryText.includes("cad") ? "cad" : "",
+    hereditaryText.includes("cancer") ? "cancer" : ""
+  ].filter(Boolean);
+  const gpal = [payload.obstetricGravida && `G${payload.obstetricGravida}`, payload.obstetricPara && `P${payload.obstetricPara}`, payload.obstetricAbortus && `A${payload.obstetricAbortus}`, payload.obstetricLiving && `L${payload.obstetricLiving}`].filter(Boolean).join(" ");
+
+  const complaintRows = complaints.filter((item) => item.complaint.trim()).map((item) => ({
+      complaint: item.complaint,
+      duration: [item.durationValue, item.durationUnit].filter(Boolean).join(" "),
+      severity: item.severity
+    }));
+  const medicalHistory = compact({
+      conditions: [...new Set(conditions)],
+      surgicalHistory: payload.previousSurgeryType || "",
+      surgicalDetails: [payload.previousSurgeryYear, payload.previousSurgeryComplications].filter(Boolean).join(" · "),
+      menstrualLmp: payload.menstrualLmp || "",
+      menstrualPreviousLmp: payload.menstrualPreviousLmp || "",
+      menstrualDays: payload.menstrualFlowDuration || "",
+      menarche: payload.menarcheAge || "",
+      menopause: [payload.menopausalStatus, payload.menopauseAge].filter(Boolean).join(" · "),
+      menstrualCycle: String(payload.menstrualCycle || "").toLowerCase(),
+      clotting: payload.intermenstrualBleeding || "",
+      painSeverity: payload.dysmenorrhoea || "",
+      obstetricHistory: gpal
+    });
+  const allergies = compact({
+      drug: [payload.drugAllergyName, payload.drugAllergyReaction].filter(Boolean).join(" · ")
+    });
+  const familyHistory = compact({
+      geneticConditions: payload.hereditaryConditions ? true : "",
+      geneticDetails: payload.hereditaryConditions || "",
+      conditions: familyConditions,
+      others: payload.familyOtherIllnesses || payload.familyMentalHealth || ""
+    });
+  return {
+    ...(complaintRows.length ? { complaintRows } : {}),
+    ...(Object.keys(medicalHistory).length ? { medicalHistory } : {}),
+    ...(Object.keys(allergies).length ? { allergies } : {}),
+    ...(Object.keys(familyHistory).length ? { familyHistory } : {})
+  };
+}
+
+export async function saveHistoryTaking(visitId, payload, actor = {}) {
+  const visit = await getVisitById(visitId);
+  const current = await findHistoryTakingByVisitId(visitId);
+  const complaints = cleanRows(payload.complaints, [
+    "complaint", "durationValue", "durationUnit", "onset", "site", "spread", "onsetDate", "triggeringEvent",
+    "character", "radiation", "associations", "timeCourse", "coursePattern", "exacerbatingFactors", "relievingFactors",
+    "severity", "functionalImpairment", "previousEpisodes", "episodeFrequency", "previousTreatment", "progression", "relevantNegatives"
+  ], 10);
+  const currentMedications = cleanRows(payload.currentMedications, ["name", "dose", "frequency", "duration", "prescribingDoctor", "medicineSystem"], 20);
+  const prescriptionSnapshot = historyPrescriptionSnapshot(payload, complaints);
+  const saved = await upsertHistoryTakingRecord({
+    id: current?.id || createId(), patientId: visit.patientId, visitId,
+    recordedBy: actor.sub || visit.doctorId, historyDate: payload.historyDate || visit.visitDate || todayDate(), complaints,
+    pastHistory: pickHistoryFields(payload, ["past", "previousHospital", "previousSurgery", "previousSimilar", "recurrence", "trauma", "bloodTransfusion", "vaccination", "covid", "flu", "hepatitis", "otherVaccinations", "previousInvestigation"]),
+    drugHistory: { ...pickHistoryFields(payload, ["medicineSystem", "steroid", "anticoagulant", "nsaid", "drugAllergy", "drugInteraction", "previousAyurvedic", "medicationCompliance", "selfMedication"]), currentMedications },
+    familyHistory: pickHistoryFields(payload, ["parent", "sibling", "children", "hereditary", "consanguinity", "family"]),
+    personalHistory: pickHistoryFields(payload, ["dietType", "appetite", "foodTiming", "waterIntake", "junkFood", "saltIntake", "dairy", "bowel", "bladder", "urine", "sleep", "dream", "tobacco", "alcohol", "otherSubstance", "caffeine", "addiction", "physicalActivity", "exercise", "yoga", "occupation", "work", "income", "housing", "waterSource", "sanitation", "marriage", "relationship", "sexual", "sti"]),
+    obstetricGynaecological: pickHistoryFields(payload, ["menstrual", "menarche", "dysmenorrhoea", "intermenstrual", "postCoital", "premenstrual", "menopausal", "menopause", "hotFlash", "nightSweat", "vaginal", "obstetric", "pregnancy", "stillbirth", "neonatalDeath", "ectopic", "hydatidiform", "currentPregnancy", "edd", "contraception", "artava", "yoni", "garbhashaya", "pradara", "kashtartava"]),
+    paediatricHistory: pickHistoryFields(payload, ["birth", "antenatal", "neonatal", "development", "immunisation", "breastfeeding", "weaning", "paediatric"]),
+    mentalHealthHistory: pickHistoryFields(payload, ["psychiatric", "mental", "currentStress", "suicidal", "screeningTool", "sleepMood", "manasika"]),
+    dietaryHistory: pickHistoryFields(payload, ["dietaryRecall", "ahara", "viruddha", "seasonalDiet", "tridoshaDiet", "heavyLight", "ushnaSheeta", "snigdhaRooksha"]),
+    travelHistory: pickHistoryFields(payload, ["recentTravel", "travelCountries", "malariaExposure", "hivZoneExposure", "travelExposure"]),
+    prescriptionSnapshot,
+    historyNotes: payload.historyNotes || ""
+  });
+
+  const firstComplaint = complaints.find((item) => item.complaint.trim())?.complaint.trim();
+  if (firstComplaint) await updateVisitChiefComplaintRecord(visitId, firstComplaint);
+  await mergePrescriptionMetadataByVisitId(visitId, prescriptionSnapshot);
+  return { ...saved, prescriptionSnapshot };
 }
 
 const DIET_ITEM_NAME_MAX = 120;
@@ -316,6 +665,7 @@ export async function savePrescription(visitId, payload, doctorId) {
       id: medicine.id || createId(),
       medicineId: medicine.medicineId || "",
       medicineName: medicine.medicineName || "",
+      strength: medicine.strength || "",
       dose: medicine.dose || "",
       frequency: medicine.frequency || "",
       route: medicine.route || "oral",
@@ -323,7 +673,11 @@ export async function savePrescription(visitId, payload, doctorId) {
       durationDays: Number(medicine.durationDays || 0),
       anupana: medicine.anupana || "",
       quantityDispensed: Number(medicine.quantityDispensed || 0),
-      specialInstructions: medicine.specialInstructions || ""
+      specialInstructions: medicine.specialInstructions || "",
+      metadata: {
+        ...(medicine.metadata || {}),
+        strength: medicine.strength || medicine.metadata?.strength || ""
+      }
     }))
   });
 

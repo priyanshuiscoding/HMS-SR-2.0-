@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "../../router.jsx";
 
 import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { historyTakingSections } from "../opd/HistoryTakingForm.jsx";
+import { systemicExaminationSections } from "../opd/SystemicExaminationForm.jsx";
 import {
   deletePatientDocument,
   downloadPatientDocument,
@@ -683,30 +685,135 @@ export function PatientProfilePage() {
 
           <section className="detail-grid">
             <article className="content-card">
-              <h3>OPD vitals</h3>
-              {payload.opdVisits.length ? (
+              <h3>General examinations</h3>
+              {payload.generalExaminations?.length ? (
                 <div className="stack-list">
-                  {payload.opdVisits.map((visit) => (
-                    <div key={visit.id} className="quick-action">
-                      <strong>{visit.opdNumber}</strong>
-                      <div className="timeline-copy">{visit.visitDate} | {visit.status}</div>
+                  {payload.generalExaminations.map((examination) => (
+                    <div key={examination.id} className="quick-action">
+                      <strong>{examination.examDate} · General Examination</strong>
                       <div className="timeline-copy">
-                        BP: {visit.vitalsBp || "-"} | Pulse: {visit.vitalsPulse || "-"} | Temp: {visit.vitalsTemp || "-"} | SpO2: {visit.vitalsSpo2 || "-"}
+                        BP: {examination.vitalsBp || "-"} | Pulse: {examination.vitalsPulse || "-"} | Temp: {examination.vitalsTemp || "-"}{examination.temperatureUnit || ""} | SpO₂: {examination.vitalsSpo2 || "-"}%
                       </div>
                       <div className="timeline-copy">
-                        Height: {visit.vitalsHeight || "-"} | Weight: {visit.vitalsWeight || "-"} | RR: {visit.vitalsRr || "-"}
+                        Height: {examination.vitalsHeight || "-"} cm | Weight: {examination.vitalsWeight || "-"} kg | BMI: {examination.bmi || "-"} {examination.bmiCategory ? `(${examination.bmiCategory})` : ""}
                       </div>
-                      {visit.metadata?.physicalExam ? <div className="timeline-copy">Exam: {visit.metadata.physicalExam}</div> : null}
+                      <details className="history-examination-details">
+                        <summary>View complete examination</summary>
+                        <div className="history-examination-grid">
+                          <span><strong>Respiration:</strong> {examination.vitalsRr || "-"} · {examination.respiratoryPattern || "-"}</span>
+                          <span><strong>Pulse:</strong> {examination.pulseRhythm || "-"} · {examination.pulseVolume || "-"} · {examination.pulseCharacter || "-"}</span>
+                          <span><strong>Built/Nourishment:</strong> {examination.builtMorphology || "-"} · {examination.bodyBuild || "-"} · {examination.nourishment || "-"}</span>
+                          <span><strong>Posture/Gait:</strong> {examination.posture || "-"} · {examination.gait || "-"}</span>
+                          <span><strong>Skin:</strong> {examination.skinColour || "-"} · {examination.skinTexture || "-"} · {examination.skinTurgor || "-"}</span>
+                          <span><strong>Hair/Nails:</strong> {examination.hair || "-"} · {examination.nails || "-"}</span>
+                          <span><strong>Eyes:</strong> {examination.conjunctiva || "-"} · {examination.sclera || "-"}</span>
+                          <span><strong>Tongue/Mucosa:</strong> {examination.tongueAppearance || "-"} · {examination.tongueCoatingColor || "-"} · {examination.oralMucosa || "-"}</span>
+                        </div>
+                        {examination.physicalExam ? <div className="timeline-copy">Notes: {examination.physicalExam}</div> : null}
+                      </details>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="empty-state">No OPD vitals recorded yet.</div>
+                <div className="empty-state">No general examination history recorded yet.</div>
               )}
             </article>
 
             <article className="content-card">
-              <h3>Prakriti observations</h3>
+              <h3>Systemic examinations</h3>
+              {payload.systemicExaminations?.length ? (
+                <div className="stack-list">
+                  {payload.systemicExaminations.map((examination) => (
+                    <div key={examination.id} className="quick-action">
+                      <strong>{examination.examDate} · Systemic Examination</strong>
+                      <div className="timeline-copy">
+                        CVS: {examination.heartSoundS1 || "-"}/{examination.heartSoundS2 || "-"} | Respiratory: {examination.breathSounds || "-"} | Abdomen: {examination.abdomenShape || "-"}
+                      </div>
+                      <details className="history-examination-details">
+                        <summary>View complete systemic examination</summary>
+                        {systemicExaminationSections.map((section) => {
+                          const enteredFields = section.groups
+                            .flatMap((group) => group.fields)
+                            .filter((field) => examination[field.name] !== "" && examination[field.name] !== null && examination[field.name] !== undefined);
+                          if (!enteredFields.length) return null;
+                          return (
+                            <div className="history-systemic-section" key={section.number}>
+                              <h4>{section.number} {section.title}</h4>
+                              <div className="history-examination-grid">
+                                {enteredFields.map((field) => <span key={field.name}><strong>{field.label}:</strong> {examination[field.name]}</span>)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {examination.systemicNotes ? <div className="timeline-copy">Notes: {examination.systemicNotes}</div> : null}
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">No systemic examination history recorded yet.</div>
+              )}
+            </article>
+
+            <article className="content-card">
+              <h3>History taking</h3>
+              {payload.historyTakingRecords?.length ? (
+                <div className="stack-list">
+                  {payload.historyTakingRecords.map((history) => (
+                    <div key={history.id} className="quick-action">
+                      <strong>{history.historyDate} · History Taking</strong>
+                      <div className="timeline-copy">
+                        {history.complaints?.filter((item) => item.complaint).slice(0, 3).map((item, index) => `${index + 1}. ${item.complaint}`).join(" | ") || "No chief complaint entered"}
+                      </div>
+                      <details className="history-examination-details">
+                        <summary>View complete history</summary>
+                        {history.complaints?.filter((item) => item.complaint).map((complaint, index) => (
+                          <div className="history-systemic-section" key={`complaint-${index}`}>
+                            <h4>{index + 1}. {complaint.complaint}</h4>
+                            <div className="history-examination-grid">
+                              <span><strong>Duration:</strong> {[complaint.durationValue, complaint.durationUnit].filter(Boolean).join(" ") || "-"}</span>
+                              <span><strong>Onset:</strong> {complaint.onset || "-"}</span>
+                              <span><strong>Site / radiation:</strong> {[complaint.site, complaint.radiation].filter(Boolean).join(" · ") || "-"}</span>
+                              <span><strong>Character:</strong> {complaint.character || "-"}</span>
+                              <span><strong>Course:</strong> {[complaint.timeCourse, complaint.coursePattern, complaint.progression].filter(Boolean).join(" · ") || "-"}</span>
+                              <span><strong>Severity:</strong> {complaint.severity || "-"}</span>
+                              <span><strong>Associations:</strong> {complaint.associations || "-"}</span>
+                              <span><strong>Relevant negatives:</strong> {complaint.relevantNegatives || "-"}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {history.currentMedications?.some((item) => item.name) ? (
+                          <div className="history-systemic-section">
+                            <h4>Current medications</h4>
+                            <div className="history-examination-grid">
+                              {history.currentMedications.filter((item) => item.name).map((medicine, index) => <span key={`${medicine.name}-${index}`}><strong>{medicine.name}:</strong> {[medicine.dose, medicine.frequency, medicine.duration, medicine.medicineSystem].filter(Boolean).join(" · ")}</span>)}
+                            </div>
+                          </div>
+                        ) : null}
+                        {historyTakingSections.map((section) => {
+                          const enteredFields = section.groups.flatMap((group) => group.fields).filter((field) => history[field.name] !== "" && history[field.name] !== null && history[field.name] !== undefined);
+                          if (!enteredFields.length) return null;
+                          return (
+                            <div className="history-systemic-section" key={section.number}>
+                              <h4>{section.number} {section.title}</h4>
+                              <div className="history-examination-grid">
+                                {enteredFields.map((field) => <span key={field.name}><strong>{field.label}:</strong> {String(history[field.name])}</span>)}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {history.historyNotes ? <div className="timeline-copy">Notes: {history.historyNotes}</div> : null}
+                      </details>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">No structured history-taking record yet.</div>
+              )}
+            </article>
+
+            <article className="content-card">
+              <h3>Previous Prakriti observations</h3>
               {payload.assessments.length ? (
                 <div className="stack-list">
                   {payload.assessments.map((assessment) => (

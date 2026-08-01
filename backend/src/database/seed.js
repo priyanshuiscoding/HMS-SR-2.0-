@@ -5,6 +5,7 @@ import { fileURLToPath } from "url";
 import bcrypt from "bcrypt";
 
 import { demoUsers } from "../config/constants.js";
+import { env } from "../config/env.js";
 import {
   consultationCharge,
   approvalPolicy,
@@ -538,6 +539,10 @@ async function seedBillingData(client) {
 }
 
 async function run() {
+  if (env.nodeEnv === "production" && String(process.env.ALLOW_PRODUCTION_DEMO_SEED || "").toLowerCase() !== "true") {
+    throw new Error("Demo/reference seed is blocked in production. Run db:migrate and db:bootstrap-admin instead.");
+  }
+
   const client = await pgPool.connect();
 
   try {

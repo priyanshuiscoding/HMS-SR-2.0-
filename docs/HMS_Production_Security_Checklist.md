@@ -7,20 +7,21 @@ Use this before running HMS on a real hospital server.
 - `NODE_ENV=production`
 - `PERSISTENCE_ENABLED=true`
 - `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` must be long, random, and different.
+- `JWT_ISSUER` and `JWT_AUDIENCE` must match the values used by the deployed web client/API.
 - `COOKIE_SECURE=true` behind HTTPS.
 - `TRUST_PROXY=true` when using Nginx, load balancer, or reverse proxy.
 - `FRONTEND_URL` must contain only trusted hospital domains/IPs.
 - Change default database passwords before production.
+- Run `npm run check:deployment`; it must report zero seeded/default user passwords.
+- Do not run `db:seed` or `db:setup` in production. Use `db:migrate` and the one-time `db:bootstrap-admin` command.
 - Do not expose PostgreSQL or Redis ports publicly. Keep them on the server/private network.
 
 ## OTP Setup
 
-The reset-password flow supports these modes:
+Password reset is intentionally set to `OTP_DELIVERY_MODE=disabled` for production until a real provider is integrated. Development supports:
 
 - `OTP_DELIVERY_MODE=dev`: logs OTP in backend logs for local testing only.
-- `OTP_DELIVERY_MODE=email`: integrate SMTP provider.
-- `OTP_DELIVERY_MODE=sms`: integrate SMS provider.
-- `OTP_DELIVERY_MODE=email_sms`: allow both channels.
+- `OTP_DELIVERY_MODE=email`, `sms`, or `email_sms` are reserved but will fail closed until provider delivery is implemented and tested.
 
 Configure these when provider integration is added:
 

@@ -1606,6 +1606,286 @@ textarea {
   grid-column: span 2;
 }
 
+.general-exam-form {
+  display: grid;
+  gap: 14px;
+}
+
+.general-exam-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 260px);
+  align-items: end;
+  gap: 18px;
+  padding: 16px 18px;
+  border: 1px solid rgba(47, 125, 185, 0.16);
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(47, 125, 185, 0.08), rgba(255, 255, 255, 0.96));
+}
+
+.general-exam-intro strong {
+  color: var(--color-navy);
+  font-size: 16px;
+}
+
+.general-exam-intro p {
+  max-width: 72ch;
+  margin: 6px 0 0;
+  color: #64778a;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.general-exam-section {
+  overflow: visible;
+  border: 1px solid rgba(16, 55, 92, 0.12);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 8px 22px rgba(24, 70, 110, 0.05);
+}
+
+.general-exam-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 18px;
+  color: var(--color-navy);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.general-exam-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.general-exam-section > summary::after {
+  margin-left: auto;
+  color: #2f7db9;
+  content: "+";
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.general-exam-section[open] > summary::after {
+  content: "−";
+}
+
+.general-exam-section > summary small {
+  display: block;
+  margin-top: 3px;
+  color: #718397;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.general-exam-section-number {
+  display: grid;
+  width: 42px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #39a9d6, #2f69c9);
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.general-exam-section-body {
+  padding: 0 14px 16px;
+  border-top: 1px solid rgba(16, 55, 92, 0.08);
+}
+
+.general-exam-section-body h4 {
+  margin: 14px 0 8px;
+  color: #245587;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.general-exam-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: start;
+  gap: 10px 12px;
+}
+
+.general-exam-field {
+  position: relative;
+  min-width: 0;
+  gap: 5px;
+}
+
+.general-exam-field:focus-within {
+  z-index: 20;
+}
+
+.general-exam-field label {
+  min-height: 30px;
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.general-exam-field input,
+.general-exam-field select {
+  min-height: 42px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+.general-exam-combobox {
+  position: relative;
+  min-width: 0;
+}
+
+.general-exam-combobox-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 210px;
+  overflow-y: auto;
+  border: 1px solid rgba(16, 55, 92, 0.16);
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: 0 14px 30px rgba(16, 55, 92, 0.18);
+}
+
+.general-exam-combobox-option {
+  display: block;
+  width: 100%;
+  padding: 9px 11px;
+  border: 0;
+  border-bottom: 1px solid rgba(16, 55, 92, 0.07);
+  background: #ffffff;
+  color: var(--color-ink);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+
+.general-exam-combobox-option:last-child {
+  border-bottom: 0;
+}
+
+.general-exam-combobox-option:hover,
+.general-exam-combobox-option.is-active {
+  background: rgba(47, 125, 185, 0.11);
+  color: #174e83;
+}
+
+.general-exam-combobox-empty {
+  padding: 10px 11px;
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.general-exam-field input[readonly] {
+  border-color: rgba(47, 125, 185, 0.2);
+  background: rgba(47, 125, 185, 0.07);
+  color: #245587;
+  font-weight: 700;
+}
+
+.field-help {
+  display: block;
+  margin-top: 2px;
+  color: #73869a;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.general-exam-notes {
+  padding: 16px 18px;
+  border: 1px solid rgba(16, 55, 92, 0.1);
+  border-radius: 16px;
+  background: rgba(248, 252, 255, 0.82);
+}
+
+.general-exam-notes textarea {
+  min-height: 110px;
+}
+
+.history-repeat-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.history-repeat-card {
+  border: 1px solid rgba(16, 55, 92, 0.11);
+  border-radius: 12px;
+  background: rgba(248, 252, 255, 0.76);
+}
+
+.history-repeat-card > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  color: var(--color-navy);
+  cursor: pointer;
+  list-style: none;
+}
+
+.history-repeat-card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.history-repeat-card > summary span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-repeat-body {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+
+.history-repeat-body > .secondary-button,
+.history-repeat-list > .secondary-button {
+  justify-self: start;
+}
+
+.history-examination-details {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(16, 55, 92, 0.1);
+}
+
+.history-examination-details summary {
+  color: #2f69c9;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.history-systemic-section {
+  margin-top: 12px;
+}
+
+.history-systemic-section h4 {
+  margin: 0 0 7px;
+  color: #245587;
+  font-size: 12px;
+}
+
+.history-examination-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 14px;
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .complaint-grid {
   grid-template-columns: repeat(4, minmax(150px, 1fr));
 }
@@ -2512,6 +2792,10 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+  .general-exam-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .vitals-grid .field:last-child,
   .discharge-form-grid .field-span-2 {
     grid-column: auto;
@@ -2583,6 +2867,12 @@ textarea {
 }
 
 @media (max-width: 720px) {
+  .general-exam-intro,
+  .general-exam-grid,
+  .history-examination-grid {
+    grid-template-columns: 1fr;
+  }
+
   .main-panel,
   .auth-hero,
   .auth-panel {
@@ -3686,4 +3976,248 @@ textarea {
   body.print-bill-invoice .bill-invoice-table thead {
     display: table-header-group;
   }
+}
+
+/* Structured two-page SR-AIIMS OPD prescription. */
+.opd-prescription-print-sheet {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: "Times New Roman", Times, serif;
+  line-height: 1.15;
+}
+
+.opd-rx-page {
+  position: relative;
+  width: min(190mm, 100%);
+  min-height: 277mm;
+  margin: 18px auto 0;
+  padding: 5mm 8mm 7mm;
+  box-sizing: border-box;
+  border: 1px solid rgba(31, 79, 143, 0.2);
+  border-radius: 4px;
+  background: #ffffff;
+  color: #151515;
+  font-size: 11px;
+  overflow: hidden;
+}
+
+.opd-rx-header {
+  display: grid;
+  grid-template-columns: 18% 82%;
+  align-items: center;
+  height: 19mm;
+  gap: 4mm;
+}
+
+.opd-rx-logo,
+.opd-rx-header-details {
+  display: block;
+  width: 100%;
+  max-height: 18mm;
+  object-fit: contain;
+}
+
+.opd-rx-logo {
+  height: 18mm;
+}
+
+.opd-rx-header-details {
+  height: 17mm;
+}
+
+.opd-rx-page h1 {
+  margin: 1mm 0 0;
+  color: #c95210;
+  font-size: 19px;
+  line-height: 1;
+  text-align: center;
+}
+
+.opd-rx-section-title {
+  margin: 1mm 0 0;
+  color: #245587;
+  font-size: 14px;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.opd-rx-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.opd-rx-table th,
+.opd-rx-table td {
+  height: 5.5mm;
+  padding: 1mm 1.6mm;
+  border: 0.25mm solid #505050;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.opd-rx-table tbody th {
+  background: #d8eaf1;
+  font-size: 11px;
+  text-align: left;
+}
+
+.opd-rx-patient-table th:nth-child(1) { width: 19%; }
+.opd-rx-patient-table td:nth-child(2) { width: 37%; }
+.opd-rx-patient-table th:nth-child(3) { width: 15%; }
+.opd-rx-patient-table td:nth-child(4) { width: 29%; }
+.opd-rx-vitals-table th { width: 18%; }
+.opd-rx-vitals-table td { width: 32%; }
+
+.opd-rx-choice {
+  display: inline-block;
+  margin-right: 1.5mm;
+  white-space: nowrap;
+}
+
+.opd-rx-complaint-table thead th {
+  background: #ffffff;
+  color: #151515;
+  text-align: center;
+}
+
+.opd-rx-complaint-table th:nth-child(1) { width: 70%; }
+.opd-rx-complaint-table th:nth-child(2) { width: 16%; }
+.opd-rx-complaint-table th:nth-child(3) { width: 14%; }
+.opd-rx-complaint-table td { height: 9mm; }
+
+.opd-rx-history {
+  padding: 0 1.5mm;
+  font-size: 10.7px;
+}
+
+.opd-rx-history h4,
+.opd-rx-investigations h4,
+.opd-rx-validity h4 {
+  margin: 1.2mm 0 0.5mm;
+  color: #245587;
+  font-size: 12px;
+}
+
+.opd-rx-history p,
+.opd-rx-investigations p,
+.opd-rx-validity p {
+  margin: 0.6mm 0;
+}
+
+.opd-rx-footer-line {
+  position: absolute;
+  right: 8mm;
+  bottom: 4mm;
+  left: 8mm;
+  height: 2.5mm;
+  background: linear-gradient(90deg, #16b9bd 0%, #3869bb 92%, #ffffff 92%);
+}
+
+.opd-rx-blue-table thead th {
+  height: 6mm;
+  background: #2f78b8;
+  color: #ffffff;
+  font-size: 11px;
+  text-align: center;
+}
+
+.opd-rx-blue-table th:first-child { width: 8%; }
+.opd-rx-investigations {
+  padding: 0 1.5mm;
+  font-size: 10.5px;
+}
+
+.opd-rx-ayurveda-table th { width: 23%; }
+.opd-rx-medicine-table {
+  font-size: 9.5px;
+}
+
+.opd-rx-medicine-table th:nth-child(1) { width: 6%; }
+.opd-rx-medicine-table th:nth-child(2) { width: 23%; }
+.opd-rx-medicine-table th:nth-child(3) { width: 12%; }
+.opd-rx-medicine-table th:nth-child(4) { width: 14%; }
+.opd-rx-medicine-table th:nth-child(5) { width: 12%; }
+.opd-rx-medicine-table th:nth-child(6) { width: 10%; }
+.opd-rx-medicine-table th:nth-child(7) { width: 23%; }
+.opd-rx-medicine-table td { height: 5.4mm; }
+
+.opd-rx-signature {
+  min-height: 6mm;
+  padding-top: 1mm;
+  text-align: right;
+  font-weight: 700;
+}
+
+.opd-rx-followup-table th {
+  width: 23%;
+  background: #ffe7a1 !important;
+}
+
+.opd-rx-validity {
+  padding: 0 1.5mm;
+  font-size: 9.7px;
+}
+
+.opd-rx-validity h4 {
+  color: #151515;
+  text-align: center;
+}
+
+.clinical-checkbox-grid {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.clinical-checkbox-grid .checkbox-chip {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+@media print {
+  body.print-opd-prescription .toast-stack {
+    display: none !important;
+  }
+
+  body.print-opd-prescription .opd-prescription-print-sheet {
+    display: block !important;
+    width: 210mm !important;
+    max-width: none !important;
+    margin: 0 auto !important;
+    font-size: 11px;
+  }
+
+  body.print-opd-prescription .opd-rx-page {
+    width: 190mm;
+    min-height: 277mm;
+    margin: 0 auto !important;
+    padding: 5mm 0 7mm;
+    border: 0;
+    border-radius: 0;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  body.print-opd-prescription .opd-rx-page-two {
+    background-color: #ffffff !important;
+    background-image: linear-gradient(90deg, #16b9bd 0%, #3869bb 92%, transparent 92%) !important;
+    background-repeat: no-repeat !important;
+    background-position: center calc(100% - 4mm) !important;
+    background-size: calc(100% - 16mm) 2.5mm !important;
+  }
+
+  body.print-opd-prescription .opd-rx-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+/* Route chunks keep the first screen light; this state is shown only during first module load. */
+.route-loading {
+  display: grid;
+  min-height: 35vh;
+  place-items: center;
+  color: #496784;
+  font-weight: 700;
 }

@@ -1,14 +1,38 @@
+x-backend-common: &backend-common
+  image: sr-aiims-hms-backend:latest
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+  env_file:
+    - ${HMS_ENV_FILE:-.env.production.server}
+  security_opt:
+    - no-new-privileges:true
+
 services:
+  migrate:
+    <<: *backend-common
+    container_name: hms_migrate
+    restart: "no"
+    command: ["npm", "--workspace", "backend", "run", "db:migrate"]
+
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    <<: *backend-common
     container_name: hms_backend
     restart: unless-stopped
-    env_file:
-      - .env.production
-    ports:
-      - "5000:5000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    expose:
+      - "5000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   frontend:
     build:
@@ -19,6 +43,20 @@ services:
     container_name: hms_frontend
     restart: unless-stopped
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     ports:
-      - "5173:80"
+      - "127.0.0.1:5173:80"

@@ -137,6 +137,7 @@ function toCamelPrescriptionMedicine(row, quantityIssued = 0) {
     id: row.id,
     medicineId: row.metadata?.sourceMedicineId || row.medicine_id || "",
     medicineName: row.medicine_name,
+    strength: row.metadata?.strength || "",
     dose: row.dose || "",
     frequency: row.frequency || "",
     route: row.route || "",

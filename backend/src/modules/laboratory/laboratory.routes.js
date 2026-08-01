@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { authorize } from "../../middleware/rbac.js";
+import { authorize, authorizeRolesOnly } from "../../middleware/rbac.js";
 import {
   collectSampleHandler,
   createOrderHandler,
@@ -18,9 +18,9 @@ laboratoryRouter.get("/tests", authorize(["admin", "doctor", "reception", "lab"]
 laboratoryRouter.get("/summary", authorize(["admin", "doctor", "lab", "reception", "accounts"]), summaryHandler);
 laboratoryRouter.get("/orders", authorize(["admin", "doctor", "lab", "reception"]), listOrdersHandler);
 laboratoryRouter.get("/orders/:id", authorize(["admin", "doctor", "lab", "reception", "accounts"]), orderDetailsHandler);
-laboratoryRouter.post("/orders", authorize(["admin", "doctor"]), createOrderHandler);
-laboratoryRouter.post("/orders/:id/sample-collection", authorize(["admin", "lab", "reception", "doctor"]), collectSampleHandler);
-laboratoryRouter.post("/orders/:id/results", authorize(["admin", "lab", "doctor"]), saveResultsHandler);
-laboratoryRouter.put("/orders/:id/workflow", authorize(["admin", "lab", "reception", "doctor"]), labWorkflowActionHandler);
+laboratoryRouter.post("/orders", authorizeRolesOnly(["admin", "doctor"]), createOrderHandler);
+laboratoryRouter.post("/orders/:id/sample-collection", authorizeRolesOnly(["admin", "lab", "reception", "doctor"]), collectSampleHandler);
+laboratoryRouter.post("/orders/:id/results", authorizeRolesOnly(["admin", "lab", "doctor"]), saveResultsHandler);
+laboratoryRouter.put("/orders/:id/workflow", authorizeRolesOnly(["admin", "lab", "reception", "doctor"]), labWorkflowActionHandler);
 
 export { laboratoryRouter };

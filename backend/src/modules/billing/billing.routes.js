@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { authorize } from "../../middleware/rbac.js";
+import { authorize, authorizeRolesOnly } from "../../middleware/rbac.js";
 import {
   applyDiscountHandler,
   billDetailsHandler,
@@ -27,10 +27,10 @@ billingRouter.get("/payments", authorize(["admin", "accounts", "doctor", "recept
 billingRouter.get("/refunds", authorize(["admin", "accounts"]), listRefundsHandler);
 billingRouter.get("/bills/:id", authorize(["admin", "accounts", "doctor", "reception"]), billDetailsHandler);
 billingRouter.get("/bills/:id/invoice", authorize(["admin", "accounts", "doctor", "reception"]), invoiceHandler);
-billingRouter.post("/bills", authorize(["admin", "accounts", "doctor", "reception"]), createBillHandler);
-billingRouter.post("/payments", authorize(["admin", "accounts", "reception"]), createPaymentHandler);
-billingRouter.post("/bills/:id/payments", authorize(["admin", "accounts", "reception"]), collectPaymentHandler);
-billingRouter.post("/bills/:id/discount", authorize(["admin", "accounts"]), applyDiscountHandler);
-billingRouter.post("/refunds", authorize(["admin", "accounts"]), createRefundHandler);
+billingRouter.post("/bills", authorizeRolesOnly(["admin", "accounts", "doctor", "reception"]), createBillHandler);
+billingRouter.post("/payments", authorizeRolesOnly(["admin", "accounts", "reception"]), createPaymentHandler);
+billingRouter.post("/bills/:id/payments", authorizeRolesOnly(["admin", "accounts", "reception"]), collectPaymentHandler);
+billingRouter.post("/bills/:id/discount", authorizeRolesOnly(["admin", "accounts"]), applyDiscountHandler);
+billingRouter.post("/refunds", authorizeRolesOnly(["admin", "accounts"]), createRefundHandler);
 
 export { billingRouter };

@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { authorize } from "../../middleware/rbac.js";
+import { authorize, authorizeRolesOnly } from "../../middleware/rbac.js";
 import {
   createCertificateHandler,
   getCertificateHandler,
@@ -12,7 +12,7 @@ const readRoles = ["admin", "doctor", "reception", "nursing", "accounts"];
 const writeRoles = ["admin", "doctor"];
 
 certificatesRouter.get("/", authorize(readRoles), listCertificatesHandler);
-certificatesRouter.post("/", authorize(writeRoles), createCertificateHandler);
+certificatesRouter.post("/", authorizeRolesOnly(writeRoles), createCertificateHandler);
 certificatesRouter.get("/:id", authorize(readRoles), getCertificateHandler);
 
 export { certificatesRouter };

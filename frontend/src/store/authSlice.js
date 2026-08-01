@@ -3,7 +3,14 @@ import { createSlice } from "@reduxjs/toolkit";
 const storedAuth = (() => {
   try {
     const raw = window.localStorage.getItem("hms-auth");
-    return raw ? JSON.parse(raw) : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed
+      ? {
+        isAuthenticated: Boolean(parsed.accessToken && parsed.user),
+        accessToken: parsed.accessToken || null,
+        user: parsed.user || null
+      }
+      : null;
   } catch {
     return null;
   }
@@ -14,7 +21,6 @@ const authSlice = createSlice({
   initialState: storedAuth || {
     isAuthenticated: false,
     accessToken: null,
-    refreshToken: null,
     user: null
   },
   reducers: {
@@ -22,7 +28,6 @@ const authSlice = createSlice({
       const nextState = {
         isAuthenticated: true,
         accessToken: action.payload.accessToken,
-        refreshToken: action.payload.refreshToken,
         user: action.payload.user
       };
 
@@ -43,7 +48,6 @@ const authSlice = createSlice({
       return {
         isAuthenticated: false,
         accessToken: null,
-        refreshToken: null,
         user: null
       };
     }

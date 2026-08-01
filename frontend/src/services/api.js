@@ -18,6 +18,7 @@ function defaultApiBaseUrl() {
 }
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || defaultApiBaseUrl();
+let refreshPromise = null;
 
 function getAccessToken() {
   try {
@@ -25,6 +26,25 @@ function getAccessToken() {
     return raw ? JSON.parse(raw).accessToken : null;
   } catch {
     return null;
+  }
+}
+
+function clearStoredAuth() {
+  window.localStorage.removeItem("hms-auth");
+}
+
+function updateStoredSession(payload) {
+  try {
+    const raw = window.localStorage.getItem("hms-auth");
+    const current = raw ? JSON.parse(raw) : {};
+    const next = {
+      isAuthenticated: true,
+      accessToken: payload.accessToken,
+      user: payload.user || current.user || null
+    };
+    window.localStorage.setItem("hms-auth", JSON.stringify(next));
+  } catch {
+    clearStoredAuth();
   }
 }
 
@@ -51,7 +71,7 @@ function buildQuery(params = {}) {
   return queryString ? `?${queryString}` : "";
 }
 
-async function parseResponse(response) {
+async function responseData(response) {
   const text = await response.text();
   let data = {};
 
@@ -61,28 +81,74 @@ async function parseResponse(response) {
     data = { message: text || "Request failed." };
   }
 
+  return data;
+}
+
+async function parseResponse(response) {
+  const data = await responseData(response);
+
   if (!response.ok) {
-    if (response.status === 401 && typeof window !== "undefined") {
-      window.localStorage.removeItem("hms-auth");
-
-      if (!window.location.pathname.includes("/login")) {
-        window.location.assign("/login");
-      }
-    }
-
     throw new Error(data.message || "Request failed.");
   }
 
   return data;
 }
 
+function redirectToLogin() {
+  clearStoredAuth();
+
+  if (!window.location.pathname.includes("/login")) {
+    window.location.assign("/login");
+  }
+}
+
+async function refreshSession() {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: "{}"
+  });
+  const payload = await parseResponse(response);
+  updateStoredSession(payload);
+  return payload;
+}
+
+function mayRefresh(path) {
+  return !["/auth/login", "/auth/refresh", "/auth/logout"].includes(path);
+}
+
+async function authenticatedFetch(url, options, path) {
+  let response = await fetch(url, options());
+
+  if (response.status !== 401 || !mayRefresh(path)) {
+    return response;
+  }
+
+  try {
+    if (!refreshPromise) {
+      refreshPromise = refreshSession().finally(() => {
+        refreshPromise = null;
+      });
+    }
+    await refreshPromise;
+    response = await fetch(url, options());
+  } catch {
+    redirectToLogin();
+  }
+
+  return response;
+}
+
 async function apiRequest(path, { method = "GET", body, params, headers } = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}${buildQuery(params)}`, {
+  const url = `${API_BASE_URL}${path}${buildQuery(params)}`;
+  const options = () => ({
     method,
     headers: createHeaders(headers),
     credentials: "include",
     ...(body !== undefined ? { body: JSON.stringify(body) } : {})
   });
+  const response = await authenticatedFetch(url, options, path);
 
   return parseResponse(response);
 }
@@ -93,11 +159,8 @@ const put = (path, body = {}) => apiRequest(path, { method: "PUT", body });
 const del = (path) => apiRequest(path, { method: "DELETE" });
 
 async function downloadRequest(path) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "GET",
-    headers: createHeaders(),
-    credentials: "include"
-  });
+  const options = () => ({ method: "GET", headers: createHeaders(), credentials: "include" });
+  const response = await authenticatedFetch(`${API_BASE_URL}${path}`, options, path);
 
   if (!response.ok) {
     await parseResponse(response);
@@ -107,6 +170,7 @@ async function downloadRequest(path) {
 }
 
 export const loginRequest = (payload) => post("/auth/login", payload);
+export const logoutRequest = () => post("/auth/logout");
 export const getCurrentUser = () => get("/auth/me");
 export const getSystemOverview = () => get("/system/overview");
 
@@ -167,6 +231,8 @@ export const getOpdMasters = () => get("/opd/masters");
 export const createOpdVisit = (payload) => post("/opd/visits", payload);
 export const getOpdVisit = (id) => get(`/opd/visits/${id}`);
 export const saveOpdVitals = (id, payload) => put(`/opd/visits/${id}/vitals`, payload);
+export const saveSystemicExamination = (id, payload) => put(`/opd/visits/${id}/systemic-examination`, payload);
+export const saveHistoryTaking = (id, payload) => put(`/opd/visits/${id}/history-taking`, payload);
 export const saveAyurvedaAssessment = (id, payload) => post(`/opd/visits/${id}/ayurveda`, payload);
 export const savePrescription = (id, payload) => post(`/opd/visits/${id}/prescriptions`, payload);
 export const saveOpdDischargeSummary = (id, payload) => post(`/opd/visits/${id}/discharge-summary`, payload);

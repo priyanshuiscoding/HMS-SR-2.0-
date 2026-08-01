@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { authorize } from "../../middleware/rbac.js";
+import { authorize, authorizeRolesOnly } from "../../middleware/rbac.js";
 import {
   assignBedHandler,
   bedWorkflowStatusHandler,
@@ -18,9 +18,9 @@ roomsRouter.get("/masters", authorize(["admin", "doctor", "reception", "accounts
 roomsRouter.get("/availability", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), roomAvailabilityHandler);
 roomsRouter.get("/", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), listRoomsHandler);
 roomsRouter.get("/:id", authorize(["admin", "doctor", "reception", "accounts", "nursing"]), roomDetailsHandler);
-roomsRouter.post("/", authorize(["admin", "accounts"]), createRoomHandler);
-roomsRouter.post("/:roomId/beds/:bedId/assign", authorize(["admin", "doctor", "reception", "nursing"]), assignBedHandler);
-roomsRouter.post("/:roomId/beds/:bedId/discharge", authorize(["admin", "doctor", "reception", "nursing"]), dischargeBedHandler);
-roomsRouter.put("/:roomId/beds/:bedId/status", authorize(["admin", "reception", "nursing", "housekeeping"]), bedWorkflowStatusHandler);
+roomsRouter.post("/", authorizeRolesOnly(["admin", "accounts"]), createRoomHandler);
+roomsRouter.post("/:roomId/beds/:bedId/assign", authorizeRolesOnly(["admin", "doctor", "reception", "nursing"]), assignBedHandler);
+roomsRouter.post("/:roomId/beds/:bedId/discharge", authorizeRolesOnly(["admin", "doctor", "reception", "nursing"]), dischargeBedHandler);
+roomsRouter.put("/:roomId/beds/:bedId/status", authorizeRolesOnly(["admin", "reception", "nursing", "housekeeping"]), bedWorkflowStatusHandler);
 
 export { roomsRouter };

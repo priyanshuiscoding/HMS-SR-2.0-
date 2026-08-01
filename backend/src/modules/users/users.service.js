@@ -62,8 +62,8 @@ export function getUserById(id) {
 }
 
 export async function createUser(payload = {}) {
-  if (!payload.fullName || !payload.employeeId || !payload.email || !payload.role || !payload.department) {
-    throw createError("Full name, employee ID, email, role, and department are required.");
+  if (!payload.fullName || !payload.employeeId || !payload.email || !payload.password || !payload.role || !payload.department) {
+    throw createError("Full name, employee ID, email, password, role, and department are required.");
   }
 
   ensureRole(payload.role);
@@ -75,7 +75,7 @@ export async function createUser(payload = {}) {
     employeeId: String(payload.employeeId).trim(),
     fullName: String(payload.fullName).trim(),
     email,
-    password: String(payload.password || "Welcome@123"),
+    password: String(payload.password),
     role: payload.role,
     department: String(payload.department).trim(),
     title: String(payload.title || payload.designation || payload.department).trim(),

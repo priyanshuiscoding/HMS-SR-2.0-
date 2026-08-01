@@ -1,4 +1,4 @@
-FROM node:20-alpine
+FROM node:24.18.0-alpine3.23
 
 WORKDIR /app
 
@@ -10,7 +10,10 @@ COPY frontend/package.json ./frontend/package.json
 
 RUN npm ci --omit=dev --workspace backend
 
-COPY backend ./backend
+COPY --chown=node:node backend ./backend
+COPY --chown=node:node scripts ./scripts
+
+USER node
 
 EXPOSE 5000
 

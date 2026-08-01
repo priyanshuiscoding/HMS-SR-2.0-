@@ -2,7 +2,7 @@ import { logger } from "../config/logger.js";
 import { createAuditLog } from "../modules/audit/audit.repository.js";
 
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-const SENSITIVE_KEYS = new Set(["password", "newPassword", "currentPassword", "otp", "token", "accessToken", "refreshToken"]);
+const SENSITIVE_KEYS = new Set(["password", "newpassword", "currentpassword", "otp", "token", "accesstoken", "refreshtoken", "secret"]);
 
 function entityTypeFromPath(path = "") {
   return path.split("/").filter(Boolean)[0] || "system";
@@ -20,7 +20,7 @@ function redact(value) {
   return Object.fromEntries(
     Object.entries(value).map(([key, entry]) => [
       key,
-      SENSITIVE_KEYS.has(key) ? "[redacted]" : redact(entry)
+      SENSITIVE_KEYS.has(key.toLowerCase()) || /password|token|secret|otp/i.test(key) ? "[redacted]" : redact(entry)
     ])
   );
 }

@@ -9,6 +9,8 @@ import {
   saveAssessment,
   saveDischargeSummary,
   savePrescription,
+  saveHistoryTaking,
+  saveSystemicExamination,
   saveVitals,
   updateVisitWorkflowStatus
 } from "./opd.service.js";
@@ -39,7 +41,7 @@ export async function visitDetailsHandler(req, res, next) {
 
 export async function vitalsHandler(req, res, next) {
   try {
-    res.json({ item: await saveVitals(req.params.id, req.body, req.user), message: "Screening saved and forwarded to doctor." });
+    res.json({ item: await saveVitals(req.params.id, req.body, req.user), message: "General examination saved to patient history and forwarded to doctor." });
   } catch (error) {
     next(error);
   }
@@ -50,6 +52,28 @@ export async function assessmentSaveHandler(req, res, next) {
     res.json({
       item: await saveAssessment(req.params.id, req.body, req.user.sub),
       message: "Ayurvedic assessment saved successfully."
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function systemicExaminationSaveHandler(req, res, next) {
+  try {
+    res.json({
+      item: await saveSystemicExamination(req.params.id, req.body, req.user),
+      message: "Systemic examination saved to the dated patient history."
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function historyTakingSaveHandler(req, res, next) {
+  try {
+    res.json({
+      item: await saveHistoryTaking(req.params.id, req.body, req.user),
+      message: "History taking saved to the patient record and forwarded to the prescription."
     });
   } catch (error) {
     next(error);

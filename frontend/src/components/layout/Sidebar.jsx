@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { NavLink } from "../../router.jsx";
 import brandLogo from "../../assets/certificates/shanti-ratnam-logo-full.png";
 
 const primaryLinks = [
