@@ -273,8 +273,6 @@ const emptyMedicine = {
 const initialPrescription = {
   diagnosis: "",
   diagnosisAyurvedic: "",
-  nidana: "",
-  samprapti: "",
   chikitsaSutra: "",
   dietRecommendations: "",
   dietToTake: [],
@@ -300,22 +298,18 @@ const initialPrescription = {
       yoga: [{ asanas: "Surya Namaskar, Tadasana, Bhujangasana", pranayama: "Anulom-Vilom, Bhastrika", durationMinutes: "" }],
       panchkarma: [
         { procedure: "Abhyanga", frequency: "", duration: "", durationDays: "" },
-        { procedure: "Shiroabhyanga", frequency: "", duration: "", durationDays: "" },
+        { procedure: "Vaman/Virchak", frequency: "", duration: "", durationDays: "" },
         { procedure: "Nasya", frequency: "", duration: "", durationDays: "" },
         { procedure: "Basti", frequency: "", duration: "", durationDays: "" }
       ],
       specialized: [
-        { therapy: "Shirodhara", sessions: "", duration: "" },
+        { therapy: "Abhayans", sessions: "", duration: "" },
         { therapy: "Kizhi/Swedan ", sessions: "", duration: "" },
         { therapy: "Udwarthana", sessions: "", duration: "" }
       ]
     },
     dietPlan: { recommendedDiet: "", foodsToInclude: "", foodsToAvoid: "" },
-    lifestylePlan: { activityType: "", frequency: "", duration: "", bestTime: "", precautions: "", stressManagement: "" },
-    investigations: {
-      bloodTests: false, labTests: [], otherTests: "", xray: [], xrayOther: "", ultrasound: [], ultrasoundOther: "",
-      ct: [], ctOther: "", mri: [], mriOther: "", imaging: "", specialtyTests: ""
-    }
+    lifestylePlan: { activityType: "", frequency: "", duration: "", bestTime: "", precautions: "", stressManagement: "" }
   },
   medicines: [{ ...emptyMedicine }]
 };
@@ -347,9 +341,29 @@ const initialLabOrder = {
   tests: []
 };
 
+const labOrderGroupOrder = ["Laboratory Tests", "X-Ray", "Ultrasound", "CT Scan", "MRI"];
+
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function normalizeTherapyPlan(therapyPlan = {}) {
+  return {
+    ...therapyPlan,
+    panchkarma: (therapyPlan.panchkarma || []).map((row) => ({
+      ...row,
+      procedure: ["shiroabhyanga", "shiro abhyanga", "shiroabhayaya"].includes(String(row.procedure || "").toLowerCase())
+        ? "Vaman/Virchak"
+        : row.procedure
+    })),
+    specialized: (therapyPlan.specialized || []).map((row) => ({
+      ...row,
+      therapy: ["shirodhara", "shiro dhara"].includes(String(row.therapy || "").toLowerCase())
+        ? "Abhayans"
+        : row.therapy
+    }))
+  };
 }
 
 function dietNames(items) {
@@ -362,16 +376,22 @@ function normalizeMedicineNameInput(value) {
 
 function mergePrescription(prescription) {
   const base = clone(initialPrescription);
+  const storedPrescription = { ...(prescription || {}) };
+  const storedMetadata = { ...(prescription?.metadata || {}) };
+  delete storedPrescription.nidana;
+  delete storedPrescription.samprapti;
+  delete storedMetadata.investigations;
+
   return {
     ...base,
-    ...(prescription || {}),
+    ...storedPrescription,
     metadata: {
       ...base.metadata,
-      ...(prescription?.metadata || {}),
-      therapyPlan: {
+      ...storedMetadata,
+      therapyPlan: normalizeTherapyPlan({
         ...base.metadata.therapyPlan,
         ...(prescription?.metadata?.therapyPlan || {})
-      },
+      }),
       dietPlan: {
         ...base.metadata.dietPlan,
         ...(prescription?.metadata?.dietPlan || {})
@@ -379,15 +399,6 @@ function mergePrescription(prescription) {
       lifestylePlan: {
         ...base.metadata.lifestylePlan,
         ...(prescription?.metadata?.lifestylePlan || {})
-      },
-      investigations: {
-        ...base.metadata.investigations,
-        ...(prescription?.metadata?.investigations || {}),
-        labTests: prescription?.metadata?.investigations?.labTests || [],
-        xray: prescription?.metadata?.investigations?.xray || [],
-        ultrasound: prescription?.metadata?.investigations?.ultrasound || [],
-        ct: prescription?.metadata?.investigations?.ct || [],
-        mri: prescription?.metadata?.investigations?.mri || []
       },
       medicalHistory: {
         ...base.metadata.medicalHistory,
@@ -734,6 +745,26 @@ export function OpdPage() {
       done: queue.filter((item) => item.visitStatus === "completed").length
     };
   }, [queue]);
+  const labOrderGroups = useMemo(() => {
+    const groups = new Map();
+
+    masters.labTests.forEach((test) => {
+      const groupName = test.metadata?.selectionGroup || test.department || "Other Tests";
+      if (!groups.has(groupName)) groups.set(groupName, []);
+      groups.get(groupName).push(test);
+    });
+
+    return [...groups.entries()]
+      .map(([name, tests]) => ({ name, tests: tests.sort((left, right) => left.name.localeCompare(right.name)) }))
+      .sort((left, right) => {
+        const leftIndex = labOrderGroupOrder.indexOf(left.name);
+        const rightIndex = labOrderGroupOrder.indexOf(right.name);
+        if (leftIndex === -1 && rightIndex === -1) return left.name.localeCompare(right.name);
+        if (leftIndex === -1) return 1;
+        if (rightIndex === -1) return -1;
+        return leftIndex - rightIndex;
+      });
+  }, [masters.labTests]);
   const canStartVisit = ["admin", "reception", "doctor"].includes(user?.role);
   const canSaveVitals = ["admin", "doctor", "nursing"].includes(user?.role);
   const canClinicalDocument = ["admin", "doctor"].includes(user?.role);
@@ -924,19 +955,6 @@ export function OpdPage() {
         }
       };
     });
-  };
-
-  const handleInvestigationChange = (field, value) => {
-    setPrescriptionForm((current) => ({
-      ...current,
-      metadata: {
-        ...current.metadata,
-        investigations: {
-          ...(current.metadata?.investigations || {}),
-          [field]: value
-        }
-      }
-    }));
   };
 
   const handleDischargeChange = (event) => {
@@ -1501,6 +1519,30 @@ export function OpdPage() {
                   </div>
                 </div>
 
+                <div className="form-subsection prescription-complaints-top">
+                  <h4>Chief complaints</h4>
+                  <div className="table-shell compact-table-shell">
+                    <table className="data-table compact-table prescription-complaint-editor">
+                      <thead>
+                        <tr>
+                          <th>Complaint</th>
+                          <th>Duration</th>
+                          <th>Severity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {prescriptionForm.metadata.complaintRows.map((row, index) => (
+                          <tr key={`complaint-${index}`}>
+                            <td><input aria-label={`Complaint ${index + 1}`} value={row.complaint} onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "complaint", event.target.value)} /></td>
+                            <td><input aria-label={`Complaint ${index + 1} duration`} value={row.duration} onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "duration", event.target.value)} /></td>
+                            <td><input aria-label={`Complaint ${index + 1} severity`} value={row.severity || ""} onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "severity", event.target.value)} /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 <div className="form-grid clinical-form-grid">
                   <div className="field field-span-2">
                     <label>Diagnosis</label>
@@ -1513,14 +1555,6 @@ export function OpdPage() {
                       value={prescriptionForm.diagnosisAyurvedic}
                       onChange={handlePrescriptionChange}
                     />
-                  </div>
-                  <div className="field field-span-2">
-                    <label>Nidana</label>
-                    <input name="nidana" value={prescriptionForm.nidana} onChange={handlePrescriptionChange} />
-                  </div>
-                  <div className="field field-span-2">
-                    <label>Samprapti</label>
-                    <input name="samprapti" value={prescriptionForm.samprapti} onChange={handlePrescriptionChange} />
                   </div>
                   <div className="field field-span-2">
                     <label>Chikitsa sutra</label>
@@ -1582,9 +1616,9 @@ export function OpdPage() {
                 </div>
 
                 <div className="form-subsection">
-                  <h4>Clinical diagnosis and complaints</h4>
+                  <h4>Clinical diagnosis</h4>
                   <div className="table-shell compact-table-shell">
-                    <table className="data-table compact-table">
+                    <table className="data-table compact-table prescription-diagnosis-editor">
                       <thead>
                         <tr>
                           <th>Diagnosis</th>
@@ -1607,17 +1641,6 @@ export function OpdPage() {
                         ))}
                       </tbody>
                     </table>
-                  </div>
-
-                  <div className="form-grid complaint-grid">
-                    {prescriptionForm.metadata.complaintRows.map((row, index) => (
-                      <div className="field" key={`complaint-${index}`}>
-                        <label>Complaint {index + 1}</label>
-                        <input value={row.complaint} onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "complaint", event.target.value)} />
-                        <input value={row.duration} placeholder="Duration" onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "duration", event.target.value)} />
-                        <input value={row.severity || ""} placeholder="Severity" onChange={(event) => handlePrescriptionRowChange("complaintRows", index, "severity", event.target.value)} />
-                      </div>
-                    ))}
                   </div>
                 </div>
 
@@ -1686,7 +1709,7 @@ export function OpdPage() {
                         </button>
                       </div>
                       <div className="form-grid medicine-grid">
-                        <div className="field">
+                        <div className="field medicine-name-field">
                           <label>Medicine name</label>
                           <SearchableSelect
                             value={medicine.medicineId}
@@ -1756,7 +1779,7 @@ export function OpdPage() {
                             onChange={(event) => handleMedicineChange(index, "quantityDispensed", event.target.value)}
                           />
                         </div>
-                        <div className="field field-span-2">
+                        <div className="field medicine-instructions-field">
                           <label>Special instructions</label>
                           <input
                             value={medicine.specialInstructions}
@@ -1775,7 +1798,7 @@ export function OpdPage() {
                 </div>
 
                 <div className="form-subsection">
-                  <h4>Therapy, diet, lifestyle, and investigations</h4>
+                  <h4>Therapy, diet, and lifestyle</h4>
                   <div className="form-grid therapy-grid">
                     {prescriptionForm.metadata.therapyPlan.yoga.map((row, index) => (
                       <div className="field field-span-2" key={`yoga-${index}`}>
@@ -1820,29 +1843,6 @@ export function OpdPage() {
                       <label>Exercise frequency</label>
                       <input value={prescriptionForm.metadata.lifestylePlan.frequency} onChange={(event) => handlePrescriptionMetadataChange("lifestylePlan", "frequency", event.target.value)} />
                     </div>
-                    <div className="field field-span-2">
-                      <label>Laboratory investigations</label>
-                      <div className="checkbox-grid clinical-checkbox-grid">
-                        {["CBC", "RFT", "LFT", "FBS", "RBS", "HbA1c", "Lipid Profile", "Thyroid Profile", "RA Factor", "CRP"].map((testName) => (
-                          <label className="checkbox-chip" key={testName}><input type="checkbox" checked={prescriptionForm.metadata.investigations.labTests.includes(testName)} onChange={(event) => handlePrescriptionMetadataListChange("investigations", "labTests", testName, event.target.checked)} /><span>{testName}</span></label>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="field field-span-2"><label>Other specific tests</label><input value={prescriptionForm.metadata.investigations.otherTests} onChange={(event) => handleInvestigationChange("otherTests", event.target.value)} /></div>
-                    {[
-                      ["xray", "X-Ray", [["chest", "Chest"], ["abdomen", "Abdomen"], ["extremity", "Extremity"]]],
-                      ["ultrasound", "Ultrasound", [["abdomen", "Abdomen"], ["pelvis", "Pelvis"], ["breast", "Breast"], ["thyroid", "Thyroid"]]],
-                      ["ct", "CT scan", [["head", "Head"], ["chest", "Chest"], ["abdomen", "Abdomen"]]],
-                      ["mri", "MRI", [["brain", "Brain"], ["spine", "Spine"]]]
-                    ].map(([field, label, options]) => (
-                      <div className="field" key={field}>
-                        <label>{label}</label>
-                        <div className="checkbox-grid clinical-checkbox-grid">
-                          {options.map(([value, optionLabel]) => <label className="checkbox-chip" key={value}><input type="checkbox" checked={prescriptionForm.metadata.investigations[field].includes(value)} onChange={(event) => handlePrescriptionMetadataListChange("investigations", field, value, event.target.checked)} /><span>{optionLabel}</span></label>)}
-                        </div>
-                        <input value={prescriptionForm.metadata.investigations[`${field}Other`]} placeholder="Other" onChange={(event) => handleInvestigationChange(`${field}Other`, event.target.value)} />
-                      </div>
-                    ))}
                     <div className="field"><label>Follow-up interval</label><select value={prescriptionForm.metadata.followUpMonitoring.interval} onChange={(event) => handlePrescriptionMetadataChange("followUpMonitoring", "interval", event.target.value)}><option value="">Select</option><option value="1-week">1 week</option><option value="2-weeks">2 weeks</option><option value="1-month">1 month</option></select></div>
                     <div className="field field-span-2">
                       <label>Monitoring parameters</label>
@@ -1860,10 +1860,10 @@ export function OpdPage() {
               <article className="content-card compact-form-card">
                 <div className="section-header">
                   <div>
-                    <div className="eyebrow">Lab Hook</div>
-                    <h3>Order lab tests from consultation</h3>
+                    <div className="eyebrow">Lab Orders</div>
+                    <h3>Order laboratory and diagnostic tests</h3>
                   </div>
-                  <Button onClick={createLabOrderAction} disabled={!canClinicalDocument}>Create Lab Order</Button>
+                  <Button onClick={createLabOrderAction} disabled={!canClinicalDocument || labOrderForm.tests.length === 0}>Create Lab Order</Button>
                 </div>
 
                 <div className="form-grid">
@@ -1876,19 +1876,32 @@ export function OpdPage() {
                     </select>
                   </div>
                   <div className="field field-span-2">
-                    <label>Choose tests</label>
-                    <div className="checkbox-grid">
-                      {masters.labTests.map((test) => (
-                        <label key={test.id} className="checkbox-chip">
-                          <input
-                            type="checkbox"
-                            name="tests"
-                            value={test.id}
-                            checked={labOrderForm.tests.includes(test.id)}
-                            onChange={handleLabOrderChange}
-                          />
-                          <span>{test.name} - Rs. {test.price}</span>
-                        </label>
+                    <div className="lab-order-selection-heading">
+                      <label>Choose tests and investigations</label>
+                      <span>{labOrderForm.tests.length} selected</span>
+                    </div>
+                    <div className="lab-order-groups">
+                      {labOrderGroups.map((group) => (
+                        <section className="lab-order-group" key={group.name}>
+                          <h4>{group.name}</h4>
+                          <div className="lab-order-checkboxes">
+                            {group.tests.map((test) => (
+                              <label key={test.id} className="checkbox-chip lab-order-checkbox">
+                                <input
+                                  type="checkbox"
+                                  name="tests"
+                                  value={test.id}
+                                  checked={labOrderForm.tests.includes(test.id)}
+                                  onChange={handleLabOrderChange}
+                                />
+                                <span>
+                                  <strong>{test.name}</strong>
+                                  {Number(test.price) > 0 ? <small>Rs. {test.price}</small> : null}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </section>
                       ))}
                     </div>
                   </div>
@@ -2117,7 +2130,6 @@ export function OpdPage() {
                     <h3>Lifestyle Modifications</h3>
                     <p><strong>Exercise & physical activity:</strong> {prescriptionForm.metadata.lifestylePlan.activityType || "-"} {prescriptionForm.metadata.lifestylePlan.frequency || ""}</p>
                     <p><strong>Stress management:</strong> {prescriptionForm.metadata.lifestylePlan.stressManagement || "-"}</p>
-                    <p><strong>Investigations:</strong> {prescriptionForm.metadata.investigations.bloodTests ? "Blood tests; " : ""}{prescriptionForm.metadata.investigations.imaging || ""} {prescriptionForm.metadata.investigations.specialtyTests || ""}</p>
                   </section>
 
                   <section className="opd-print-block">

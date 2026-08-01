@@ -77,6 +77,45 @@ function syncPrescriptionMirror(prescription) {
   syncList(db.prescriptions, prescription);
 }
 
+function normalizePrescriptionTherapyPlan(therapyPlan = {}) {
+  return {
+    ...therapyPlan,
+    panchkarma: (therapyPlan.panchkarma || []).map((row) => ({
+      ...row,
+      procedure: ["shiroabhyanga", "shiro abhyanga", "shiroabhayaya"].includes(String(row.procedure || "").toLowerCase())
+        ? "Vaman/Virchak"
+        : row.procedure
+    })),
+    specialized: (therapyPlan.specialized || []).map((row) => ({
+      ...row,
+      therapy: ["shirodhara", "shiro dhara"].includes(String(row.therapy || "").toLowerCase())
+        ? "Abhayans"
+        : row.therapy
+    }))
+  };
+}
+
+function prescriptionMetadata(existingMetadata = {}, incomingMetadata = {}) {
+  const allowedIncomingMetadata = { ...(incomingMetadata || {}) };
+  delete allowedIncomingMetadata.investigations;
+  const metadata = {
+    ...(existingMetadata || {}),
+    ...allowedIncomingMetadata
+  };
+
+  if (existingMetadata?.investigations) {
+    metadata.investigations = existingMetadata.investigations;
+  } else {
+    delete metadata.investigations;
+  }
+
+  if (metadata.therapyPlan) {
+    metadata.therapyPlan = normalizePrescriptionTherapyPlan(metadata.therapyPlan);
+  }
+
+  return metadata;
+}
+
 export function syncOpdMirrors({ visits = [], assessments = [], prescriptions = [] } = {}) {
   visits.forEach(syncVisitMirror);
   assessments.forEach(syncAssessmentMirror);
@@ -650,17 +689,16 @@ export async function savePrescription(visitId, payload, doctorId) {
     prescriptionDate: payload.prescriptionDate || prescription.prescriptionDate || todayDate(),
     diagnosis: payload.diagnosis,
     diagnosisAyurvedic: payload.diagnosisAyurvedic || "",
-    nidana: payload.nidana || "",
-    samprapti: payload.samprapti || "",
+    // Legacy values remain readable for older prescriptions, but the removed
+    // fields are no longer accepted from new Prescription saves.
+    nidana: prescription.nidana || "",
+    samprapti: prescription.samprapti || "",
     chikitsaSutra: payload.chikitsaSutra || "",
     dietRecommendations: payload.dietRecommendations ?? prescription.dietRecommendations ?? "",
     dietToTake: dietSelections?.take ?? prescription.dietToTake ?? [],
     dietToAvoid: dietSelections?.avoid ?? prescription.dietToAvoid ?? [],
     followUpDate: payload.followUpDate || "",
-    metadata: {
-      ...(prescription.metadata || {}),
-      ...(payload.metadata || {})
-    },
+    metadata: prescriptionMetadata(prescription.metadata, payload.metadata),
     medicines: (payload.medicines || []).map((medicine) => ({
       id: medicine.id || createId(),
       medicineId: medicine.medicineId || "",

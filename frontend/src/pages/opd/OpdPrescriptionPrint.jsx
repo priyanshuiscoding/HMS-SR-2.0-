@@ -12,8 +12,6 @@ const familyConditions = [
   ["renal", "Renal"], ["arthritis", "Arthritis"]
 ];
 
-const laboratoryTests = ["CBC", "RFT", "LFT", "FBS", "RBS", "HbA1c", "Lipid Profile", "Thyroid Profile", "RA Factor", "CRP"];
-
 function text(value, fallback = "—") {
   return value === 0 || String(value || "").trim() ? value : fallback;
 }
@@ -71,7 +69,6 @@ export function OpdPrescriptionPrint({ visitPayload, selectedQueueItem, vitalsFo
   const medical = metadata.medicalHistory || {};
   const allergies = metadata.allergies || {};
   const family = metadata.familyHistory || {};
-  const investigations = metadata.investigations || {};
   const followUp = metadata.followUpMonitoring || {};
   const patientCategory = metadata.patientDetails?.category || selectedPatientCategory(patient, selectedQueueItem);
   const [systolic = "", diastolic = ""] = String(vitalsForm.vitalsBp || "").split(/[\/\\-]/).map((part) => part.trim());
@@ -79,8 +76,6 @@ export function OpdPrescriptionPrint({ visitPayload, selectedQueueItem, vitalsFo
   const enteredDiagnosisRows = (metadata.diagnosisRows || []).filter((row) => row.diagnosis || row.icdCode);
   const diagnosisRows = paddedRows(enteredDiagnosisRows, 2);
   const medicineRows = paddedRows(prescriptionForm.medicines, 8);
-  const orderedLabTests = (visitPayload.labOrders || []).flatMap((order) => (order.tests || []).map((test) => test.testName));
-  const selectedLabTests = [...(investigations.labTests || []), ...orderedLabTests];
   const prakriti = assessmentForm.prakritiDominant || "";
   const age = patient.ageYears || selectedQueueItem?.patientAge || "";
   const gender = patient.gender || selectedQueueItem?.patientGender || "";
@@ -141,17 +136,6 @@ export function OpdPrescriptionPrint({ visitPayload, selectedQueueItem, vitalsFo
           <thead><tr><th>S.No.</th><th>Diagnosis/Condition</th><th>ICD-11 Code</th><th>Primary/Secondary</th></tr></thead>
           <tbody>{diagnosisRows.map((row, index) => <tr key={`rx-diagnosis-${index}`}><td>{index + 1}</td><td>{text(row.diagnosis, index === 0 ? prescriptionForm.diagnosis : "")}</td><td>{row.icdCode || ""}</td><td><Choice checked={row.type === "primary"}>P</Choice> <Choice checked={row.type === "secondary"}>S</Choice></td></tr>)}</tbody>
         </table>
-
-        <SectionTitle>INVESTIGATIONS &amp; DIAGNOSTIC TESTS</SectionTitle>
-        <div className="opd-rx-investigations">
-          <h4>A. Laboratory Tests:</h4>
-          <p>{laboratoryTests.map((testName) => <Choice key={testName} checked={selectedLabTests.some((item) => contains(item, testName)) || (investigations.bloodTests && testName === "CBC")}>{testName}</Choice>)}</p>
-          <p><strong>Other Specific Tests:</strong> {text(investigations.otherTests || investigations.specialtyTests)}</p>
-          <h4>B. Imaging Studies:</h4>
-          <p><strong>X-Ray:</strong> {[["chest", "Chest"], ["abdomen", "Abdomen"], ["extremity", "Extremity"]].map(([value, label]) => <Choice key={value} checked={includesValue(investigations.xray, value)}>{label}</Choice>)} Other: {text(investigations.xrayOther)}</p>
-          <p><strong>Ultrasound:</strong> {[["abdomen", "Abdomen"], ["pelvis", "Pelvis"], ["breast", "Breast"], ["thyroid", "Thyroid"]].map(([value, label]) => <Choice key={value} checked={includesValue(investigations.ultrasound, value)}>{label}</Choice>)} Other: {text(investigations.ultrasoundOther)}</p>
-          <p><strong>CT scan:</strong> {[["head", "Head"], ["chest", "Chest"], ["abdomen", "Abdomen"]].map(([value, label]) => <Choice key={value} checked={includesValue(investigations.ct, value)}>{label}</Choice>)} Other: {text(investigations.ctOther)} &nbsp; <strong>MRI:</strong> {[["brain", "Brain"], ["spine", "Spine"]].map(([value, label]) => <Choice key={value} checked={includesValue(investigations.mri, value)}>{label}</Choice>)} Other: {text(investigations.mriOther || investigations.imaging)}</p>
-        </div>
 
         <SectionTitle>AYURVEDIC ASSESSMENT</SectionTitle>
         <table className="opd-rx-table opd-rx-ayurveda-table"><tbody>

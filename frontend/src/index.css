@@ -1890,12 +1890,127 @@ textarea {
   grid-template-columns: repeat(4, minmax(150px, 1fr));
 }
 
+.prescription-complaints-top {
+  margin-top: 16px;
+}
+
+.prescription-complaint-editor,
+.prescription-diagnosis-editor {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.prescription-complaint-editor th:nth-child(1) {
+  width: 60%;
+}
+
+.prescription-complaint-editor th:nth-child(2) {
+  width: 22%;
+}
+
+.prescription-complaint-editor th:nth-child(3) {
+  width: 18%;
+}
+
+.prescription-diagnosis-editor th:nth-child(1) {
+  width: 55%;
+}
+
+.prescription-diagnosis-editor th:nth-child(2) {
+  width: 25%;
+}
+
+.prescription-diagnosis-editor th:nth-child(3) {
+  width: 20%;
+}
+
+.prescription-complaint-editor input,
+.prescription-diagnosis-editor input,
+.prescription-diagnosis-editor select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .medicine-grid {
-  grid-template-columns: minmax(220px, 1.5fr) repeat(3, minmax(110px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.medicine-name-field {
+  grid-column: span 2;
+}
+
+.medicine-instructions-field {
+  grid-column: 1 / -1;
 }
 
 .therapy-grid {
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.lab-order-selection-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.lab-order-selection-heading label {
+  margin: 0;
+}
+
+.lab-order-selection-heading span {
+  color: #2f69c9;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lab-order-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.lab-order-group {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid rgba(16, 55, 92, 0.1);
+  border-radius: 14px;
+  background: rgba(248, 252, 255, 0.88);
+}
+
+.lab-order-group h4 {
+  margin: 0 0 10px;
+  color: #245587;
+  font-size: 13px;
+}
+
+.lab-order-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.lab-order-checkbox {
+  min-width: 0;
+  align-items: flex-start;
+  margin: 0;
+}
+
+.lab-order-checkbox > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lab-order-checkbox strong,
+.lab-order-checkbox small {
+  display: block;
+}
+
+.lab-order-checkbox small {
+  margin-top: 2px;
+  color: var(--color-muted);
 }
 
 .discharge-form-grid {
@@ -2799,6 +2914,16 @@ textarea {
   .vitals-grid .field:last-child,
   .discharge-form-grid .field-span-2 {
     grid-column: auto;
+  }
+
+  .medicine-name-field,
+  .medicine-instructions-field {
+    grid-column: auto;
+  }
+
+  .lab-order-groups,
+  .lab-order-checkboxes {
+    grid-template-columns: 1fr;
   }
 
   .profile-banner {
