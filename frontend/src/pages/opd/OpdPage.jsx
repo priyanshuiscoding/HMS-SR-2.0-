@@ -25,7 +25,17 @@ import {
   updateOpdVisitWorkflow
 } from "../../services/api.js";
 
-const opdTabs = ["General Examination", "Systemic Examination", "History Taking", "Prescription", "Lab Orders", "Billing", "Printable Rx", "Complete"];
+const opdTabs = [
+  "History Taking",
+  "General Examination",
+  "Systemic Examination",
+  "Prescription",
+  "Lab Orders",
+  // "Billing", // OPD billing stays disabled; reception/pharmacy handle all billing.
+  "Printable Rx",
+  "Complete"
+];
+const initialOpdTab = opdTabs[0];
 
 const initialVitals = {
   examDate: "",
@@ -559,7 +569,7 @@ export function OpdPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [labOrderForm, setLabOrderForm] = useState(initialLabOrder);
-  const [activeOpdTab, setActiveOpdTab] = useState("General Examination");
+  const [activeOpdTab, setActiveOpdTab] = useState(initialOpdTab);
 
   async function loadQueue(doctorId = filterDoctorId) {
     try {
@@ -570,12 +580,12 @@ export function OpdPage() {
     }
   }
 
-  async function loadVisit(visitId, queueItem) {
+  async function loadVisit(visitId, queueItem, nextTab = initialOpdTab) {
     try {
       const response = await getOpdVisit(visitId);
       setSelectedQueueItem(queueItem);
       setVisitPayload(response);
-      setActiveOpdTab("General Examination");
+      setActiveOpdTab(nextTab);
       const generalExamination = response.generalExamination;
       const savedVitals = calculateGeneralExamination({
         ...initialVitals,
@@ -1067,9 +1077,9 @@ export function OpdPage() {
       vitalsDraftDirtyRef.current = false;
       clearVitalsDraft(visitPayload.visit.id);
       setPendingVitalsDraft(null);
-      await loadVisit(visitPayload.visit.id, selectedQueueItem);
+      await loadVisit(visitPayload.visit.id, selectedQueueItem, "Systemic Examination");
       await loadQueue(filterDoctorId);
-      setMessage("General examination saved to the dated patient history and forwarded to the doctor.");
+      setMessage("General examination saved to the dated patient history and forwarded to the systemic examination.");
     } catch (apiError) {
       setError(apiError.message || "Unable to save the general examination.");
     }
@@ -1095,7 +1105,8 @@ export function OpdPage() {
       setPendingSystemicDraft(null);
       setSystemicForm(savedSystemic);
       setVisitPayload((current) => current ? { ...current, systemicExamination: response.item } : current);
-      setMessage("Systemic examination saved to the dated patient history.");
+      setActiveOpdTab("Prescription");
+      setMessage("Systemic examination saved to the dated patient history and forwarded to the prescription.");
     } catch (apiError) {
       setError(apiError.message || "Unable to save the systemic examination.");
     }
@@ -1138,8 +1149,8 @@ export function OpdPage() {
         historyTaking: response.item,
         visit: firstComplaint ? { ...current.visit, chiefComplaint: firstComplaint } : current.visit
       } : current);
-      setActiveOpdTab("Prescription");
-      setMessage("History taking saved to the patient record and forwarded to the OPD prescription.");
+      setActiveOpdTab("General Examination");
+      setMessage("History taking saved to the patient record and forwarded to the general examination.");
     } catch (apiError) {
       setError(apiError.message || "Unable to save history taking.");
     }
@@ -1158,11 +1169,11 @@ export function OpdPage() {
     setError("");
     try {
       await savePrescription(visitPayload.visit.id, prescriptionForm);
-      await loadVisit(visitPayload.visit.id, selectedQueueItem);
+      await loadVisit(visitPayload.visit.id, selectedQueueItem, "Lab Orders");
       // Typed diet items become master entries on save; refresh so they are
       // suggested straight away instead of only after a page reload.
       await loadMasters();
-      setMessage("Prescription saved. Complete the visit to forward it to pharmacy and reception.");
+      setMessage("Prescription saved and forwarded to lab orders.");
     } catch (apiError) {
       setError(apiError.message || "Unable to save prescription.");
     }
@@ -1184,7 +1195,11 @@ export function OpdPage() {
         ...dischargeForm,
         status
       });
-      await loadVisit(visitPayload.visit.id, selectedQueueItem);
+      await loadVisit(
+        visitPayload.visit.id,
+        selectedQueueItem,
+        status === "forwarded" ? "Complete" : "Printable Rx"
+      );
       setMessage(status === "forwarded" ? "Discharge summary saved and forwarded to reception and nursing." : "Discharge summary saved.");
     } catch (apiError) {
       setError(apiError.message || "Unable to save discharge summary.");
@@ -1221,7 +1236,7 @@ export function OpdPage() {
     try {
       await completeOpdVisit(visitPayload.visit.id);
       await loadQueue(filterDoctorId);
-      await loadVisit(visitPayload.visit.id, selectedQueueItem);
+      await loadVisit(visitPayload.visit.id, selectedQueueItem, "Complete");
       setMessage("Consultation completed and forwarded to pharmacy and reception.");
     } catch (apiError) {
       setError(apiError.message || "Unable to complete consultation.");
@@ -1247,7 +1262,7 @@ export function OpdPage() {
     try {
       await updateOpdVisitWorkflow(visitPayload.visit.id, { action, reason });
       await loadQueue(filterDoctorId);
-      await loadVisit(visitPayload.visit.id, selectedQueueItem);
+      await loadVisit(visitPayload.visit.id, selectedQueueItem, "Complete");
       setMessage("OPD workflow action saved.");
     } catch (apiError) {
       setError(apiError.message || "Unable to update OPD workflow.");
@@ -1274,9 +1289,9 @@ export function OpdPage() {
         priority: labOrderForm.priority,
         tests: labOrderForm.tests
       });
-      await loadVisit(visitPayload.visit.id, selectedQueueItem);
+      await loadVisit(visitPayload.visit.id, selectedQueueItem, "Printable Rx");
       setLabOrderForm(initialLabOrder);
-      setMessage("Lab order created.");
+      setMessage("Lab order created and forwarded to the printable prescription.");
     } catch (apiError) {
       setError(apiError.message || "Unable to create lab order.");
     }
@@ -1494,7 +1509,7 @@ export function OpdPage() {
                     <div className="eyebrow">Systemic Examination</div>
                     <h3>Modern medicine system-wise examination</h3>
                   </div>
-                  <Button onClick={saveSystemicExaminationAction} disabled={!canClinicalDocument}>Save Systemic Examination</Button>
+                  <Button onClick={saveSystemicExaminationAction} disabled={!canClinicalDocument}>Save &amp; Forward</Button>
                 </div>
 
                 {pendingSystemicDraft ? (
@@ -1548,7 +1563,7 @@ export function OpdPage() {
                     <div className="eyebrow">Prescription</div>
                     <h3>Starter prescription builder</h3>
                   </div>
-                  <Button onClick={savePrescriptionAction} disabled={!canClinicalDocument}>Save Prescription</Button>
+                  <Button onClick={savePrescriptionAction} disabled={!canClinicalDocument}>Save Prescription &amp; Forward</Button>
                 </div>
 
                 <div className="form-subsection prescription-complaints-top">
@@ -1926,20 +1941,18 @@ export function OpdPage() {
               </article>
               ) : null}
 
+              {/* OPD billing is intentionally disabled for now. All billing is handled by reception or pharmacy.
               {activeOpdTab === "Billing" ? (
-              <article className="content-card compact-form-card">
-                <div className="section-header">
-                  <div>
-                    <div className="eyebrow">Billing</div>
-                    <h3>Charges for this visit</h3>
+                <article className="content-card compact-form-card">
+                  <div className="section-header">
+                    <div>
+                      <div className="eyebrow">Billing</div>
+                      <h3>Charges for this visit</h3>
+                    </div>
                   </div>
-                </div>
-                <div className="empty-state">
-                  Consultation, lab and pharmacy charges from this visit collect automatically and are billed together
-                  at the Billing Desk. No bill is raised from OPD.
-                </div>
-              </article>
+                </article>
               ) : null}
+              */}
 
               {activeOpdTab === "Printable Rx" ? (
               <article className="content-card print-sheet-card">
