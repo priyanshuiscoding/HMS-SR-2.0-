@@ -6,6 +6,7 @@ import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { Toast } from "../../components/common/Toast.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { calculatePrakruti, initialAyurvedaFields } from "./ayurvedaParikshanData.js";
 import { GeneralExaminationForm } from "./GeneralExaminationForm.jsx";
 import { createInitialHistoryTaking, HistoryTakingForm, normalizeHistoryTaking } from "./HistoryTakingForm.jsx";
 import { OpdPrescriptionPrint } from "./OpdPrescriptionPrint.jsx";
@@ -110,6 +111,7 @@ const initialVitals = {
   throatCongestion: "",
   tonsillarGrade: "",
   throatExudates: "",
+  ...initialAyurvedaFields,
   physicalExam: ""
 };
 
@@ -137,7 +139,8 @@ function calculateGeneralExamination(form) {
     vitalsBp,
     bmi,
     bmiCategory: adultBmiCategory(Number(bmi)),
-    waistHipRatio
+    waistHipRatio,
+    ...calculatePrakruti(form)
   };
 }
 
@@ -169,8 +172,19 @@ function clearVitalsDraft(visitId) {
   }
 }
 
+// Ayurveda parikshan fields hold arrays, so a plain string comparison would report
+// every restored draft as different.
+function sameFieldValue(left, right) {
+  if (Array.isArray(left) || Array.isArray(right)) {
+    const leftList = Array.isArray(left) ? left : [];
+    const rightList = Array.isArray(right) ? right : [];
+    return leftList.length === rightList.length && leftList.every((value, index) => value === rightList[index]);
+  }
+  return (left || "") === (right || "");
+}
+
 function sameVitals(left, right) {
-  return Object.keys(initialVitals).every((field) => (left[field] || "") === (right[field] || ""));
+  return Object.keys(initialVitals).every((field) => sameFieldValue(left[field], right[field]));
 }
 
 const systemicDraftKey = (visitId) => `hms-opd-systemic-examination-draft-${visitId}`;

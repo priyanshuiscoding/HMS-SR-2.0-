@@ -1,4 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  ayurvedaSections,
+  prakrutiDoshaHeadings,
+  prakrutiDoshas,
+  prakrutiTraits
+} from "./ayurvedaParikshanData.js";
 
 function Field({ label, name, value, onChange, type = "text", placeholder = "", help = "", readOnly = false, step, min, max }) {
   return (
@@ -130,6 +136,223 @@ function TypeableField({ label, name, value, onChange, options, help = "", place
   );
 }
 
+// Ayurvedic parikshan findings are rarely single-valued, so this variant keeps a list
+// of picks as chips while still allowing a term that is not in the printed sheet.
+function MultiTypeableField({ label, name, values, onChange, options, help = "", placeholder = "Select or type" }) {
+  const reactId = useId();
+  const listId = `general-exam-${name}-${reactId.replace(/:/g, "")}-options`;
+  const blurTimer = useRef(null);
+  const [draft, setDraft] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const selected = Array.isArray(values) ? values : [];
+  const query = draft.trim().toLowerCase();
+  const filteredOptions = useMemo(
+    () =>
+      options
+        .filter((option) => !selected.includes(option))
+        .filter((option) => (query ? option.toLowerCase().includes(query) : true))
+        .slice(0, 12),
+    [options, query, selected]
+  );
+
+  useEffect(() => () => window.clearTimeout(blurTimer.current), []);
+
+  const emitValues = (nextValues) => {
+    onChange({ target: { name, value: nextValues } });
+  };
+
+  const addValue = (rawValue) => {
+    const value = String(rawValue).trim();
+    if (!value || selected.includes(value)) {
+      setDraft("");
+      return;
+    }
+    emitValues([...selected, value]);
+    setDraft("");
+    setActiveIndex(0);
+  };
+
+  const removeValue = (value) => {
+    emitValues(selected.filter((item) => item !== value));
+  };
+
+  const handleKeyDown = (event) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((current) => Math.min(current + 1, Math.max(filteredOptions.length - 1, 0)));
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setIsOpen(true);
+      setActiveIndex((current) => Math.max(current - 1, 0));
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addValue(isOpen && filteredOptions[activeIndex] && !draft.trim() ? filteredOptions[activeIndex] : draft);
+      return;
+    }
+
+    if (event.key === "Tab" && isOpen && filteredOptions[activeIndex] && !draft.trim()) {
+      addValue(filteredOptions[activeIndex]);
+      return;
+    }
+
+    if (event.key === "Backspace" && !draft && selected.length) {
+      event.preventDefault();
+      removeValue(selected[selected.length - 1]);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsOpen(false);
+    }
+  };
+
+  return (
+    <div className="field general-exam-field general-exam-multifield">
+      <label htmlFor={`general-exam-${name}`}>{label}</label>
+      <div className="general-exam-combobox">
+        <div className="general-exam-chips">
+          {selected.map((value) => (
+            <span className="general-exam-chip" key={value}>
+              {value}
+              <button
+                type="button"
+                aria-label={`Remove ${value}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => removeValue(value)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <input
+            id={`general-exam-${name}`}
+            name={name}
+            value={draft}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setIsOpen(true);
+              setActiveIndex(0);
+            }}
+            onFocus={() => {
+              window.clearTimeout(blurTimer.current);
+              setIsOpen(true);
+              setActiveIndex(0);
+            }}
+            onBlur={() => {
+              blurTimer.current = window.setTimeout(() => {
+                if (draft.trim()) addValue(draft);
+                setIsOpen(false);
+              }, 140);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={selected.length ? "" : placeholder}
+            autoComplete="off"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={isOpen}
+            aria-controls={listId}
+            aria-activedescendant={isOpen && filteredOptions[activeIndex] ? `${listId}-${activeIndex}` : undefined}
+          />
+        </div>
+        {isOpen ? (
+          <div id={listId} className="general-exam-combobox-menu" role="listbox">
+            {filteredOptions.map((option, index) => (
+              <button
+                id={`${listId}-${index}`}
+                key={option}
+                type="button"
+                role="option"
+                aria-selected={index === activeIndex}
+                className={`general-exam-combobox-option${index === activeIndex ? " is-active" : ""}`}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => addValue(option)}
+              >
+                {option}
+              </button>
+            ))}
+            {!filteredOptions.length ? (
+              <div className="general-exam-combobox-empty">
+                {draft.trim() ? "Press Enter to add your own entry." : "All listed options are already selected."}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      {help ? <small className="field-help">{help}</small> : null}
+    </div>
+  );
+}
+
+function PrakrutiTable({ form, onChange }) {
+  const counts = ["prakrutiVataCount", "prakrutiPittaCount", "prakrutiKaphaCount"];
+
+  return (
+    <div className="prakruti-block">
+      <div className="table-shell prakruti-table-shell">
+        <table className="prakruti-table">
+          <thead>
+            <tr>
+              <th scope="col">Trait</th>
+              {prakrutiDoshas.map((dosha) => (
+                <th scope="col" key={dosha}>{prakrutiDoshaHeadings[dosha]}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {prakrutiTraits.map((trait) => (
+              <tr key={trait.name}>
+                <th scope="row">{trait.label}</th>
+                {prakrutiDoshas.map((dosha) => {
+                  const isSelected = form[trait.name] === dosha;
+                  return (
+                    <td key={dosha} className={isSelected ? "is-selected" : ""}>
+                      <button
+                        type="button"
+                        className="prakruti-option"
+                        aria-pressed={isSelected}
+                        // Clicking the chosen cell again clears the trait.
+                        onClick={() => onChange({ target: { name: trait.name, value: isSelected ? "" : dosha } })}
+                      >
+                        <ul>
+                          {trait[dosha].map((line) => (
+                            <li key={line}>{line}</li>
+                          ))}
+                        </ul>
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="prakruti-summary">
+        {prakrutiDoshas.map((dosha, index) => (
+          <div className="prakruti-summary-item" key={dosha}>
+            <span>{dosha}</span>
+            <strong>{form[counts[index]] || "0"}</strong>
+          </div>
+        ))}
+        <div className="prakruti-summary-item is-result">
+          <span>Prakruti</span>
+          <strong>{form.prakrutiDominant || "—"}</strong>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExamSection({ number, title, description, children, open = false }) {
   return (
     <details className="general-exam-section" open={open}>
@@ -204,7 +427,44 @@ export function GeneralExaminationForm({ form, onChange }) {
         </div>
       </ExamSection>
 
-      <ExamSection number="1.2" title="General Appearance & Built" description="Constitution, posture, neurological appearance, and communication">
+      <ExamSection number="1.2" title="Ayurveda Parikshan" description="Ashtvidh, Dashavidh, Srotas, Samprapti Ghatak, and Prakruti">
+        {ayurvedaSections.map((section) => (
+          <div key={section.key}>
+            <h4>{section.title}</h4>
+            <div className="general-exam-grid">
+              {section.fields.map((field) => (
+                <MultiTypeableField
+                  key={field.name}
+                  label={field.label}
+                  name={field.name}
+                  values={form[field.name]}
+                  onChange={onChange}
+                  options={field.options}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Prakruti assessment is disabled for now. Re-enable by uncommenting these two
+            lines — the table, its scoring, and the DB columns are all still in place.
+        <h4>Prakruti</h4>
+        <PrakrutiTable form={form} onChange={onChange} />
+        */}
+
+        <div className="field general-exam-notes">
+          <label htmlFor="general-exam-ayurvedaNotes">Ayurveda parikshan notes</label>
+          <textarea
+            id="general-exam-ayurvedaNotes"
+            name="ayurvedaNotes"
+            value={form.ayurvedaNotes ?? ""}
+            onChange={onChange}
+            placeholder="Any parikshan finding not covered by the lists above"
+          />
+        </div>
+      </ExamSection>
+
+      <ExamSection number="1.3" title="General Appearance & Built" description="Constitution, posture, neurological appearance, and communication">
         <div className="general-exam-grid">
           <TypeableField label="Built (somatotype)" name="builtMorphology" value={form.builtMorphology} onChange={onChange} options={["Ectomorph", "Mesomorph", "Endomorph"]} />
           <TypeableField label="Body build" name="bodyBuild" value={form.bodyBuild} onChange={onChange} options={["Thin", "Average", "Obese"]} />
@@ -222,7 +482,7 @@ export function GeneralExaminationForm({ form, onChange }) {
         </div>
       </ExamSection>
 
-      <ExamSection number="1.3" title="Skin, Hair & Nails" description="Integumentary findings, oedema, and lymph nodes">
+      <ExamSection number="1.4" title="Skin, Hair & Nails" description="Integumentary findings, oedema, and lymph nodes">
         <div className="general-exam-grid">
           <TypeableField label="Skin colour" name="skinColour" value={form.skinColour} onChange={onChange} options={["Normal", "Pallor", "Cyanosis", "Jaundice", "Pigmentation", "Erythema", "Vitiligo"]} />
           <TypeableField label="Skin texture" name="skinTexture" value={form.skinTexture} onChange={onChange} options={["Normal", "Rough", "Smooth", "Dry", "Oily", "Scaly"]} />
@@ -241,7 +501,7 @@ export function GeneralExaminationForm({ form, onChange }) {
         </div>
       </ExamSection>
 
-      <ExamSection number="1.4" title="Eyes, Tongue & Mucous Membranes" description="Ocular, oral, tongue, and throat findings">
+      <ExamSection number="1.5" title="Eyes, Tongue & Mucous Membranes" description="Ocular, oral, tongue, and throat findings">
         <div className="general-exam-grid">
           <TypeableField label="Conjunctiva" name="conjunctiva" value={form.conjunctiva} onChange={onChange} options={["Normal", "Pallor (Anaemia)", "Congestion"]} />
           <TypeableField label="Sclera" name="sclera" value={form.sclera} onChange={onChange} options={["Normal", "Icteric (Jaundice)", "Subconjunctival Haemorrhage"]} />
