@@ -1,5 +1,6 @@
 import certificateHeader from "../../assets/certificates/certificate-header.png";
 import hospitalLogo from "../../assets/certificates/shanti-ratnam-logo-full.png";
+import { ayurvedaSections } from "./ayurvedaParikshanData.js";
 
 const medicalConditions = [
   ["dm", "DM"], ["htn", "HTN"], ["cad", "CAD"], ["cva", "CVA"],
@@ -58,6 +59,49 @@ function bmiValue(height, weight) {
   return (weightKg / ((heightCm / 100) ** 2)).toFixed(1);
 }
 
+// Only parikshan fields the doctor actually filled reach the printed sheet.
+function AyurvedaParikshan({ vitalsForm }) {
+  const filledSections = ayurvedaSections
+    .map((section) => ({
+      title: section.title,
+      rows: section.fields
+        .map((field) => ({ label: field.label, value: (vitalsForm[field.name] || []).join(", ") }))
+        .filter((row) => row.value)
+    }))
+    .filter((section) => section.rows.length);
+
+  // Prakruti is disabled for now, so it neither prints nor keeps the section alive.
+  const prakrutiDominant = "";
+  const notes = vitalsForm.ayurvedaNotes || "";
+  if (!filledSections.length && !notes) return null;
+
+  return (
+    <>
+      <SectionTitle>AYURVEDIC PARIKSHAN</SectionTitle>
+      <div className="opd-rx-history opd-rx-ayurveda">
+        {filledSections.map((section) => (
+          <div key={section.title}>
+            <h4>{section.title.toUpperCase()}</h4>
+            {section.rows.map((row) => (
+              <p key={row.label}><strong>{row.label}:</strong> {row.value}</p>
+            ))}
+          </div>
+        ))}
+        {/* Re-enable together with the Prakruti table in GeneralExaminationForm, and
+            restore `prakrutiDominant` above to read from vitalsForm.
+        {prakrutiDominant ? (
+          <p>
+            <strong>PRAKRUTI:</strong> {prakrutiDominant} (Vata {vitalsForm.prakrutiVataCount || 0} / Pitta{" "}
+            {vitalsForm.prakrutiPittaCount || 0} / Kapha {vitalsForm.prakrutiKaphaCount || 0})
+          </p>
+        ) : null}
+        */}
+        {notes ? <p><strong>Notes:</strong> {notes}</p> : null}
+      </div>
+    </>
+  );
+}
+
 function selectedPatientCategory(patient, queueItem) {
   return patient?.metadata?.category || patient?.metadata?.socialCategory || patient?.metadata?.casteCategory || queueItem?.patientCategory || "";
 }
@@ -106,6 +150,8 @@ export function OpdPrescriptionPrint({ visitPayload, selectedQueueItem, vitalsFo
             <tr><th>BMI:</th><td>{bmiValue(vitalsForm.vitalsHeight, vitalsForm.vitalsWeight)} kg/m²</td><th>SPO2:</th><td>{text(vitalsForm.vitalsSpo2)}%</td></tr>
           </tbody>
         </table>
+
+        <AyurvedaParikshan vitalsForm={vitalsForm} />
 
         <SectionTitle>CHIEF COMPLAINT &amp; HISTORY OF PRESENT ILLNESS</SectionTitle>
         <table className="opd-rx-table opd-rx-complaint-table">

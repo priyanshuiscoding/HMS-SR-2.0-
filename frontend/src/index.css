@@ -1782,6 +1782,187 @@ textarea {
   line-height: 1.35;
 }
 
+.general-exam-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-height: 42px;
+  padding: 6px 8px;
+  border: 1px solid rgba(16, 55, 92, 0.18);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.general-exam-multifield .general-exam-chips:focus-within {
+  border-color: rgba(47, 125, 185, 0.65);
+  box-shadow: 0 0 0 3px rgba(47, 125, 185, 0.14);
+}
+
+.general-exam-multifield .general-exam-chips input {
+  flex: 1 1 90px;
+  min-width: 90px;
+  min-height: 26px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+}
+
+.general-exam-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 9px;
+  border-radius: 999px;
+  background: rgba(47, 125, 185, 0.13);
+  color: #174e83;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.general-exam-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(16, 55, 92, 0.12);
+  color: #174e83;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.general-exam-chip button:hover {
+  background: rgba(197, 48, 48, 0.18);
+  color: #9b2c2c;
+}
+
+.prakruti-block {
+  display: grid;
+  gap: 12px;
+}
+
+.prakruti-table-shell {
+  overflow-x: auto;
+}
+
+.prakruti-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 720px;
+  font-size: 12px;
+}
+
+.prakruti-table th,
+.prakruti-table td {
+  border-bottom: 1px solid rgba(16, 55, 92, 0.09);
+  vertical-align: top;
+}
+
+.prakruti-table thead th {
+  position: sticky;
+  top: 0;
+  padding: 9px 10px;
+  background: #2f7db9;
+  color: #ffffff;
+  font-size: 12px;
+  text-align: left;
+}
+
+.prakruti-table tbody th {
+  width: 150px;
+  padding: 10px;
+  background: rgba(47, 125, 185, 0.06);
+  color: #245587;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.prakruti-table td {
+  padding: 0;
+}
+
+.prakruti-option {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 9px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--color-ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.prakruti-option ul {
+  margin: 0;
+  padding-left: 15px;
+  list-style: disc;
+}
+
+.prakruti-option li {
+  margin: 0 0 2px;
+  line-height: 1.35;
+}
+
+.prakruti-option:hover {
+  background: rgba(47, 125, 185, 0.08);
+}
+
+.prakruti-table td.is-selected {
+  background: rgba(47, 125, 185, 0.16);
+  box-shadow: inset 3px 0 0 #2f7db9;
+}
+
+.prakruti-table td.is-selected .prakruti-option {
+  color: #174e83;
+  font-weight: 600;
+}
+
+.prakruti-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.prakruti-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 96px;
+  padding: 8px 12px;
+  border: 1px solid rgba(16, 55, 92, 0.12);
+  border-radius: 10px;
+  background: rgba(47, 125, 185, 0.06);
+}
+
+.prakruti-summary-item span {
+  color: var(--color-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.prakruti-summary-item strong {
+  color: #245587;
+  font-size: 15px;
+}
+
+.prakruti-summary-item.is-result {
+  border-color: rgba(47, 125, 185, 0.4);
+  background: rgba(47, 125, 185, 0.14);
+}
+
 .general-exam-field input[readonly] {
   border-color: rgba(47, 125, 185, 0.2);
   background: rgba(47, 125, 185, 0.07);
@@ -4374,6 +4555,21 @@ textarea {
 .opd-rx-investigations p,
 .opd-rx-validity p {
   margin: 0.6mm 0;
+}
+
+.opd-rx-ayurveda {
+  font-size: 10.2px;
+}
+
+.opd-rx-ayurveda h4 {
+  margin: 1mm 0 0.3mm;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.opd-rx-ayurveda p {
+  margin: 0.35mm 0;
+  line-height: 1.3;
 }
 
 .opd-rx-footer-line {

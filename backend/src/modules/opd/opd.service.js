@@ -14,6 +14,7 @@ import { listLabOrderRecords } from "../laboratory/laboratory.repository.js";
 import { createLabOrder, getLabMasters } from "../laboratory/laboratory.service.js";
 import { findPatientById } from "../patients/patients.repository.js";
 import { listDoctors } from "../users/users.service.js";
+import { ayurvedaParikshanFromPayload } from "./ayurveda.parikshan.js";
 import {
   createVisitRecord,
   findAssessmentByVisitId,
@@ -343,6 +344,7 @@ function generalExaminationFromPayload(payload, visit, actor) {
       tonsillarGrade: payload.tonsillarGrade || "",
       throatExudates: payload.throatExudates || ""
     },
+    ...ayurvedaParikshanFromPayload(payload),
     notes: payload.physicalExam || ""
   };
 }
