@@ -130,17 +130,6 @@ function normalizeType(type = "new") {
   return type;
 }
 
-function normalizeGender(gender = "") {
-  const value = String(gender).trim().toLowerCase();
-  if (!value) {
-    return "";
-  }
-  if (["male", "female", "other"].includes(value)) {
-    return value;
-  }
-  throw createError("Gender must be male, female, or other.");
-}
-
 function normalizeStatus(status) {
   const nextStatus = String(status || "").trim().toLowerCase();
 
@@ -219,6 +208,10 @@ export async function getAppointmentById(id) {
 }
 
 export async function createAppointment(payload, bookedBy) {
+  if (!payload.patientId) {
+    throw createError("Patient is not registered. Please register the patient first, then book the appointment.");
+  }
+
   if (!payload.doctorId || !payload.appointmentDate || !payload.appointmentTime || !payload.department) {
     throw createError("Doctor, appointment date, time, and department are required.");
   }
@@ -240,38 +233,15 @@ export async function createAppointment(payload, bookedBy) {
 
   await validateDailyCapacity(appointmentDate);
 
-  const hasExistingPatient = Boolean(payload.patientId);
-  let patientId = payload.patientId || null;
-  let patientName = payload.patientName || "";
-  let patientAge = payload.patientAge ? Number(payload.patientAge) : null;
-  let patientGender = payload.patientGender || "";
-  let patientMobile = payload.patientMobile || "";
-  let patientAddress = String(payload.patientAddress || "").trim();
-
-  if (hasExistingPatient) {
-    const patient = await getPatientById(patientId);
-    patientName = `${patient.firstName} ${patient.lastName}`.trim();
-    patientAge = calculatePatientAge(patient);
-    patientGender = patient.gender || "";
-    patientMobile = patient.phone || "";
-    patientAddress = patient.address || [patient.houseStreet, patient.areaVillage, patient.cityDistrict || patient.city]
-      .filter(Boolean)
-      .join(", ");
-  } else {
-    if (!patientName || !patientName.trim()) {
-      throw createError("Patient name is required for new booking.");
-    }
-    if (!Number.isFinite(patientAge) || patientAge <= 0) {
-      throw createError("Valid patient age is required for new booking.");
-    }
-    if (!patientGender) {
-      throw createError("Patient gender is required for new booking.");
-    }
-    if (!patientMobile || String(patientMobile).trim().length < 10) {
-      throw createError("Valid patient mobile number is required for new booking.");
-    }
-    patientGender = normalizeGender(patientGender);
-  }
+  const patient = await getPatientById(payload.patientId);
+  const patientId = patient.id;
+  const patientName = `${patient.firstName} ${patient.lastName}`.trim();
+  const patientAge = calculatePatientAge(patient);
+  const patientGender = patient.gender || "";
+  const patientMobile = patient.phone || "";
+  const patientAddress = patient.address || [patient.houseStreet, patient.areaVillage, patient.cityDistrict || patient.city]
+    .filter(Boolean)
+    .join(", ");
 
   const item = {
     id: createId(),

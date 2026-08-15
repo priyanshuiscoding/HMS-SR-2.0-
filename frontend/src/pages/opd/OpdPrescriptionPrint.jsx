@@ -48,8 +48,9 @@ function Header() {
   );
 }
 
-function paddedRows(rows, minimum) {
-  return Array.from({ length: Math.max(rows?.length || 0, minimum) }, (_, index) => rows?.[index] || {});
+function filledRows(rows, hasContent, fallback = {}) {
+  const completedRows = (rows || []).filter(hasContent);
+  return completedRows.length ? completedRows : [fallback];
 }
 
 function bmiValue(height, weight) {
@@ -78,14 +79,21 @@ function AyurvedaParikshan({ vitalsForm }) {
   return (
     <>
       <SectionTitle>AYURVEDIC PARIKSHAN</SectionTitle>
-      <div className="opd-rx-history opd-rx-ayurveda">
+      <div className="opd-rx-ayurveda-grid">
         {filledSections.map((section) => (
-          <div key={section.title}>
+          <section className="opd-rx-ayurveda-section" key={section.title}>
             <h4>{section.title.toUpperCase()}</h4>
-            {section.rows.map((row) => (
-              <p key={row.label}><strong>{row.label}:</strong> {row.value}</p>
-            ))}
-          </div>
+            <table className="opd-rx-ayurveda-findings">
+              <tbody>
+                {section.rows.map((row) => (
+                  <tr key={row.label}>
+                    <th>{row.label}</th>
+                    <td>{row.value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
         ))}
         {/* Re-enable together with the Prakruti table in GeneralExaminationForm, and
             restore `prakrutiDominant` above to read from vitalsForm.
@@ -96,7 +104,9 @@ function AyurvedaParikshan({ vitalsForm }) {
           </p>
         ) : null}
         */}
-        {notes ? <p><strong>Notes:</strong> {notes}</p> : null}
+        {notes ? (
+          <div className="opd-rx-ayurveda-notes"><strong>Notes:</strong> {notes}</div>
+        ) : null}
       </div>
     </>
   );
@@ -116,10 +126,21 @@ export function OpdPrescriptionPrint({ visitPayload, selectedQueueItem, vitalsFo
   const followUp = metadata.followUpMonitoring || {};
   const patientCategory = metadata.patientDetails?.category || selectedPatientCategory(patient, selectedQueueItem);
   const [systolic = "", diastolic = ""] = String(vitalsForm.vitalsBp || "").split(/[\/\\-]/).map((part) => part.trim());
-  const complaintRows = paddedRows(metadata.complaintRows, 10);
-  const enteredDiagnosisRows = (metadata.diagnosisRows || []).filter((row) => row.diagnosis || row.icdCode);
-  const diagnosisRows = paddedRows(enteredDiagnosisRows, 2);
-  const medicineRows = paddedRows(prescriptionForm.medicines, 8);
+  const complaintRows = filledRows(
+    metadata.complaintRows,
+    (row) => row?.complaint || row?.duration || row?.severity,
+    { complaint: visit.chiefComplaint || "" }
+  );
+  const diagnosisRows = filledRows(
+    metadata.diagnosisRows,
+    (row) => row?.diagnosis || row?.icdCode,
+    { diagnosis: prescriptionForm.diagnosis || "", type: "primary" }
+  );
+  const medicineRows = filledRows(
+    prescriptionForm.medicines,
+    (row) => row?.medicineName,
+    {}
+  );
   const prakriti = assessmentForm.prakritiDominant || "";
   const age = patient.ageYears || selectedQueueItem?.patientAge || "";
   const gender = patient.gender || selectedQueueItem?.patientGender || "";
@@ -161,18 +182,42 @@ export function OpdPrescriptionPrint({ visitPayload, selectedQueueItem, vitalsFo
           </tbody>
         </table>
 
-        <div className="opd-rx-history">
-          <h4>MEDICAL HISTORY</h4>
-          <p>{medicalConditions.map(([value, label]) => <Choice key={value} checked={includesValue(medical.conditions, value)}>{label}</Choice>)}</p>
-          <p><strong>Surgical history:</strong> {text(medical.surgicalHistory)} &nbsp; <strong>If so, details:</strong> {text(medical.surgicalDetails)}</p>
-          <p><strong>Menstrual history:</strong> LMP {text(medical.menstrualLmp)} &nbsp; Previous LMP {text(medical.menstrualPreviousLmp)} &nbsp; Days {text(medical.menstrualDays)}</p>
-          <p>Menarche {text(medical.menarche)} &nbsp; Menopause {text(medical.menopause)} &nbsp; <Choice checked={medical.menstrualCycle === "regular"}>Regular</Choice> <Choice checked={medical.menstrualCycle === "irregular"}>Irregular</Choice> <Choice checked={Boolean(medical.clotting)}>Clotting</Choice> &nbsp; Pain severity {text(medical.painSeverity)} &nbsp; Obstetric history {text(medical.obstetricHistory)}</p>
-          <p><strong>Other:</strong> {text(medical.other)}</p>
-          <p><strong>ALLERGIES:</strong> Drug: {text(allergies.drug)} &nbsp; Food: {text(allergies.food)} &nbsp; Environmental: {text(allergies.environmental)}</p>
-          <h4>FAMILY HISTORY</h4>
-          <p><Choice checked={Boolean(family.geneticConditions)}>Genetic / hereditary conditions</Choice> Please specify: {text(family.geneticDetails)}</p>
-          <p>{familyConditions.map(([value, label]) => <Choice key={value} checked={includesValue(family.conditions, value)}>{label}</Choice>)} &nbsp; Others: {text(family.others)}</p>
-        </div>
+        <SectionTitle>MEDICAL, ALLERGY &amp; FAMILY HISTORY</SectionTitle>
+        <table className="opd-rx-table opd-rx-history-table">
+          <tbody>
+            <tr>
+              <th>Medical</th>
+              <td>{medicalConditions.map(([value, label]) => <Choice key={value} checked={includesValue(medical.conditions, value)}>{label}</Choice>)}</td>
+            </tr>
+            <tr>
+              <th>Surgical</th>
+              <td>{text(medical.surgicalHistory)} <strong>Details:</strong> {text(medical.surgicalDetails)}</td>
+            </tr>
+            <tr>
+              <th>Menstrual / obstetric</th>
+              <td>
+                LMP {text(medical.menstrualLmp)}; previous {text(medical.menstrualPreviousLmp)}; days {text(medical.menstrualDays)}; menarche {text(medical.menarche)}; menopause {text(medical.menopause)};{" "}
+                <Choice checked={medical.menstrualCycle === "regular"}>Regular</Choice>
+                <Choice checked={medical.menstrualCycle === "irregular"}>Irregular</Choice>
+                <Choice checked={Boolean(medical.clotting)}>Clotting</Choice>
+                Pain {text(medical.painSeverity)}; obstetric {text(medical.obstetricHistory)}
+              </td>
+            </tr>
+            <tr>
+              <th>Allergies</th>
+              <td>Drug: {text(allergies.drug)}; Food: {text(allergies.food)}; Environmental: {text(allergies.environmental)}</td>
+            </tr>
+            <tr>
+              <th>Family</th>
+              <td>
+                <Choice checked={Boolean(family.geneticConditions)}>Genetic / hereditary</Choice>
+                {familyConditions.map(([value, label]) => <Choice key={value} checked={includesValue(family.conditions, value)}>{label}</Choice>)}
+                Details: {text(family.geneticDetails)}; Others: {text(family.others)}
+              </td>
+            </tr>
+            {medical.other ? <tr><th>Other history</th><td>{medical.other}</td></tr> : null}
+          </tbody>
+        </table>
         <div className="opd-rx-footer-line" />
       </section>
 

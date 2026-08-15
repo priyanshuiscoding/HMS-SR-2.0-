@@ -17,11 +17,6 @@ import {
 
 const initialForm = {
   patientId: "",
-  patientName: "",
-  patientAge: "",
-  patientGender: "",
-  patientMobile: "",
-  patientAddress: "",
   doctorId: "",
   appointmentDate: new Date().toISOString().slice(0, 10),
   appointmentTime: "",
@@ -176,20 +171,6 @@ export function AppointmentsPage() {
   const handleFormChange = (event) => {
     const { name, value } = event.target;
 
-    if (name === "patientId") {
-      const selectedPatient = patients.find((patient) => patient.id === value);
-      setFormState((current) => ({
-        ...current,
-        patientId: value,
-        patientName: selectedPatient ? "" : current.patientName,
-        patientAge: selectedPatient ? "" : current.patientAge,
-        patientGender: selectedPatient ? "" : current.patientGender,
-        patientMobile: selectedPatient ? "" : current.patientMobile,
-        patientAddress: selectedPatient ? "" : current.patientAddress
-      }));
-      return;
-    }
-
     if (name === "doctorId") {
       const selectedDoctor = masters.doctors.find((doctor) => doctor.id === value);
       setFormState((current) => ({
@@ -206,15 +187,10 @@ export function AppointmentsPage() {
     }));
   };
 
-  const handlePatientSelect = (patientId, patient) => {
+  const handlePatientSelect = (patientId) => {
     setFormState((current) => ({
       ...current,
-      patientId,
-      patientName: "",
-      patientAge: "",
-      patientGender: "",
-      patientMobile: "",
-      patientAddress: ""
+      patientId
     }));
   };
 
@@ -222,6 +198,13 @@ export function AppointmentsPage() {
     event.preventDefault();
     if (!canManageAppointments) {
       setError("Only admin and reception users can book appointments.");
+      return;
+    }
+
+    if (!formState.patientId) {
+      const message = "Patient is not registered. Please register the patient first, then book the appointment.";
+      setError(message);
+      window.alert(message);
       return;
     }
 
@@ -379,13 +362,13 @@ export function AppointmentsPage() {
 
           <form className="form-grid" onSubmit={handleBookAppointment}>
             <div className="field field-span-2">
-              <label>Existing patient</label>
+              <label>Registered patient</label>
               <SearchableSelect
                 value={formState.patientId}
                 options={patients}
                 onChange={handlePatientSelect}
                 placeholder="Click and type patient name, UHID, phone, father name, address, or city"
-                emptyLabel="No matching patient. Leave blank to enter a new patient below."
+                emptyLabel="Patient not registered. Register the patient before booking an appointment."
                 getOptionLabel={patientLabel}
                 getOptionMeta={(patient) => [patient.phone, patient.fatherName, patient.cityDistrict || patient.city].filter(Boolean).join(" | ")}
                 getSearchText={(patient) => [
@@ -405,33 +388,9 @@ export function AppointmentsPage() {
             </div>
 
             {!formState.patientId ? (
-              <>
-                <div className="field field-span-2">
-                  <label>Name</label>
-                  <input name="patientName" value={formState.patientName} onChange={handleFormChange} required />
-                </div>
-                <div className="field">
-                  <label>Age</label>
-                  <input name="patientAge" type="number" min="1" value={formState.patientAge} onChange={handleFormChange} required />
-                </div>
-                <div className="field">
-                  <label>Gender</label>
-                  <select name="patientGender" value={formState.patientGender} onChange={handleFormChange} required>
-                    <option value="">Select</option>
-                    <option value="male">male</option>
-                    <option value="female">female</option>
-                    <option value="other">other</option>
-                  </select>
-                </div>
-                <div className="field field-span-2">
-                  <label>Mobile</label>
-                  <input name="patientMobile" value={formState.patientMobile} onChange={handleFormChange} minLength={10} required />
-                </div>
-                <div className="field field-span-2">
-                  <label>Address</label>
-                  <input name="patientAddress" value={formState.patientAddress} onChange={handleFormChange} placeholder="Optional" />
-                </div>
-              </>
+              <div className="empty-state field-span-2">
+                Patient not listed? <Link className="table-link" to="/patients">Register the patient first</Link>, then return here to book the appointment.
+              </div>
             ) : null}
 
             <div className="field">

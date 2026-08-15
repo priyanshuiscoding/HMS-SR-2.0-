@@ -143,6 +143,11 @@ export async function getQueue(date = todayDate(), doctorId = "") {
 
 export async function createVisit({ appointmentId }, actor = {}) {
   const appointment = await getAppointmentById(appointmentId);
+
+  if (!appointment.patientId) {
+    throw createError("Patient is not registered. Please register and link the patient before starting OPD.", 409);
+  }
+
   const existingVisit = await findVisitByAppointmentId(appointmentId);
 
   if (existingVisit) {
