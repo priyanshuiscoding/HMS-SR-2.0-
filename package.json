@@ -23,6 +23,7 @@
     "db:import-old-patients": "npm --workspace backend run db:import-old-patients",
     "db:backup": "node scripts/db-backup.mjs",
     "db:restore": "node scripts/db-restore.mjs",
+    "patients:import-puru": "node scripts/import-puru-patients.mjs",
     "check:deployment": "node scripts/check-deployment.mjs",
     "check:api": "node scripts/api-smoke-test.mjs",
     "validate:workflows": "node scripts/validate-workflows.mjs"
