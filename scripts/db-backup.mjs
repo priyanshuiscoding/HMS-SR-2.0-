@@ -23,7 +23,8 @@ async function main() {
 
   const filePath = path.join(backupDir, `hms-${timestamp()}.dump`);
   const args = ["-Fc", "-f", filePath, ...databaseArgs()];
-  const child = spawn("pg_dump", args, {
+  const pgDumpBin = process.env.PG_DUMP_BIN || "pg_dump";
+  const child = spawn(pgDumpBin, args, {
     stdio: "inherit",
     env: {
       ...process.env,
@@ -37,7 +38,7 @@ async function main() {
       return;
     }
 
-    console.error(`pg_dump failed with exit code ${code}. Ensure PostgreSQL client tools are installed and on PATH.`);
+    console.error(`pg_dump failed with exit code ${code}. Set PG_DUMP_BIN to a pg_dump version compatible with the server.`);
     process.exitCode = code || 1;
   });
 }
