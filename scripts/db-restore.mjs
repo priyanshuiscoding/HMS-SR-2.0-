@@ -21,7 +21,8 @@ async function main() {
 
   await access(backupFile);
 
-  const child = spawn("pg_restore", ["--clean", "--if-exists", ...databaseArgs(), backupFile], {
+  const pgRestoreBin = process.env.PG_RESTORE_BIN || "pg_restore";
+  const child = spawn(pgRestoreBin, ["--clean", "--if-exists", ...databaseArgs(), backupFile], {
     stdio: "inherit",
     env: {
       ...process.env,
@@ -35,7 +36,7 @@ async function main() {
       return;
     }
 
-    console.error(`pg_restore failed with exit code ${code}. Ensure PostgreSQL client tools are installed and on PATH.`);
+    console.error(`pg_restore failed with exit code ${code}. Set PG_RESTORE_BIN to a pg_restore version compatible with the server.`);
     process.exitCode = code || 1;
   });
 }

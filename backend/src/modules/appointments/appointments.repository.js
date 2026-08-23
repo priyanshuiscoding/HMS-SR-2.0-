@@ -11,6 +11,7 @@ function toCamelAppointment(row) {
     appointmentNumber: row.appointment_number,
     patientId: row.patient_id || null,
     patientName: row.patient_name,
+    patientUhid: row.patient_uhid || row.uhid || "",
     patientAge: row.patient_age,
     patientGender: row.patient_gender || "",
     patientMobile: row.patient_mobile || "",
@@ -63,35 +64,36 @@ function appointmentParams(appointment) {
 }
 
 export async function listAppointmentRecords(filters = {}) {
-  const conditions = ["deleted_at IS NULL"];
+  const conditions = ["a.deleted_at IS NULL"];
   const params = [];
 
   if (filters.date) {
     params.push(filters.date);
-    conditions.push(`appointment_date = $${params.length}`);
+    conditions.push(`a.appointment_date = $${params.length}`);
   }
 
   if (filters.doctorId) {
     params.push(filters.doctorId);
-    conditions.push(`doctor_id = $${params.length}`);
+    conditions.push(`a.doctor_id = $${params.length}`);
   }
 
   if (filters.status) {
     params.push(filters.status);
-    conditions.push(`status = $${params.length}`);
+    conditions.push(`a.status = $${params.length}`);
   }
 
   if (filters.patientId) {
     params.push(filters.patientId);
-    conditions.push(`patient_id = $${params.length}`);
+    conditions.push(`a.patient_id = $${params.length}`);
   }
 
   const result = await query(
     `
-    SELECT *
-    FROM appointments
+    SELECT a.*, p.uhid AS patient_uhid
+    FROM appointments a
+    LEFT JOIN patients p ON p.id = a.patient_id AND p.deleted_at IS NULL
     WHERE ${conditions.join(" AND ")}
-    ORDER BY appointment_date ASC, appointment_time ASC, token_number ASC
+    ORDER BY a.appointment_date ASC, a.appointment_time ASC, a.token_number ASC
     `,
     params
   );

@@ -5,23 +5,24 @@ import {
   getPatientDocumentFile,
   getPatientById,
   getPatientHistory,
+  listDeletedPatients,
   listPatientDocuments,
   listPatients,
   uploadPatientDocument,
-  updatePatient
+  updatePatient,
+  restorePatient
 } from "./patients.service.js";
-
-const patientDeleteReceptionEmails = new Set(["reception@sraiims.in"]);
+import { paginationMeta, parsePagination } from "../../utils/pagination.js";
 
 function canDeletePatient(user = {}) {
-  return user.role === "admin" || user.role === "hr" || (
-    user.role === "reception" && patientDeleteReceptionEmails.has(String(user.email || "").toLowerCase())
-  );
+  return user.role === "admin" || user.role === "hr";
 }
 
 export async function listPatientsHandler(req, res, next) {
   try {
-    res.json({ items: await listPatients(req.query) });
+    const pagination = parsePagination(req.query);
+    const result = await listPatients({ ...req.query, ...pagination });
+    res.json({ items: result.items, meta: paginationMeta(result.total, pagination.page, pagination.pageSize) });
   } catch (error) {
     next(error);
   }
@@ -37,7 +38,9 @@ export async function getPatientHandler(req, res, next) {
 
 export async function searchPatientsHandler(req, res, next) {
   try {
-    res.json({ items: await listPatients({ search: req.query.q || req.query.search || "" }) });
+    const pagination = parsePagination(req.query);
+    const result = await listPatients({ search: req.query.q || req.query.search || "", ...pagination });
+    res.json({ items: result.items, meta: paginationMeta(result.total, pagination.page, pagination.pageSize) });
   } catch (error) {
     next(error);
   }
@@ -63,10 +66,28 @@ export async function updatePatientHandler(req, res, next) {
 export async function deletePatientHandler(req, res, next) {
   try {
     if (!canDeletePatient(req.user)) {
-      return res.status(403).json({ message: "Only admin, HR, and authorized reception can delete patients." });
+      return res.status(403).json({ message: "Only admin and HR can archive patients." });
     }
 
-    res.json({ item: await deletePatient(req.params.id), message: "Patient deleted successfully." });
+    res.json({ item: await deletePatient(req.params.id, req.user.sub, req.body?.reason), message: "Patient moved to the recycle bin." });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function recycleBinHandler(req, res, next) {
+  try {
+    const pagination = parsePagination(req.query);
+    const result = await listDeletedPatients({ ...req.query, ...pagination });
+    res.json({ items: result.items, meta: paginationMeta(result.total, pagination.page, pagination.pageSize) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function restorePatientHandler(req, res, next) {
+  try {
+    res.json({ item: await restorePatient(req.params.id), message: "Patient restored successfully." });
   } catch (error) {
     next(error);
   }

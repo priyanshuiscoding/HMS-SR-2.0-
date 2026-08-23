@@ -9,6 +9,8 @@ import {
   getPatientHandler,
   listPatientDocumentsHandler,
   listPatientsHandler,
+  recycleBinHandler,
+  restorePatientHandler,
   patientHistoryHandler,
   searchPatientsHandler,
   uploadPatientDocumentHandler,
@@ -18,12 +20,14 @@ import {
 const patientsRouter = Router();
 const patientReadRoles = ["admin", "reception", "doctor", "pharmacy", "lab", "therapist", "nursing", "housekeeping", "accounts", "hr"];
 const patientWriteRoles = ["admin", "reception"];
-const patientDeleteRoles = ["admin", "hr", "reception"];
+const patientDeleteRoles = ["admin", "hr"];
 const patientDocumentRoles = ["admin", "doctor", "reception"];
 
 patientsRouter.get("/", authorize(patientReadRoles), listPatientsHandler);
 patientsRouter.post("/", authorizeRolesOnly(patientWriteRoles), createPatientHandler);
 patientsRouter.get("/search", authorize(patientReadRoles), searchPatientsHandler);
+patientsRouter.get("/recycle-bin", authorizeRolesOnly(patientDeleteRoles), recycleBinHandler);
+patientsRouter.put("/recycle-bin/:id/restore", authorizeRolesOnly(patientDeleteRoles), restorePatientHandler);
 patientsRouter.get("/:id", authorize(patientReadRoles), getPatientHandler);
 patientsRouter.put("/:id", authorizeRolesOnly(patientWriteRoles), updatePatientHandler);
 patientsRouter.delete("/:id", authorizeRolesOnly(patientDeleteRoles), deletePatientHandler);

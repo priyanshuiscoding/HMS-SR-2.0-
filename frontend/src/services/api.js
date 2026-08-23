@@ -174,11 +174,13 @@ export const logoutRequest = () => post("/auth/logout");
 export const getCurrentUser = () => get("/auth/me");
 export const getSystemOverview = () => get("/system/overview");
 
-export const getPatients = (search = "") => get("/patients", search ? { search } : {});
+export const getPatients = (search = "", pagination = {}) => get("/patients", { ...(search ? { search } : {}), ...pagination });
 export const createPatient = (payload) => post("/patients", payload);
 export const getPatient = (id) => get(`/patients/${id}`);
 export const updatePatient = (id, payload) => put(`/patients/${id}`, payload);
-export const deletePatient = (id) => del(`/patients/${id}`);
+export const deletePatient = (id, reason = "") => apiRequest(`/patients/${id}`, { method: "DELETE", body: { reason } });
+export const getPatientRecycleBin = (params = {}) => get("/patients/recycle-bin", params);
+export const restorePatient = (id) => put(`/patients/recycle-bin/${id}/restore`);
 export const getPatientHistory = (id) => get(`/patients/${id}/history`);
 export const getPatientDocuments = (id) => get(`/patients/${id}/documents`);
 export const uploadPatientDocument = (id, payload) => post(`/patients/${id}/documents`, payload);
@@ -227,6 +229,7 @@ export const getHrDocuments = (params = {}) => get("/hr/documents", params);
 export const createHrDocument = (payload) => post("/hr/documents", payload);
 
 export const getOpdQueue = (params = {}) => get("/opd/queue", params);
+export const getOpdClinicalHistory = (params = {}) => get("/opd/history", params);
 export const getOpdMasters = () => get("/opd/masters");
 export const createOpdVisit = (payload) => post("/opd/visits", payload);
 export const getOpdVisit = (id) => get(`/opd/visits/${id}`);

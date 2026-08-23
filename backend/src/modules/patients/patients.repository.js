@@ -55,7 +55,10 @@ export function toCamelPatient(row) {
     createdBy: row.created_by || "",
     metadata,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    deletedAt: row.deleted_at || null,
+    deletedBy: row.deleted_by || "",
+    deletionReason: row.deletion_reason || ""
   };
 }
 
@@ -107,6 +110,7 @@ export async function findPatients(queryParams = {}) {
   const city = String(queryParams.city || "").trim().toLowerCase();
   const conditions = ["deleted_at IS NULL"];
   const params = [];
+  const countParameterAnchors = [];
   let orderBy = `
     CASE WHEN patient_type = 'old' THEN 1 ELSE 0 END,
     registration_date DESC NULLS LAST,
@@ -155,6 +159,7 @@ export async function findPatients(queryParams = {}) {
     } else {
       params.push(`%${search}%`);
       const searchLikeParam = params.length;
+      countParameterAnchors.push(exactSearchParam, paddedDigitsParam);
       conditions.push(`
         (
           LOWER(uhid) LIKE $${searchLikeParam}
@@ -214,17 +219,38 @@ export async function findPatients(queryParams = {}) {
     conditions.push(`LOWER(city) = $${params.length}`);
   }
 
+  const isPaginated = Number.isInteger(queryParams.pageSize) && Number.isInteger(queryParams.offset);
+  let total = 0;
+  let limitClause = "";
+  if (isPaginated) {
+    const countResult = await query(
+      `SELECT COUNT(*)::int AS total
+       FROM patients
+       WHERE ${conditions.join(" AND ")}
+         ${countParameterAnchors.map((index) => `AND $${index}::text IS NOT NULL`).join("\n")}`,
+      params
+    );
+    total = countResult.rows[0]?.total || 0;
+    params.push(queryParams.pageSize);
+    const limitParam = params.length;
+    params.push(queryParams.offset);
+    const offsetParam = params.length;
+    limitClause = `LIMIT $${limitParam} OFFSET $${offsetParam}`;
+  }
+
   const result = await query(
     `
     SELECT *
     FROM patients
     WHERE ${conditions.join(" AND ")}
     ORDER BY ${orderBy}
+    ${limitClause}
     `,
     params
   );
 
-  return result.rows.map(toCamelPatient);
+  const items = result.rows.map(toCamelPatient);
+  return isPaginated ? { items, total } : items;
 }
 
 export async function findPatientById(id) {
@@ -405,18 +431,69 @@ export async function updatePatientRecord(id, patient) {
   return toCamelPatient(result.rows[0]);
 }
 
-export async function softDeletePatientRecord(id) {
+export async function softDeletePatientRecord(id, deletedBy, deletionReason = "") {
   const result = await query(
     `
     UPDATE patients
-    SET deleted_at = NOW(), updated_at = NOW()
+    SET deleted_at = NOW(), deleted_by = $2, deletion_reason = $3, updated_at = NOW()
     WHERE (id::text = $1 OR LOWER(uhid) = LOWER($1) OR LOWER(COALESCE(registration_number, '')) = LOWER($1))
       AND deleted_at IS NULL
     RETURNING *
     `,
-    [id]
+    [id, deletedBy || null, deletionReason]
   );
 
+  return toCamelPatient(result.rows[0]);
+}
+
+export async function findDeletedPatients(queryParams = {}) {
+  const search = String(queryParams.search || "").trim().toLowerCase();
+  const params = [];
+  const conditions = ["p.deleted_at IS NOT NULL"];
+
+  if (search) {
+    params.push(`%${search}%`);
+    conditions.push(`(
+      LOWER(p.uhid) LIKE $${params.length}
+      OR LOWER(COALESCE(p.registration_number, '')) LIKE $${params.length}
+      OR LOWER(p.full_name) LIKE $${params.length}
+      OR LOWER(COALESCE(p.phone, '')) LIKE $${params.length}
+    )`);
+  }
+
+  const countResult = await query(
+    `SELECT COUNT(*)::int AS total FROM patients p WHERE ${conditions.join(" AND ")}`,
+    params
+  );
+  params.push(queryParams.pageSize);
+  const limitParam = params.length;
+  params.push(queryParams.offset);
+  const offsetParam = params.length;
+
+  const result = await query(
+    `SELECT p.*, u.full_name AS deleted_by_name
+     FROM patients p
+     LEFT JOIN users u ON u.id = p.deleted_by
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY p.deleted_at DESC
+     LIMIT $${limitParam} OFFSET $${offsetParam}`,
+    params
+  );
+
+  return {
+    items: result.rows.map((row) => ({ ...toCamelPatient(row), deletedByName: row.deleted_by_name || "" })),
+    total: countResult.rows[0]?.total || 0
+  };
+}
+
+export async function restorePatientRecord(id) {
+  const result = await query(
+    `UPDATE patients
+     SET deleted_at = NULL, deleted_by = NULL, deletion_reason = '', updated_at = NOW()
+     WHERE id::text = $1 AND deleted_at IS NOT NULL
+     RETURNING *`,
+    [id]
+  );
   return toCamelPatient(result.rows[0]);
 }
 

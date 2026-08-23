@@ -3,6 +3,7 @@ import {
   createVisitLabOrder,
   createVisit,
   getOpdMasters,
+  getClinicalHistory,
   getQueue,
   getVisitDetails,
   referVisitToIpd,
@@ -14,6 +15,17 @@ import {
   saveVitals,
   updateVisitWorkflowStatus
 } from "./opd.service.js";
+import { paginationMeta, parsePagination } from "../../utils/pagination.js";
+
+export async function clinicalHistoryHandler(req, res, next) {
+  try {
+    const pagination = parsePagination(req.query);
+    const result = await getClinicalHistory({ ...req.query, ...pagination });
+    res.json({ items: result.items, meta: paginationMeta(result.total, pagination.page, pagination.pageSize) });
+  } catch (error) {
+    next(error);
+  }
+}
 
 export async function queueHandler(req, res, next) {
   try {

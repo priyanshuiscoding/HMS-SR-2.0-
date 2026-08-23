@@ -16,6 +16,7 @@ import {
   createLabOrder,
   createOpdVisit,
   getOpdMasters,
+  getOpdClinicalHistory,
   getOpdQueue,
   getOpdVisit,
   saveOpdDischargeSummary,
@@ -584,6 +585,11 @@ export function OpdPage() {
   const [error, setError] = useState("");
   const [labOrderForm, setLabOrderForm] = useState(initialLabOrder);
   const [activeOpdTab, setActiveOpdTab] = useState(initialOpdTab);
+  const [historyFilters, setHistoryFilters] = useState({ date: "", search: "" });
+  const [historyVisits, setHistoryVisits] = useState([]);
+  const [historyMeta, setHistoryMeta] = useState({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historicalView, setHistoricalView] = useState(false);
 
   async function loadQueue(doctorId = filterDoctorId) {
     try {
@@ -659,6 +665,40 @@ export function OpdPage() {
     } catch (apiError) {
       setError(apiError.message || "Unable to load visit details.");
     }
+  }
+
+  async function searchClinicalHistory(event, page = 1) {
+    event?.preventDefault();
+    if (!historyFilters.date && !historyFilters.search.trim()) {
+      setError("Choose a visit date or enter a patient name, UHID, registration number, or phone.");
+      return;
+    }
+    setHistoryLoading(true);
+    setError("");
+    try {
+      const response = await getOpdClinicalHistory({ ...historyFilters, page, pageSize: historyMeta.pageSize });
+      setHistoryVisits(response.items || []);
+      setHistoryMeta((current) => ({ ...current, ...(response.meta || {}), page }));
+    } catch (apiError) {
+      setError(apiError.message || "Unable to search previous clinical records.");
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function openHistoricalVisit(visit) {
+    setHistoricalView(true);
+    await loadVisit(visit.id, {
+      id: `history-${visit.id}`,
+      patientId: visit.patientId,
+      patientName: visit.patientName,
+      patientUhid: visit.patientUhid,
+      visitId: visit.id,
+      visitStatus: visit.status,
+      doctorName: visit.doctorName,
+      appointmentTime: "",
+      source: "Clinical history"
+    }, "Printable Rx");
   }
 
   async function loadMasters() {
@@ -810,8 +850,8 @@ export function OpdPage() {
       });
   }, [masters.labTests]);
   const canStartVisit = ["admin", "reception", "doctor"].includes(user?.role);
-  const canSaveVitals = ["admin", "doctor", "nursing"].includes(user?.role);
-  const canClinicalDocument = ["admin", "doctor"].includes(user?.role);
+  const canSaveVitals = ["admin", "doctor", "nursing"].includes(user?.role) && !historicalView;
+  const canClinicalDocument = ["admin", "doctor"].includes(user?.role) && !historicalView;
   const canPrintPrescription = ["admin", "doctor", "reception"].includes(user?.role);
 
   const handleDoctorFilter = async (event) => {
@@ -1350,6 +1390,34 @@ export function OpdPage() {
         </article>
       </section>
 
+      <section className="content-card opd-history-search">
+        <div className="section-header">
+          <div><div className="eyebrow">Past Clinical Records</div><h3>Find examinations and prescriptions from any date</h3></div>
+        </div>
+        <form className="toolbar" onSubmit={searchClinicalHistory}>
+          <input type="date" aria-label="Visit date" value={historyFilters.date} onChange={(event) => setHistoryFilters((current) => ({ ...current, date: event.target.value }))} />
+          <input className="search-input" aria-label="Patient search" placeholder="Patient name, UHID, registration number, or phone" value={historyFilters.search} onChange={(event) => setHistoryFilters((current) => ({ ...current, search: event.target.value }))} />
+          <Button type="submit" disabled={historyLoading}>{historyLoading ? "Searching..." : "Search records"}</Button>
+          <Button type="button" variant="secondary" onClick={() => { setHistoryFilters({ date: "", search: "" }); setHistoryVisits([]); setHistoryMeta({ page: 1, pageSize: 25, total: 0, totalPages: 1 }); }}>Clear</Button>
+        </form>
+        {historyVisits.length ? (
+          <div className="table-shell"><table className="data-table">
+            <thead><tr><th>Date</th><th>UHID</th><th>Patient</th><th>OPD No.</th><th>Doctor</th><th>Prescription</th><th></th></tr></thead>
+            <tbody>{historyVisits.map((visit) => (
+              <tr key={visit.id}><td>{visit.visitDate}</td><td><strong>{visit.patientUhid || "Not assigned"}</strong></td><td>{visit.patientName}</td><td>{visit.opdNumber}</td><td>{visit.doctorName || "Unassigned"}</td><td>{visit.prescriptionNumber || visit.prescriptionDiagnosis || "Not recorded"}</td><td><Button type="button" variant="secondary" onClick={() => openHistoricalVisit(visit)}>Open full record</Button></td></tr>
+            ))}</tbody>
+          </table></div>
+        ) : null}
+        {historyMeta.totalPages > 1 ? (
+          <div className="action-row">
+            <Button type="button" variant="secondary" disabled={historyLoading || historyMeta.page <= 1} onClick={() => searchClinicalHistory(null, historyMeta.page - 1)}>Previous</Button>
+            <span>Page {historyMeta.page} of {historyMeta.totalPages} · {historyMeta.total} records</span>
+            <Button type="button" variant="secondary" disabled={historyLoading || historyMeta.page >= historyMeta.totalPages} onClick={() => searchClinicalHistory(null, historyMeta.page + 1)}>Next</Button>
+          </div>
+        ) : null}
+        {!historyLoading && (historyFilters.date || historyFilters.search) && !historyVisits.length ? <div className="empty-state">No matching historical visits found.</div> : null}
+      </section>
+
       <section className="opd-grid opd-top-grid">
         <article className="content-card opd-workspace-card">
             <div className="section-header">
@@ -1358,6 +1426,8 @@ export function OpdPage() {
                 <h3>
                   {visitPayload?.visit?.patientName || "Select or start a visit from the queue"}
                 </h3>
+                {visitPayload ? <div className="timeline-copy"><strong>UHID:</strong> {visitPayload.patient?.uhid || selectedQueueItem?.patientUhid || "Not assigned"}</div> : null}
+                {historicalView && visitPayload ? <div className="status-pill completed">Historical record · read only</div> : null}
               </div>
             </div>
 
@@ -1451,6 +1521,7 @@ export function OpdPage() {
                   <div>
                     <strong>Token {item.tokenNumber}</strong>
                     <div className="timeline-copy">{item.patientName}</div>
+                    <div className="timeline-copy"><strong>UHID:</strong> {item.patientUhid || "Not assigned"}</div>
                     <div className="timeline-copy">{item.doctorName}</div>
                     <div className="timeline-copy">{item.appointmentTime} - {item.department}</div>
                     <div className="timeline-copy">{workflowStageLabels[workflowStageForQueueItem(item)] || "Reception entry"}</div>
@@ -1459,7 +1530,7 @@ export function OpdPage() {
                     <span className={`status-pill ${item.visitStatus || item.status}`}>
                       {item.visitStatus || item.status}
                     </span>
-                    <Button variant="secondary" onClick={() => startConsultation(item)} disabled={!item.visitId && !canStartVisit}>
+                    <Button variant="secondary" onClick={() => { setHistoricalView(false); startConsultation(item); }} disabled={!item.visitId && !canStartVisit}>
                       {item.visitId ? "Open" : "Start"}
                     </Button>
                   </div>
