@@ -141,6 +141,16 @@ export async function getQueue(date = todayDate(), doctorId = "") {
   return listOpdQueue(date, doctorId);
 }
 
+export async function getClinicalHistory(filters = {}) {
+  return listVisitRecords({
+    date: String(filters.date || "").trim(),
+    patientId: String(filters.patientId || "").trim(),
+    search: String(filters.search || "").trim(),
+    pageSize: filters.pageSize,
+    offset: filters.offset
+  });
+}
+
 export async function createVisit({ appointmentId }, actor = {}) {
   const appointment = await getAppointmentById(appointmentId);
 

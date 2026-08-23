@@ -1,0 +1,859 @@
+
+<h2 class="sr-only">SR-AIIMS Integrated Ayurvedic Clinical Tool — Prakriti, Diagnosis, Treatment, Nidan Panchak and Seasonal Diet in one programme</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);color:var(--text-primary)}
+.hdr{padding:.75rem 1rem;border:0.5px solid var(--border);border-radius:12px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;background:var(--surface-1)}
+.hdr h1{font-size:15px;font-weight:500}.hdr p{font-size:11px;color:var(--text-secondary)}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.tab{padding:5px 11px;border:0.5px solid var(--border);border-radius:var(--radius);font-size:12px;font-weight:500;cursor:pointer;background:var(--surface-2);color:var(--text-secondary);white-space:nowrap}
+.tab.on{background:var(--bg-accent);color:var(--text-accent);border-color:var(--border-accent)}
+.tp{display:none}.tp.on{display:block}
+.card{background:var(--surface-2);border:0.5px solid var(--border);border-radius:12px;padding:.9rem 1rem;margin-bottom:10px}
+.cardtitle{font-size:13px;font-weight:500;margin-bottom:3px;display:flex;align-items:center;gap:6px}
+.cardsub{font-size:11px;color:var(--text-secondary);margin-bottom:10px}
+.qb{margin-bottom:12px;padding-bottom:10px;border-bottom:0.5px solid var(--border)}
+.qb:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.ql{font-size:12px;font-weight:500;color:var(--text-primary);margin-bottom:1px}
+.qh{font-size:11px;color:var(--text-muted);margin-bottom:6px}
+.opts{display:flex;flex-direction:column;gap:4px}
+.opt{display:flex;align-items:flex-start;gap:7px;padding:6px 9px;border:0.5px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:11px;background:var(--surface-1);color:var(--text-secondary);line-height:1.5;transition:border-color .1s}
+.opt:hover{border-color:var(--border-strong);color:var(--text-primary)}
+.opt.sv{background:#eff6ff;border-color:#93c5fd;color:#1e3a8a}
+.opt.sp{background:#fffbeb;border-color:#fcd34d;color:#78350f}
+.opt.sk{background:#f0fdf4;border-color:#86efac;color:#14532d}
+.opt.sm{background:var(--bg-pro);border-color:var(--border-pro);color:var(--text-pro)}
+.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.dv{background:#3b82f6}.dp{background:#f59e0b}.dk{background:#22c55e}.dm{background:#8b5cf6}
+.badge{font-size:10px;font-weight:600;padding:1px 5px;border-radius:8px;flex-shrink:0;margin-top:1px}
+.bv{background:#dbeafe;color:#1d4ed8}.bp{background:#fef3c7;color:#92400e}.bk{background:#dcfce7;color:#166534}.bm{background:var(--bg-pro);color:var(--text-pro)}
+.sbwrap{margin:3px 0}
+.sbhd{display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary);margin-bottom:2px}
+.sb{height:6px;border-radius:3px;background:var(--surface-1);border:0.5px solid var(--border);overflow:hidden}
+.sf{height:100%;border-radius:3px;transition:width .35s}
+.fv{background:#3b82f6}.fp{background:#f59e0b}.fk{background:#22c55e}
+.mrow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:8px 0}
+.mc{background:var(--surface-1);border:0.5px solid var(--border);border-radius:var(--radius);padding:8px;text-align:center}
+.mv{font-size:20px;font-weight:500}.ml{font-size:10px;color:var(--text-secondary);margin-top:1px}
+.rb{border-radius:var(--radius);padding:8px 12px;font-size:12px;font-weight:500;margin:6px 0}
+.rbv{background:#eff6ff;color:#1e3a8a;border:0.5px solid #93c5fd}
+.rbp{background:#fffbeb;color:#78350f;border:0.5px solid #fcd34d}
+.rbk{background:#f0fdf4;color:#14532d;border:0.5px solid #86efac}
+.rbm{background:var(--bg-accent);color:var(--text-accent);border:0.5px solid var(--border-accent)}
+.info{background:var(--bg-accent);border:0.5px solid var(--border-accent);border-radius:var(--radius);padding:8px 11px;font-size:11px;color:var(--text-accent);margin-bottom:8px}
+.warn{background:var(--bg-warning);border:0.5px solid var(--border-warning);border-radius:var(--radius);padding:8px 11px;font-size:11px;color:var(--text-warning);margin-bottom:8px}
+.suc{background:var(--bg-success);border:0.5px solid var(--border-success);border-radius:var(--radius);padding:8px 11px;font-size:11px;color:var(--text-success);margin-bottom:8px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media(max-width:500px){.two{grid-template-columns:1fr}.mrow{grid-template-columns:1fr 1fr}}
+.fl{font-size:11px;color:var(--text-secondary);display:block;margin-bottom:2px}
+input,select{width:100%;padding:6px 9px;border:0.5px solid var(--border);border-radius:var(--radius);font-size:12px;background:var(--surface-2);color:var(--text-primary)}
+input:focus,select:focus{outline:none;border-color:var(--border-accent)}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:7px}
+.btn{background:var(--fill-accent);color:var(--on-accent);border:none;padding:8px 16px;border-radius:var(--radius);font-size:12px;font-weight:500;cursor:pointer;width:100%;margin-top:6px}
+.btn2{background:var(--surface-2);color:var(--text-primary);border:0.5px solid var(--border-strong);padding:6px 12px;border-radius:var(--radius);font-size:11px;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+.catbadge{display:inline-block;font-size:10px;font-weight:500;padding:2px 8px;border-radius:8px;margin-bottom:7px;margin-top:3px;background:var(--bg-accent);color:var(--text-accent)}
+.drow{display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:0.5px solid var(--border)}
+.drow:last-child{border-bottom:none}
+.dl{font-size:12px;font-weight:500;color:var(--text-primary)}
+.dv2{font-size:11px;color:var(--text-secondary)}
+.pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;margin:2px 3px 2px 0}
+.pv{background:#dbeafe;color:#1d4ed8}.pp{background:#fef3c7;color:#92400e}.pk{background:#dcfce7;color:#166534}.pm{background:var(--bg-pro);color:var(--text-pro)}
+.tblock{background:var(--surface-1);border:0.5px solid var(--border);border-radius:var(--radius);padding:9px 11px;margin-bottom:7px}
+.tbtitle{font-size:12px;font-weight:500;margin-bottom:5px;display:flex;align-items:center;gap:6px}
+.tbl{font-size:11px;color:var(--text-secondary);line-height:1.7}
+.ndp{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+@media(max-width:480px){.ndp{grid-template-columns:1fr}}
+.ndcard{background:var(--surface-1);border:0.5px solid var(--border);border-radius:var(--radius);padding:8px 10px}
+.ndcth{font-size:11px;font-weight:500;color:var(--text-accent);margin-bottom:4px}
+.ndctxt{font-size:11px;color:var(--text-secondary);line-height:1.6}
+hr.sep{border:none;border-top:0.5px solid var(--border);margin:10px 0}
+.seasongrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+@media(max-width:480px){.seasongrid{grid-template-columns:1fr 1fr}}
+.scard{border-radius:var(--radius);padding:8px;text-align:center;border:0.5px solid var(--border)}
+.stitle{font-size:11px;font-weight:500;margin-bottom:3px}
+.stxt{font-size:10px;color:var(--text-secondary);line-height:1.5}
+.yogagrid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.yogacard{background:var(--surface-1);border:0.5px solid var(--border);border-radius:var(--radius);padding:7px 9px}
+.ytitle{font-size:11px;font-weight:500;margin-bottom:2px}
+.ytxt{font-size:10px;color:var(--text-secondary)}
+.rxrow{display:flex;justify-content:space-between;align-items:flex-start;padding:4px 0;border-bottom:0.5px solid var(--border);font-size:11px}
+.rxrow:last-child{border-bottom:none}
+.diettable{width:100%;border-collapse:collapse;font-size:11px;margin-top:6px}
+.diettable th{background:var(--surface-1);padding:5px 7px;text-align:left;border-bottom:0.5px solid var(--border);font-weight:500;font-size:10px;color:var(--text-secondary)}
+.diettable td{padding:5px 7px;border-bottom:0.5px solid var(--border);color:var(--text-primary)}
+.diettable tr:last-child td{border-bottom:none}
+.diettable tr:nth-child(even) td{background:var(--surface-1)}
+select.dsel{width:auto;padding:4px 8px;font-size:11px}
+</style>
+
+<div class="hdr">
+  <div><h1><i class="ti ti-stethoscope" aria-hidden="true" style="font-size:16px;margin-right:4px;color:var(--text-accent)"></i>SR-AIIMS — Integrated Ayurvedic Clinical Programme</h1>
+  <p>Prakriti · Nidan Panchak · Treatment · Diet · Yoga · Ritucharya — all in one tool</p></div>
+  <button class="btn2" onclick="window.print()"><i class="ti ti-printer" aria-hidden="true"></i>Print</button>
+</div>
+
+<div class="tabs">
+  <button class="tab on" onclick="go('reg')">① Registration</button>
+  <button class="tab" onclick="go('prakriti')">② Prakriti</button>
+  <button class="tab" onclick="go('nidan')">③ Nidan Panchak</button>
+  <button class="tab" onclick="go('chikitsa')">④ Treatment plan</button>
+  <button class="tab" onclick="go('diet')">⑤ Diet & yoga</button>
+  <button class="tab" onclick="go('report')">⑥ Full report</button>
+</div>
+
+<!-- ═══ TAB 1: REGISTRATION ═══ -->
+<div id="t-reg" class="tp on">
+<div class="card">
+  <div class="cardtitle"><i class="ti ti-user-circle" aria-hidden="true" style="color:var(--text-accent)"></i>Patient registration / रोगी पंजीकरण</div>
+  <div class="cardsub">Fill details, then proceed through each tab. All data feeds into the final integrated report.</div>
+  <div class="frow"><div><label class="fl">Patient name</label><input type="text" id="r-nm" placeholder="Full name / पूरा नाम"></div><div><label class="fl">OPD no.</label><input type="text" id="r-opd" placeholder="SR-AIIMS-2026-"></div></div>
+  <div class="frow"><div><label class="fl">Age / आयु</label><input type="number" id="r-age" placeholder="Years" min="1" max="120"></div><div><label class="fl">Gender / लिंग</label><select id="r-gen"><option value="">Select</option><option>Male / पुरुष</option><option>Female / स्त्री</option><option>Other</option></select></div></div>
+  <div class="frow"><div><label class="fl">Chief complaint / मुख्य शिकायत</label><input type="text" id="r-cc" placeholder="Main symptom"></div><div><label class="fl">Duration / अवधि</label><input type="text" id="r-dur" placeholder="Days / weeks / months"></div></div>
+  <div class="frow"><div><label class="fl">Rashi / राशि</label>
+  <select id="r-rashi"><option value="">Select Rashi</option><option>Mesha (Aries) — Pitta</option><option>Vrishabha (Taurus) — Kapha</option><option>Mithuna (Gemini) — Vata-Pitta</option><option>Karka (Cancer) — Kapha-Pitta</option><option>Simha (Leo) — Pitta</option><option>Kanya (Virgo) — Vata-Kapha</option><option>Tula (Libra) — Vata-Pitta</option><option>Vrishchika (Scorpio) — Pitta-Kapha</option><option>Dhanu (Sagittarius) — Pitta</option><option>Makara (Capricorn) — Vata-Kapha</option><option>Kumbha (Aquarius) — Vata</option><option>Meena (Pisces) — Kapha-Pitta</option></select></div>
+  <div><label class="fl">Referring doctor</label><input type="text" id="r-doc" placeholder="Dr. name"></div></div>
+  <div class="frow"><div><label class="fl">Current Ritu (season)</label>
+  <select id="r-ritu"><option value="">Select current season</option><option value="vasanta">Vasanta (Spring — Chaitra/Vaishakha, Mar–May)</option><option value="greeshma">Greeshma (Summer — Jyeshtha/Ashadha, May–Jul)</option><option value="varsha">Varsha (Monsoon — Shravana/Bhadra, Jul–Sep)</option><option value="sharad">Sharad (Autumn — Ashwin/Kartik, Sep–Nov)</option><option value="hemanta">Hemanta (Pre-winter — Margashirsha/Paush, Nov–Jan)</option><option value="shishira">Shishira (Winter — Magha/Phalguna, Jan–Mar)</option></select></div>
+  <div><label class="fl">Phone / मोबाइल</label><input type="text" id="r-ph" placeholder="Mobile number"></div></div>
+</div>
+<button class="btn" onclick="go('prakriti')">Next — Prakriti Parikshan <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+</div>
+
+<!-- ═══ TAB 2: PRAKRITI ═══ -->
+<div id="t-prakriti" class="tp">
+<div class="info"><i class="ti ti-info-circle" aria-hidden="true"></i> Select ONE best-matching option per question. V = Vata · P = Pitta · K = Kapha. Score updates live.</div>
+<div id="pqs"></div>
+<div class="card">
+  <div class="cardtitle"><i class="ti ti-chart-pie-2" aria-hidden="true" style="color:var(--text-accent)"></i>Live prakriti score</div>
+  <div id="pscore"></div>
+</div>
+<button class="btn" onclick="go('nidan')">Next — Nidan Panchak <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+</div>
+
+<!-- ═══ TAB 3: NIDAN PANCHAK ═══ -->
+<div id="t-nidan" class="tp">
+<div class="info"><i class="ti ti-info-circle" aria-hidden="true"></i> Nidan Panchak — 5-fold Ayurvedic diagnostic framework: Nidana · Purvarupa · Rupa · Upashaya · Samprapti</div>
+
+<div class="card">
+  <div class="cardtitle"><i class="ti ti-stethoscope" aria-hidden="true" style="color:var(--text-accent)"></i>Disease selection / रोग चयन</div>
+  <div class="cardsub">Select the primary disease for Nidan Panchak analysis</div>
+  <label class="fl">Select disease / रोग चुनें</label>
+  <select id="dis-sel" onchange="renderNidan()">
+    <option value="">— Select disease —</option>
+    <option value="amavata">Amavata (Rheumatoid Arthritis)</option>
+    <option value="jwara">Jwara (Fever)</option>
+    <option value="prameha">Prameha / Madhumeha (Diabetes)</option>
+    <option value="kustha">Kustha (Skin diseases)</option>
+    <option value="shiroroga">Shiro Roga (Headache / Migraine)</option>
+    <option value="atisara">Atisara (Diarrhoea / IBS)</option>
+    <option value="shvasa">Shvasa / Tamaka Shvasa (Asthma)</option>
+    <option value="pandu">Pandu Roga (Anaemia)</option>
+    <option value="arsha">Arsha (Haemorrhoids)</option>
+    <option value="vatavyadhi">Vata Vyadhi (Neurological / Joint diseases)</option>
+    <option value="hridroga">Hrid Roga (Heart disease)</option>
+    <option value="udar">Udar Roga (Abdominal / Liver / Ascites)</option>
+    <option value="stri">Stri Roga (Gynaecological)</option>
+    <option value="rajayakshma">Rajayakshma (TB / Wasting)</option>
+    <option value="gulma">Gulma (Abdominal lump / Tumour)</option>
+  </select>
+</div>
+<div id="nidan-out"></div>
+
+<div class="card" style="margin-top:8px">
+  <div class="cardtitle"><i class="ti ti-activity" aria-hidden="true" style="color:var(--text-accent)"></i>Ashtavidha Pariksha findings / अष्टविध परीक्षा</div>
+  <div class="cardsub">Select findings from each of the 8 examination components</div>
+  <div id="astha-qs"></div>
+</div>
+
+<div class="card">
+  <div class="cardtitle"><i class="ti ti-clipboard-list" aria-hidden="true" style="color:var(--text-accent)"></i>Dashvidha Pariksha / दशविध परीक्षा</div>
+  <div class="cardsub">10-fold patient assessment (Charaka Samhita Vimana Sthana 8/94)</div>
+  <div id="dash-qs"></div>
+</div>
+
+<button class="btn" onclick="go('chikitsa')">Next — Treatment plan <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+</div>
+
+<!-- ═══ TAB 4: CHIKITSA ═══ -->
+<div id="t-chikitsa" class="tp">
+<div class="info"><i class="ti ti-info-circle" aria-hidden="true"></i> Treatment plan auto-generates based on Prakriti + Nidan Panchak. Review and customise below.</div>
+<div id="chikitsa-out"></div>
+<button class="btn" onclick="go('diet')">Next — Diet & yoga <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+</div>
+
+<!-- ═══ TAB 5: DIET & YOGA ═══ -->
+<div id="t-diet" class="tp">
+<div class="info"><i class="ti ti-info-circle" aria-hidden="true"></i> Personalised diet, yoga, Ritucharya and Dinacharya based on your Prakriti and selected season.</div>
+<div id="diet-out"></div>
+</div>
+
+<!-- ═══ TAB 6: FULL REPORT ═══ -->
+<div id="t-report" class="tp">
+<div id="rep-out"><div class="warn"><i class="ti ti-alert-triangle" aria-hidden="true"></i> Complete all tabs first, then click "Generate full report".</div></div>
+<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+  <button class="btn2" onclick="buildReport()"><i class="ti ti-refresh" aria-hidden="true"></i> Regenerate</button>
+  <button class="btn2" onclick="sendPrompt('Based on my SR-AIIMS assessment, explain the Samprapti (pathogenesis) of my diagnosed disease in detail with Dosha-Dushya-Srotas analysis and treatment rationale.')"><i class="ti ti-flask" aria-hidden="true"></i> Samprapti analysis ↗</button>
+  <button class="btn2" onclick="sendPrompt('Create a 7-day complete Ayurvedic meal plan for my Prakriti and disease as assessed at SR-AIIMS, with breakfast, lunch, dinner and snacks in Hindi and English.')"><i class="ti ti-salad" aria-hidden="true"></i> 7-day meal plan ↗</button>
+  <button class="btn2" onclick="sendPrompt('Suggest the complete Panchakarma protocol (Poorvakarma, Pradhanakarma, Paschatakarma) with drug names and duration for my SR-AIIMS diagnosis.')"><i class="ti ti-spa" aria-hidden="true"></i> Panchakarma details ↗</button>
+</div>
+</div>
+
+<script>
+const PQS=[
+  {cat:"Shareera (physical) — शरीर",qs:[
+    {l:"Body frame / काया",h:"शरीर रचना",o:[{d:"V",e:"Thin, lean, bony, very tall or very short",h:"पतला, दुबला, हड्डियाँ उभरी"},{d:"P",e:"Medium, muscular, well-proportioned",h:"मध्यम, मांसल, अनुपातिक"},{d:"K",e:"Large, heavy, broad, well-built",h:"भारी, चौड़ा, सुदृढ़"}]},
+    {l:"Skin / त्वचा",h:"त्वचा की प्रकृति",o:[{d:"V",e:"Dry, rough, cold, thin, cracked",h:"रूखी, खुरदरी, ठंडी, फटती है"},{d:"P",e:"Warm, oily, soft, rashes, freckles",h:"गर्म, तैलीय, मुलायम, चकत्ते"},{d:"K",e:"Oily, smooth, thick, cool, lustrous",h:"तैलीय, चिकनी, मोटी, ठंडी, चमकदार"}]},
+    {l:"Hair / केश",h:"बालों की प्रकृति",o:[{d:"V",e:"Dry, frizzy, brittle, split-ends, thin",h:"रूखे, घुंघराले, भंगुर, पतले"},{d:"P",e:"Fine, silky, early grey / balding",h:"बारीक, रेशमी, जल्दी सफेद/गंजापन"},{d:"K",e:"Thick, oily, wavy, lustrous, dense",h:"घने, तैलीय, लहरदार, चमकदार"}]},
+    {l:"Eyes / नेत्र",h:"आँखों की प्रकृति",o:[{d:"V",e:"Small, dry, nervous, brownish, darting",h:"छोटी, रूखी, चंचल, भूरी"},{d:"P",e:"Medium, sharp, bright, reddish, intense",h:"मध्यम, तीक्ष्ण, चमकदार, लाल रंग"},{d:"K",e:"Large, calm, moist, beautiful, white sclera",h:"बड़ी, शांत, नम, सुंदर, सफेद श्वेतपटल"}]},
+    {l:"Appetite / भूख",h:"क्षुधा",o:[{d:"V",e:"Variable — sometimes ravenous, sometimes none",h:"अनिश्चित — कभी तेज़ कभी बिल्कुल नहीं"},{d:"P",e:"Strong, sharp — irritable if meal missed",h:"तेज़ — भोजन न मिले तो चिड़चिड़ापन"},{d:"K",e:"Slow, steady — easily skips meals",h:"धीमी — भोजन छोड़ सकते हैं"}]},
+    {l:"Digestion / पाचन",h:"पाचन शक्ति",o:[{d:"V",e:"Irregular, gas, bloating, constipation",h:"अनियमित, गैस, पेट फूलना, कब्ज़"},{d:"P",e:"Fast, strong, hyperacidity, burning",h:"तेज़, अम्लपित्त, जलन"},{d:"K",e:"Slow, heavy, sluggish, nausea after eating",h:"धीमा, भारीपन, खाने के बाद मतली"}]},
+    {l:"Bowel habit / मलत्याग",h:"",o:[{d:"V",e:"Constipation, dry hard stools, straining",h:"कब्ज़, सूखा-कठोर मल, ज़ोर लगाना"},{d:"P",e:"Regular 1–2/day, loose tendency, burning",h:"नियमित 1–2 बार, ढीला, जलन"},{d:"K",e:"Regular 1/day, bulky, mucousy, slow",h:"नियमित 1 बार, भारी, बलगमी"}]},
+    {l:"Sweat / पसीना",h:"",o:[{d:"V",e:"Scanty, little or no body odour",h:"बहुत कम, गंध नहीं"},{d:"P",e:"Profuse, strong unpleasant odour",h:"अधिक, तेज़ दुर्गंध"},{d:"K",e:"Moderate, mild or pleasant odour",h:"मध्यम, हल्की गंध"}]},
+    {l:"Sleep / निद्रा",h:"",o:[{d:"V",e:"Light, disturbed, vivid dreams, wakes easily",h:"हल्की, बाधित, सपने, जल्दी जागना"},{d:"P",e:"Moderate 6–7 hrs, wakes refreshed",h:"मध्यम 6–7 घंटे, तरोताज़ा उठना"},{d:"K",e:"Deep, long 8–10 hrs, hard to wake",h:"गहरी, 8–10 घंटे, उठाना मुश्किल"}]},
+    {l:"Energy / ऊर्जा",h:"",o:[{d:"V",e:"Bursts of energy then sudden fatigue",h:"ऊर्जा की उछालें — फिर अचानक थकान"},{d:"P",e:"Sustained, goal-driven, pushes through",h:"निरंतर, लक्ष्य-केंद्रित, थकान पार"},{d:"K",e:"Slow to start, excellent endurance",h:"धीमे शुरू, फिर उत्तम सहनशक्ति"}]},
+  ]},
+  {cat:"Manasika (mental) — मानसिक",qs:[
+    {l:"Memory / स्मृति",h:"",o:[{d:"V",e:"Quick to learn, quick to forget",h:"जल्दी सीखते, जल्दी भूलते"},{d:"P",e:"Sharp, precise, good long-term",h:"तीक्ष्ण, सटीक, दीर्घकालिक"},{d:"K",e:"Slow to learn, never forgets",h:"धीरे सीखते, कभी नहीं भूलते"}]},
+    {l:"Mind / मन",h:"",o:[{d:"V",e:"Quick, creative, anxious, distracted",h:"तेज़, कल्पनाशील, चिंतित, भटकता"},{d:"P",e:"Sharp, analytical, focused, perfectionist",h:"तीक्ष्ण, विश्लेषणात्मक, पूर्णतावादी"},{d:"K",e:"Calm, stable, slow, compassionate",h:"शांत, स्थिर, धीमा, दयालु"}]},
+    {l:"Emotions under stress",h:"तनाव में भावनाएँ",o:[{d:"V",e:"Fear, anxiety, panic, worry",h:"भय, चिंता, घबराहट"},{d:"P",e:"Anger, irritability, frustration, criticism",h:"क्रोध, चिड़चिड़ापन, निराशा"},{d:"K",e:"Withdrawal, depression, attachment",h:"अलगाव, उदासी, आसक्ति"}]},
+    {l:"Speech / वाणी",h:"",o:[{d:"V",e:"Fast, talkative, jumps topics",h:"तेज़, बातूनी, विषय बदलते"},{d:"P",e:"Sharp, assertive, argumentative",h:"तीक्ष्ण, आत्मविश्वासी, तर्कशील"},{d:"K",e:"Slow, sweet, deliberate, melodious",h:"धीमी, मीठी, सुरीली"}]},
+    {l:"Faith / श्रद्धा",h:"",o:[{d:"V",e:"Variable, changes with mood",h:"परिवर्तनशील, मूड अनुसार बदलती"},{d:"P",e:"Strong, focused, can become rigid",h:"दृढ़, केंद्रित, कठोर हो सकती"},{d:"K",e:"Steady, deep, loyal, traditional",h:"स्थिर, गहरी, वफादार, परंपरागत"}]},
+  ]},
+];
+
+const NIDAN={
+  amavata:{name:"Amavata / Rheumatoid Arthritis",
+    nidana:"Viruddha Ahara + Viruddha Cheshta simultaneously (incompatible food + exercise); Mandagni (chronically weak digestion); emotional stress (Shoka, Chinta); genetic predisposition (Beeja Dosha); cold-damp exposure",
+    nidana_h:"विरुद्ध आहार + विरुद्ध चेष्टा; मंदाग्नि; शोक, चिंता; आनुवंशिक; ठंड-नमी का संपर्क",
+    purvarupa:"Generalised body ache (Angamarda), anorexia (Aruchi), heaviness (Gaurava), drowsiness (Tandra), thirst (Trishna)",
+    purvarupa_h:"अंगमर्द, अरुचि, गौरव, तंद्रा, तृष्णा",
+    rupa:"Bilateral symmetric joint pain + swelling (Sandhi Shoola + Shotha), fever (Jwara), body ache (Angamarda), anorexia, indigestion (Apakti) — morning stiffness hallmark",
+    rupa_h:"द्विपक्षीय सन्धि शूल + शोथ, ज्वर, अंगमर्द, अरुचि, अपक्ति — सुबह जकड़न",
+    upashaya:"Langhana (fasting), Deepana-Pachana (digestive herbs — Trikatu), Sweating (Swedana), Castor oil (Eranda Taila) purgation",
+    upashaya_h:"लंघन, दीपन-पाचन (त्रिकटु), स्वेदन, एरंड तेल विरेचन",
+    samprapti:"Mandagni → Ama formation (अम उत्पत्ति) → Ama + Vata Samsarga (संसर्ग) → Hridaya first → Spreads to all joints (Sarvanga Sthanasamshraya) → Sandhi Gata Ama",
+    samprapti_h:"मंदाग्नि → आम + वात संसर्ग → हृदय → सर्वांग स्थानसंश्रय → संधिगत आम",
+    dosha:"Vata + Ama (Ama is sine qua non)",herbs:"Trikatu, Guggulu (Yogaraj / Mahayogaraj), Sunthi, Rasna Saptak Kwatha, Punarnavadi Kwatha, Dashmoola",
+    panchkarma:"Svedana (sudation) → Virechana (purgation with Eranda Taila) → Basti (Erandamooladi Niruha Basti)",
+    avoid_diet:"Curd (Dadhi) — contraindicated strictly; fermented foods; fish + milk; Viruddha Ahara; cold water; raw salads",
+    good_diet:"Bitter gourd (Karela), Patola, Drumstick, Ginger, Garlic, Old Rice, Moong dal, Punarnava, warm water only"},
+  jwara:{name:"Jwara (Fever / Pyrexia)",
+    nidana:"Vegavarodha (suppression of natural urges); Shoka, Krodha, Bhaya; Viruddha Ahara; Ajirna (indigestion); Agantuja (external infection — Krimi)",
+    nidana_h:"वेगावरोध; शोक, क्रोध, भय; विरुद्ध आहार; अजीर्ण; बाह्य संक्रमण",
+    purvarupa:"Body ache (Angamarda), anorexia (Aruchi), yawning (Vijrimbha), lethargy (Alasya), heaviness (Gaurava), headache (Shiro Shula), shivering",
+    purvarupa_h:"अंगमर्द, अरुचि, विजृम्भा, आलस्य, गौरव, शिरोशूल, कंपकंपी",
+    rupa:"Body heat (Santapa), headache, anorexia, thirst (Trishna), bitter taste (Vairasya), body ache — type varies by Dosha predominance",
+    rupa_h:"सन्ताप, शिरोशूल, अरुचि, तृष्णा, वैरस्य, अंगमर्द",
+    upashaya:"Langhana (mandatory in early Jwara — first 3–7 days), Deepana herbs, Guduchi, Kiratatikta, Nimba",
+    upashaya_h:"लंघन (पहले 3–7 दिन अनिवार्य), दीपन जड़ी-बूटियाँ, गुडूची, किरातिक्त",
+    samprapti:"Dosha aggravation → Amashaya (stomach) → Rasa Dhatu Dushti → Sarvadaihika Santapa (whole body heat)",
+    samprapti_h:"दोष प्रकोप → आमाशय → रस धातु दुष्टि → सार्वदैहिक सन्ताप",
+    dosha:"Tridosha — Pitta pradhana in acute; Ama-Vata in chronic",herbs:"Guduchi (Giloy), Kiratatikta, Nimba, Patola, Parpata, Saptaparna — Sudarshan Churna, Mahasudarshan Kwatha",
+    panchkarma:"Langhana first; Swedana (warm bath, not steam); Virechana in Pittaja Jwara when acute resolved",
+    avoid_diet:"All heavy food; milk; meat; fried; cold water during acute fever",
+    good_diet:"Peya (thin rice gruel), Manda (rice water), Yusha (thin dal), warm water with Sunthi"},
+  prameha:{name:"Prameha / Madhumeha (Diabetes Mellitus)",
+    nidana:"Avyayama (sedentary lifestyle); Divaswapna (day sleep); Madhura/Guru/Snigdha excess diet; Gramya/Anupa Mamsa; Navanna; Shukra-Beeja Dosha (hereditary); Stress",
+    nidana_h:"अव्यायाम; दिवास्वप्न; मधुर/गुरु/स्निग्ध आहार; आनुवंशिक; तनाव",
+    purvarupa:"Sweetness in mouth (Mukha Madhurya); burning palms/soles; turbid urine; frequent urination; Kapha symptoms (coating on tongue/teeth)",
+    purvarupa_h:"मुख माधुर्य; हाथ-पैरों में जलन; गंदला मूत्र; बार-बार मूत्र; कफ लक्षण",
+    rupa:"Prabhuta Mutrata (polyuria), Avila Mutrata (turbid urine), sweetness in urine, fatigue, carbuncles, peripheral neuropathy — 20 types",
+    rupa_h:"प्रभूत मूत्रता, अविल मूत्रता, मूत्र माधुर्य, दौर्बल्य, पिडका, 20 प्रकार",
+    upashaya:"Vyayama (exercise — key), Langhana, Honey (old), Barley, Bitter foods (Tikta Rasa), Haridra, Karela",
+    upashaya_h:"व्यायाम (मुख्य), लंघन, पुराना शहद, जौ, तिक्त रस, हरिद्रा, करेला",
+    samprapti:"Kapha → Medas dushti → Mutravaha Strotas → Basti (bladder) → Vrikka (kidney) — Ojakshaya in Madhumeha",
+    samprapti_h:"कफ → मेद दुष्टि → मूत्रवह स्रोतस → बस्ति → ओज क्षय (मधुमेह में)",
+    dosha:"Kapha primary + Pitta secondary; Vata in Madhumeha (Type 1)",herbs:"Karela (Momordica), Jambu Beeja, Gudmar (Gymnema), Vijayasar, Haridra, Triphala, Chandraprabha Vati",
+    panchkarma:"Virechana (purgation — primary for Prameha); Vamana in Kaphaja type; Udwarthana (dry powder massage)",
+    avoid_diet:"All sweets; sugar; jaggery; rice; wheat in excess; cold drinks; curd; day sleep; sedentary habits; fermented foods",
+    good_diet:"Bitter gourd, Methi, Jamun, Amla, Barley (primary grain), Horse gram, Karela juice, Vijayasar wood water"},
+  kustha:{name:"Kustha (Skin Diseases — Psoriasis, Eczema, Dermatitis)",
+    nidana:"Viruddha Ahara (incompatible food — milk+fish, honey+ghee equal); Papkarma (Manasa Nidana); excess sour/salty/pungent/unctuous diet; day sleep after fatty meals; Vegavarodha; Beeja Dosha",
+    nidana_h:"विरुद्ध आहार; अति अम्ल/लवण/तीखा; दिवास्वप्न; वेगावरोध; बीज दोष",
+    purvarupa:"Pricking (Toda), itching (Kandu), mild swelling, discolouration, numbness (Suptatva), excess/absent sweating, dryness",
+    purvarupa_h:"तोद, कंडू, शोफ, वर्ण परिवर्तन, सुप्तता, अधिक/अस्वेद, रुक्षता",
+    rupa:"Skin discolouration, patches, itching, scaling, oozing — 18 types (7 Mahakustha + 11 Kshudra Kustha)",
+    rupa_h:"त्वचा वर्ण परिवर्तन, कंडू, स्राव, पपड़ी — 18 प्रकार (7 महाकुष्ठ + 11 क्षुद्रकुष्ठ)",
+    upashaya:"Tikta (bitter) diet; Shodhana therapy; Neem preparations; Khadira; bloodletting",
+    upashaya_h:"तिक्त आहार; शोधन; नीम; खदिर; रक्तमोक्षण",
+    samprapti:"Tridosha → Rakta+Mamsa+Lasika+Tvak (7 causative factors + 4 Dushya) → 7 skin layers progressively",
+    samprapti_h:"त्रिदोष → रक्त+मांस+लसिका+त्वक् → 7 त्वचा परतें क्रमशः",
+    dosha:"Tridosha + Rakta + Mamsa + Lasika",herbs:"Khadira, Neem, Haridra, Manjishtha, Sariva, Triphala, Guduchi, Arogyavardhini Vati, Pancha Tikta Ghrita",
+    panchkarma:"Vamana (primary for Kaphaja Kustha) → Virechana → Raktamokshana (bloodletting — key for Kustha)",
+    avoid_diet:"Fish+milk; meat+milk; salt+sour+pungent excess; curd; fried; Viruddha combos; fermented",
+    good_diet:"Bitter gourd, Neem, Patola, Drumstick, Old rice, Barley, Moong dal, Khadira-Nimba Kashaya"},
+  shiroroga:{name:"Shiro Roga — Suryavarta / Ardhavabhedaka (Headache / Migraine)",
+    nidana:"Suppression of sneezing/yawning (Vataja); Sun/fire exposure, anger (Pittaja); Cold food, excessive Kapha diet (Kaphaja); Head trauma (Agantuja); Stress, grief",
+    nidana_h:"छींक/जंभाई दबाना; धूप, क्रोध; ठंडा-कफज आहार; आघात; तनाव",
+    purvarupa:"Dizziness (Bhrama), head heaviness (Shirogaurava), anorexia, sensory weakness",
+    purvarupa_h:"भ्रम, शिरोगौरव, अरुचि, इंद्रिय दौर्बल्य",
+    rupa:"Throbbing/burning/pressure headache depending on Dosha — Suryavarta (sun-related); Ardhavabhedaka (unilateral); Anantavata (trigeminal)",
+    rupa_h:"स्पंदन/जलन/दाब — सूर्यावर्त; अर्धावभेदक; अनंतवात",
+    upashaya:"Nasya (medicated nasal drops) — Anu Taila; Shirobasti; cooling or warming per Dosha",
+    upashaya_h:"नस्य (अणु तेल); शिरोबस्ति; दोष अनुसार शीतल या उष्ण",
+    samprapti:"Dosha → Shiras (head — Uttamanga) → Manovaha + Rasavaha Strotas → Adhipati Marma",
+    samprapti_h:"दोष → शिरस् → मनोवह + रसवह स्रोतस → अधिपति मर्म",
+    dosha:"Varies by type — Vataja, Pittaja, Kaphaja, Raktaja, Tridoshaja",herbs:"Brahmi, Shankhapushpi, Jatamansi, Bhringaraja, Godanti Bhasma, Pathyadi Kwatha, Sitopaladi Churna",
+    panchkarma:"Nasya (primary — 7/14/21 days); Shirodhara (medicated oil on forehead); Shirobasti; Virechana (Pitta type)",
+    avoid_diet:"Strong sunlight; spicy food; alcohol; fermented; loud noise; stress; screen excess",
+    good_diet:"Pomegranate, Amla, Ghee, Milk, Cool diet (Pitta type); Warm spiced food (Vata type)"},
+  atisara:{name:"Atisara (Diarrhoea / IBS / Dysentery)",
+    nidana:"Ajirna Bhojana; Viruddha/Guru/Rooksha Ahara; contaminated water/food; emotional causes (Shoka, Bhaya); Ama; Krimi; abdominal trauma",
+    nidana_h:"अजीर्ण भोजन; दूषित जल; शोक, भय; आम; कृमि",
+    purvarupa:"Atopa (gurgling/borborygmi), abdominal pain, anorexia, weakness",
+    purvarupa_h:"आटोप, उदरशूल, अरुचि, दौर्बल्य",
+    rupa:"Frequent liquid/semi-liquid stools — 6 types: Vataja (scanty, painful), Pittaja (burning, yellowish), Kaphaja (mucousy), Sannipataja, Bhayaja, Shokaja",
+    rupa_h:"बार-बार तरल मल — 6 प्रकार: वातज, पित्तज, कफज, सन्निपातज, भयज, शोकज",
+    upashaya:"Langhana + Deepana; Bilva (Bael) — primary drug; Kutaja; Takra (buttermilk)",
+    upashaya_h:"लंघन + दीपन; बेल (बिल्व) — मुख्य औषधि; कुटज; तक्र",
+    samprapti:"Dosha → Apana Vata vitiation → Purishavaha Strotas → Adho-Gati (downward movement)",
+    samprapti_h:"अपान वात → पुरीषवह स्रोतस → अधोगति",
+    dosha:"Vata (Apana) primary + Pitta (Pittaja type) + Ama",herbs:"Bilva (Bael), Kutaja, Nagarmotha, Dhania, Musta, Kutajarishta, Bilvarishta, Takrarishta",
+    panchkarma:"Grahi (astringent) therapy first; Basti (Anuvasana) in Vataja after acute control",
+    avoid_diet:"Raw salads; heavy food; milk (in acute); fried; cold water; fermented; stress eating",
+    good_diet:"Peya, Manda, Buttermilk (Takra), Bael sherbet, Pomegranate juice, Old rice, Moong dal"},
+  shvasa:{name:"Tamaka Shvasa (Bronchial Asthma)",
+    nidana:"Cold food/water/environment; dust, smoke; Kapha-aggravating diet; emotional triggers; cold season exposure; Prana Vata vitiation",
+    nidana_h:"ठंडा पानी/भोजन; धूल, धुआं; कफज आहार; भावनात्मक; ठंडे मौसम",
+    purvarupa:"Common cold (Pratishyaya), cough (Kasa), salivation (Praseka), heaviness in chest",
+    purvarupa_h:"प्रतिश्याय, कास, प्रसेक, उरः गौरव",
+    rupa:"Attacks of dyspnoea worse at night; wheezing; cough with copious mucus; relief in sitting position; attacks on cold exposure",
+    rupa_h:"रात में दौरे; घरघराहट; बलगम वाली खाँसी; बैठने पर राहत; ठंड से दौरे",
+    upashaya:"Warm foods; Vamana (emesis — primary); Dhoomapana (medicated smoking); Kapha-Vata pacifying",
+    upashaya_h:"गर्म भोजन; वमन (मुख्य); धूमपान (औषधीय); कफ-वात शमन",
+    samprapti:"Vata (Prana) + Kapha → Pranavaha Strotas obstruction → Uras → Kaphavrita Prana Vata",
+    samprapti_h:"प्राण वात + कफ → प्राणवह स्रोतस अवरोध → उरः → कफावृत प्राण वात",
+    dosha:"Vata (Prana) + Kapha — Kaphavrita Prana Vata",herbs:"Kanakasava, Vasa (Adhatoda), Kantakari, Pushkarmool, Shringyadi Churna, Talisadi Churna, Sitopaladi",
+    panchkarma:"Vamana (primary — clears Kapha from Pranavaha Strotas); Nasya; Dhoomapana; Virechana",
+    avoid_diet:"Cold water; cold food; curd; banana; ice cream; dust; smoke; cold environment; night eating",
+    good_diet:"Warm water only; Ginger tea; Trikatu; Garlic; Honey (not heated); Light khichadi"},
+  pandu:{name:"Pandu Roga (Anaemia / Iron Deficiency / Pallor)",
+    nidana:"Viruddha Ahara; Excess sour/salty/pungent; Geophagy (Mrittikaabhakshana); Vegavarodha; wasting diseases; Shoka; overwork; Rakta Dushti",
+    nidana_h:"विरुद्ध आहार; अति खट्टा/नमकीन; मिट्टी खाना; शोक; अधिक परिश्रम; रक्त दुष्टि",
+    purvarupa:"Pallor (Tvak Vaivarnya), weakness, fatigue (Kshina), mild breathlessness",
+    purvarupa_h:"त्वक् वैवर्ण्य, दौर्बल्य, श्रम, हल्की श्वास",
+    rupa:"Pallor of skin/conjunctiva/nails, weakness, palpitations, breathlessness, oedema in severe — 5 types by Dosha",
+    rupa_h:"त्वचा/श्वेतपटल/नाखून की पीलापन, दौर्बल्य, धड़कन, 5 प्रकार",
+    upashaya:"Iron-rich diet; Mandura Bhasma; Loha Bhasma; Pomegranate; Amalaki; Punarnava",
+    upashaya_h:"लोहयुक्त आहार; मंडूर भस्म; लोह भस्म; अनार; आँवला; पुनर्नवा",
+    samprapti:"Pitta aggravation → Rakta Dushti → Rasa+Rakta Dhatu Kshaya → Pallor",
+    samprapti_h:"पित्त प्रकोप → रक्त दुष्टि → रस+रक्त धातु क्षय → वैवर्ण्य",
+    dosha:"Pitta primary → Rakta Dushti",herbs:"Mandura Bhasma, Loha Bhasma, Punarnava Mandura, Drakshadi Kwatha, Amalaki, Pomegranate, Triphala + iron vessel water",
+    panchkarma:"Virechana (Pitta type); Raktamokshana if Rakta Dushti severe; Rasayana after Shodhana",
+    avoid_diet:"Very sour foods; excess salt; Viruddha; alcohol; heavy food; raw salads; processed foods",
+    good_diet:"Pomegranate, Amla, Dates, Beetroot, Spinach, Jaggery + Ghee, Sesame, Moong dal"},
+  arsha:{name:"Arsha (Haemorrhoids / Piles)",
+    nidana:"Guru/Rooksha/Sheeta Ahara; Vegavarodha (suppression of defecation); Sedentary; Hereditary (Sahaja); prolonged standing; constipation",
+    nidana_h:"गुरु/रूक्ष/शीत आहार; मलवेग धारण; बैठे रहना; आनुवंशिक; कब्ज़",
+    purvarupa:"Constipation, heaviness in anal region, occasional bleeding",
+    purvarupa_h:"कब्ज़, गुदा में भारीपन, कभी-कभी रक्तस्राव",
+    rupa:"Piles mass (Ankura) at anal margin — 6 types: Vataja (dark, painful), Pittaja (red, bleeding), Kaphaja (pale, mucousy), Raktaja (bleeding), Sannipataja, Sahaja",
+    rupa_h:"गुदांकुर — 6 प्रकार: वातज, पित्तज, कफज, रक्तज, सन्निपातज, सहज",
+    upashaya:"Virechana; Kshara application (chemical cauterisation); Agnikarma (thermal); Basti",
+    upashaya_h:"विरेचन; क्षार कर्म; अग्निकर्म; बस्ति",
+    samprapti:"Tridosha → Guda Strotas → Angkura formation at 3 Guda Vallis",
+    samprapti_h:"त्रिदोष → गुद स्रोतस → गुदांकुर — 3 गुद वलियों पर",
+    dosha:"Tridosha — Vata primary causing constipation-dryness",herbs:"Abhayarishta, Arshkuthar Ras, Triphala, Chitraka, Nagkesar, Kankayan Vati, Haritaki, Castor oil",
+    panchkarma:"Virechana (primary); Kshara Karma (chemical cauterisation); Basti; Agnikarma for external piles",
+    avoid_diet:"Spicy; deep fried; alcohol; refined flour; constipating foods; suppressing defecation urge; sedentary",
+    good_diet:"Old rice, Moong, Barley, Buttermilk, Castor oil, High-fibre vegetables, Haritaki at bedtime"},
+  vatavyadhi:{name:"Vata Vyadhi (Neurological / Joint diseases — Gridhrasi, Paksha Vata, Manyastambha)",
+    nidana:"Dhatu Kshaya (tissue depletion); Avarana (obstruction by Kapha/Ama); Rooksha/Laghu/Sheeta diet; trauma (Abhighata); Vegavarodha; Shoka, Chinta",
+    nidana_h:"धातु क्षय; आवरण (कफ/आम); रूक्ष/लघु/शीत आहार; आघात; वेगावरोध; शोक",
+    purvarupa:"Pricking (Toda), numbness (Suptatva), stiffness (Stabdhata), twitching (Spandana)",
+    purvarupa_h:"तोद, सुप्तता, स्तब्धता, स्पंदन",
+    rupa:"80 types of Vata diseases — Paksha Vata (hemiplegia), Gridhrasi (sciatica), Avabahuka (frozen shoulder), Manyastambha (cervical spondylosis), Ardita (facial palsy)",
+    rupa_h:"80 वात व्याधियाँ — पक्षवात, ग्रध्रसी, अवबाहुक, मन्यास्तम्भ, अर्दित",
+    upashaya:"Snehana (oiling); Swedana (fomentation); Basti (enema — main treatment for Vata); Warm unctuous diet",
+    upashaya_h:"स्नेहन; स्वेदन; बस्ति (वात का मुख्य उपचार); उष्ण स्निग्ध आहार",
+    samprapti:"Two pathways: 1. Dhatukshaya → Vata fills void 2. Margavarana (Kapha/Ama blocks channels → Vata vitiation)",
+    samprapti_h:"1. धातुक्षयज वात 2. मार्गावरण (कफ/आम अवरोध → वात विकृति)",
+    dosha:"Vata primary (two types: Dhatukshayaja and Margavaranaja)",herbs:"Dashamoola, Bala, Ashwagandha, Rasna, Nirgundi, Maharasnadi Kwatha, Yogaraj Guggulu, Mahanarayan Tail",
+    panchkarma:"Snehana (Abhyanga with Mahanarayan oil) → Swedana → Basti (Erandamooladi Niruha + Sahacharadi Anuvasana) — primary",
+    avoid_diet:"Dry food; cold food; raw salads; fasting; irregular meals; excess movement; cold exposure",
+    good_diet:"Sesame, Ghee, Warm milk with Ashwagandha, Old rice, Wheat, Urad dal, Sweet potato, Castor oil"},
+  hridroga:{name:"Hrid Roga (Heart disease / Cardiac conditions)",
+    nidana:"Kapha+Vata aggravating diet; Emotional factors (Shoka, Bhaya, Krodha); Ama; Sedentary; Alcohol; Vegavarodha; Atiyoga of Panchakarma",
+    nidana_h:"कफ+वात आहार; शोक, भय, क्रोध; आम; अव्यायाम; मद्यपान",
+    purvarupa:"Chest heaviness, mild breathlessness, fatigue, occasional palpitations",
+    purvarupa_h:"उरोगौरव, हल्की श्वास, दौर्बल्य, धड़कन",
+    rupa:"5 types: Vataja (pricking pain), Pittaja (burning), Kaphaja (heaviness), Tridoshaja, Krimija — palpitations, breathlessness, oedema",
+    rupa_h:"5 प्रकार: वातज, पित्तज, कफज, त्रिदोषज, कृमिज",
+    upashaya:"Arjuna bark (primary cardiac tonic); Punarnava; Abhaya; Hridya drugs (heart-tonics)",
+    upashaya_h:"अर्जुन छाल (मुख्य हृद्य); पुनर्नवा; अभया; हृद्य द्रव्य",
+    samprapti:"Dosha → Hridaya (seat of Prana, Ojas) → Rasavaha+Raktavaha Srotodushti → Cardiac manifestation",
+    samprapti_h:"दोष → हृदय (प्राण, ओज स्थान) → रसवह+रक्तवह स्रोतस → हृद्य अभिव्यक्ति",
+    dosha:"Kapha primary + Pitta secondary in most types; Vata in Vataja",herbs:"Arjuna (Terminalia arjuna), Punarnava, Brahmi, Guggulu, Pushkarmool, Hinguvashtaka, Parthadyarishta, Arjunarishta",
+    panchkarma:"Virechana (moderate); Snehana; Shirodhara (for cardiac neurosis); NO vigorous Vamana",
+    avoid_diet:"Salt excess; sour; spicy; fried; alcohol; smoking; red meat; heavy cold food; stress",
+    good_diet:"Arjuna bark tea, Pomegranate, Garlic (light), Amla, Flaxseeds, Light moong dal, Old rice, Cow ghee (small)"},
+  udar:{name:"Udar Roga (Abdominal disease / Ascites / Hepatomegaly)",
+    nidana:"Viruddha/Rooksha/Guru Ahara; Vegavarodha; Pancha Vayu vitiation; Ama; alcohol; infection",
+    nidana_h:"विरुद्ध/रूक्ष/गुरु आहार; वेगावरोध; पंचवायु विकृति; आम; मद्य",
+    purvarupa:"Anorexia, thirst (Trishna), indigestion, occasional gurgling",
+    purvarupa_h:"अरुचि, तृष्णा, अपाचन, आटोप",
+    rupa:"Abdominal distension (Udara Shotha), pain, anorexia, thirst, fever — 8 types",
+    rupa_h:"उदर शोथ, शूल, अरुचि, ज्वर — 8 प्रकार",
+    upashaya:"Langhana; Deepana-Pachana; Punarnava; Gomutra (cow urine therapy)",
+    upashaya_h:"लंघन; दीपन-पाचन; पुनर्नवा; गोमूत्र",
+    samprapti:"Vata (Samana+Apana) → Koshtha (abdominal cavity) → Medovaha + Rasavaha Srotodushti",
+    samprapti_h:"समान+अपान वात → कोष्ठ → मेदोवह + रसवह स्रोतस",
+    dosha:"Pancha Vayu (all 5 Vatas) vitiation — Samana primary",herbs:"Punarnava Mandura, Arogyavardhini Vati, Rohitaka, Kutki, Punarnavadi Kwatha, Chitrakadi Vati",
+    panchkarma:"Virechana (primary); Basti; Gomutra Haritaki; Niruha Basti",
+    avoid_diet:"Salt; sour; cold; heavy; fermented; alcohol; Viruddha Ahara; day sleep",
+    good_diet:"Punarnava soup, Moong dal, Old rice, Warm water, Light bitter vegetables"},
+  stri:{name:"Stri Roga (Gynaecological — Kashtartava, Asrigdara, Pradara)",
+    nidana:"Vegavarodha; Viruddha Ahara; Prasava complications; Shoka, Chinta; Ati Vyayama; hormonal imbalance (Artava Dushti)",
+    nidana_h:"वेगावरोध; विरुद्ध आहार; प्रसव जटिलताएँ; शोक; अत्यव्यायाम",
+    purvarupa:"Irregular cycles, vague pelvic discomfort, discharge (Pradara)",
+    purvarupa_h:"अनियमित मासिक, अस्पष्ट कटि दर्द, प्रदर",
+    rupa:"Kashtartava (dysmenorrhoea — Vata); Asrigdara (menorrhagia — Pitta+Rakta); Pradara (leucorrhoea — Kapha); Yoni Vyapad (20 types)",
+    rupa_h:"कष्टार्तव; असृग्दर; प्रदर; योनि व्यापद (20 प्रकार)",
+    upashaya:"Shatavari (primary female tonic); Ashoka bark; Lodhra; Warm Sitz bath; Uttarabasti (intrauterine Basti)",
+    upashaya_h:"शतावरी; अशोक छाल; लोध्र; उत्तरबस्ति",
+    samprapti:"Apana Vata + Artava Dushti → Garbhashaya (uterus) → Stri Roga manifestation",
+    samprapti_h:"अपान वात + आर्तव दुष्टि → गर्भाशय → स्त्री रोग",
+    dosha:"Apana Vata primary + Pitta (in bleeding types) + Kapha (in Pradara)",herbs:"Shatavari, Ashoka, Lodhra, Dashamoola, Pushyanuga Churna, Ashokarishta, Shatavari Kalpa",
+    panchkarma:"Uttarabasti (intrauterine medicated oil — primary); Basti; Virechana; Vaginally — Picchu, Dhara",
+    avoid_diet:"Sour; spicy; fermented; excessive exertion; cold exposure; irregular sleep",
+    good_diet:"Shatavari milk, Pomegranate, Sesame, Dates, Warm milk with ghee, Moong"},
+  rajayakshma:{name:"Rajayakshma (Tuberculosis / Wasting diseases)",
+    nidana:"13 causes: Sahasaa (sudden exertion); Apatarpana (starvation); Vegavigrahana; excessive Maithuna; Kshata (chest injury) → Ojakshaya → Dhatukshaya",
+    nidana_h:"13 कारण: सहसा; अपतर्पण; वेगविग्रहण; अतिमैथुन; क्षत → ओजक्षय",
+    purvarupa:"Pratishyaya (coryza), Kasa, Shvasakashta, Parshvashoola, weakness",
+    purvarupa_h:"प्रतिश्याय, कास, श्वासकष्ट, पार्श्वशूल, दौर्बल्य",
+    rupa:"Classic triad: Kasa + Jwara + Raktapitta (haemoptysis); Svarabheda (hoarseness); Shosha (emaciation); Diarrhoea (Atisara)",
+    rupa_h:"त्रय: कास + ज्वर + रक्तपित्त; स्वरभेद; शोष; अतिसार",
+    upashaya:"Brimhana (nourishing therapy — primary); Milk; Ghee; Rasayana; Chyawanprash",
+    upashaya_h:"बृंहण (मुख्य); दूध; घी; रसायन; च्यवनप्राश",
+    samprapti:"Ojakshaya → Dhatu Kshaya (Rasa to Shukra sequentially) → Vata+Pitta → Pranavaha Strotas",
+    samprapti_h:"ओजक्षय → धातु क्षय (रस से शुक्र क्रमशः) → वात+पित्त → प्राणवह स्रोतस",
+    dosha:"Vata + Pitta — Ojakshaya (immune depletion) central",herbs:"Chyawanprash (primary), Ashwagandha, Shatavari, Vasavaleha, Sitopaladi Churna, Draksharishta",
+    panchkarma:"Brimhana (nourishing) — NOT Shodhana in acute; Abhyanga with Bala oil; Svedana (mild); Rasayana",
+    avoid_diet:"Dry food; fasting; cold; Rooksha diet; exertion; sex; grief; alcohol; smoking",
+    good_diet:"Milk (warm, copious), Ghee, Chyawanprash, Old rice + ghee, Pomegranate, Dates, Meat soup (if non-veg)"},
+  gulma:{name:"Gulma (Abdominal lump / Tumour / IBS variant)",
+    nidana:"Vegavarodha; Shosha; trauma; Irregular diet; Shoka; Vata in Kukshi (abdomen)",
+    nidana_h:"वेगावरोध; शोष; आघात; अनिय¬मित आहार; शोक; वायु कुक्षि में",
+    purvarupa:"Occasional pain in abdomen; heaviness; indigestion",
+    purvarupa_h:"कभी-कभी उदरशूल; गौरव; अपाचन",
+    rupa:"Hard/soft/mobile/fixed abdominal lump — 5 types (Vataja, Pittaja, Kaphaja, Sannipataja, Raktaja — in women: fibroid/endometriosis analogue)",
+    rupa_h:"5 प्रकार का उदर ग्रंथि — वातज, पित्तज, कफज, सन्निपातज, रक्तज",
+    upashaya:"Agnivardhana; Vata-pacifying; Kanchanar Guggulu for Kaphaja",
+    upashaya_h:"अग्निवर्धन; वात शमन; कांचनार गुग्गुलु कफज में",
+    samprapti:"Vayu → Kukshi/Koshtha → Margavarodha → Gulma formation",
+    samprapti_h:"वायु → कुक्षि/कोष्ठ → मार्गावरोध → गुल्म निर्माण",
+    dosha:"Vata primary driving Dosha to Koshtha",herbs:"Kanchanar Guggulu, Chitrakadi Vati, Trikatu, Punarnava, Dashamoola, Varanadi Kwatha",
+    panchkarma:"Virechana; Basti (primary for Vataja Gulma); Agnikarma (local heat)",
+    avoid_diet:"Constipating foods; cold; Rooksha; Vegavarodha; suppression of Vata urges",
+    good_diet:"Warm unctuous food, Castor oil (mild), Ginger, Hing, Ajwain, Light moong"}
+};
+
+const SEASON={
+  vasanta:{name:"Vasanta (Spring) — वसंत",col:"#f0fdf4",bdr:"#86efac",txt:"#14532d",dosha:"Kapha↑",
+    pathya:"Barley (Jau) — primary; Old wheat; Moong dal; Bitter gourd; Drumstick (Sahjan); Ginger tea; Honey (old); Light dry foods",
+    pathya_h:"जौ (मुख्य अनाज); मूंग दाल; करेला; सहजन; अदरक चाय; पुराना शहद; हल्का सूखा भोजन",
+    apathya:"Heavy food; excess dairy; cold water; curd; sweets; day sleep",
+    apathya_h:"भारी भोजन; अधिक दूध-दही; ठंडा पानी; मिठाई; दिवास्वप्न",
+    yoga:"Kapalbhati; Bhastrika; Surya Namaskar (12 rounds); Utkatasana; Trikonasana; Surya Bhedana Pranayama",
+    ritukarma:"Vamana (emesis) — ideal season; Udwarthana (dry powder massage); Increase exercise"},
+  greeshma:{name:"Greeshma (Summer) — ग्रीष्म",col:"#fffbeb",bdr:"#fcd34d",txt:"#78350f",dosha:"Pitta↑ Vata↑",
+    pathya:"Coconut water; Watermelon; Lauki; Cucumber; Sweet grapes; Pomegranate; Sattu sharbat; Rice kheer; Cool milk",
+    pathya_h:"नारियल पानी; तरबूज; लौकी; खीरा; मीठे अंगूर; अनार; सत्तू; खीर; ठंडा दूध",
+    apathya:"Spicy; sour; salty; fried; alcohol; afternoon sun; overexertion",
+    apathya_h:"तीखा; खट्टा; नमकीन; तला; शराब; दोपहर की धूप; अतिव्यायाम",
+    yoga:"Sitali Pranayama; Sitkari; Chandra Bhedana; Chandrasana; Paschimottanasana; Yoga Nidra; Evening only",
+    ritukarma:"Moonlight walks; Cool bath; Wear light clothes; Reduce exercise intensity; No midday activity"},
+  varsha:{name:"Varsha (Monsoon) — वर्षा",col:"#eff6ff",bdr:"#93c5fd",txt:"#1e3a8a",dosha:"Vata↑ Pitta accumulates",
+    pathya:"Khichadi (Moong+Rice+Ghee) ★★; Peya (rice gruel); Ginger pickle; Ajwain Paratha; Hot vegetable soup; Lemon rice; Boiled water only",
+    pathya_h:"मूंग खिचड़ी ★★; पेया; अदरक का अचार; अजवाइन पराठा; गर्म सूप; उबला पानी",
+    apathya:"Raw salads; leafy veg (contamination); cold water; curd at night; river water; heavy food",
+    apathya_h:"कच्चा सलाद; ठंडा पानी; रात में दही; नदी का पानी; भारी भोजन",
+    yoga:"Nadi Shodhana; Anulom Vilom; Pawanmuktasana; Bhujangasana; Setubandhasana; Haldi milk at night",
+    ritukarma:"Basti Karma (enema) — ideal; Avoid rain exposure; Warm clothing; Light exercise only"},
+  sharad:{name:"Sharad (Autumn) — शरद्",col:"#fef3c7",bdr:"#fcd34d",txt:"#78350f",dosha:"Pitta releases",
+    pathya:"Amla murabba ★★; Moonlight kheer; Pomegranate raita; Shrikhand; Karela-Amla juice; Coconut rice; Triphala water at bedtime",
+    pathya_h:"आँवला मुरब्बा ★★; चाँदनी खीर; अनार रायता; श्रीखंड; करेला-आँवला जूस; त्रिफला जल",
+    apathya:"Spicy; sour; fermented; alcohol; afternoon sun; eastern wind exposure",
+    apathya_h:"तीखा; खट्टा; किण्वित; शराब; दोपहर की धूप; पूर्वी हवा",
+    yoga:"Sitali Pranayama; Chandrasana; Forward bends; Matsyasana; Sarvangasana; Moonlight meditation",
+    ritukarma:"Virechana (purgation) — ideal season; Moonlight walks; Chandraprakasha (moonlight diet)"},
+  hemanta:{name:"Hemanta (Pre-winter) — हेमन्त",col:"#f3e8ff",bdr:"#d8b4fe",txt:"#581c87",dosha:"Agni↑ (strongest)",
+    pathya:"Sarson saag + Makki roti ★★; Gajar halwa; Til ladoo; Methi ladoo; Panjiri; Ashwagandha milk; Urad dal khichdi; Gur-ghee roti",
+    pathya_h:"सरसों साग + मक्के की रोटी ★★; गाजर हलवा; तिल लड्डू; मेथी लड्डू; पंजीरी; अश्वगंधा दूध",
+    apathya:"Dry food; fasting; cold water; Rooksha diet; excess exertion",
+    apathya_h:"रूक्ष भोजन; उपवास; ठंडा पानी; अत्यधिक व्यायाम",
+    yoga:"Surya Namaskar (vigorous); Virabhadrasana; Utkatasana; Bhastrika; Kapalbhati; Abhyanga + yoga",
+    ritukarma:"Best for Basti Karma; Daily Abhyanga (oil massage) with Mahanarayan/Tila tail; Ojas-building Rasayana"},
+  shishira:{name:"Shishira (Winter) — शिशिर",col:"#ecfdf5",bdr:"#6ee7b7",txt:"#065f46",dosha:"Kapha accumulates",
+    pathya:"Bajra roti + ghee ★★; Til-Gur chikki; Gajak; Baingan bharta; Shakarkand chaat; Kesar-dry fruit milk; Mooli paratha; Haldi-adrak-ajwain chai",
+    pathya_h:"बाजरे की रोटी + घी ★★; तिल-गुड़ चिक्की; गजक; बैंगन भर्ता; केसर-मेवा दूध",
+    apathya:"Cold water; cold food; curd at night; excess sleep; sedentary lifestyle",
+    apathya_h:"ठंडा पानी/भोजन; रात में दही; अधिक नींद; आलसी जीवन",
+    yoga:"Vigorous Surya Namaskar; Kapalbhati ★★; Bhastrika; Utkatasana; Trikonasana; Morning exercise mandatory",
+    ritukarma:"Daily dry powder massage (Udwarthana) for Kapha; Increase exercise; Kapha-reducing diet strict"}
+};
+
+const ASTHA_Q=[
+  {l:"Nadi Gati (pulse)",o:[{d:"V",e:"Serpentine, irregular, fast, weak — 80-100/min",h:"सर्पगति, अनियमित, तेज़, कमज़ोर"},{d:"P",e:"Frog-like, jumping, forceful — 70-80/min",h:"मंडूकगति, उछलती, बलशाली"},{d:"K",e:"Swan-like, slow, regular, deep — 60-70/min",h:"हंसगति, धीमी, नियमित, गहरी"}]},
+  {l:"Mutra (urine) colour",o:[{d:"V",e:"Pale/dark brown, scanty",h:"फीका/गहरा भूरा, कम"},{d:"P",e:"Deep yellow/orange/reddish",h:"गहरा पीला/नारंगी/लाल"},{d:"K",e:"Pale, milky, turbid, frothy",h:"फीका, दूधिया, गंदला"}]},
+  {l:"Mala (stool) consistency",o:[{d:"V",e:"Hard, dry, constipated",h:"कठोर, सूखा, कब्ज़"},{d:"P",e:"Loose, burning, yellowish",h:"ढीला, जलन, पीलापन"},{d:"K",e:"Bulky, mucousy, regular",h:"भारी, बलगमी, नियमित"}]},
+  {l:"Jihva (tongue) coating",o:[{d:"V",e:"Thin dark/brown coat, dry",h:"पतला काला/भूरा लेप, रूखी"},{d:"P",e:"Yellow coat, red inflamed",h:"पीला लेप, लाल सूजी"},{d:"K",e:"Thick white coat, moist",h:"मोटा सफेद लेप, नम"},{d:"M",e:"Clean pink (Nirama/healthy)",h:"साफ़ गुलाबी (स्वस्थ)"}]},
+  {l:"Shabda (voice) quality",o:[{d:"V",e:"Hoarse, low, cracked",h:"भर्राई, कमज़ोर, कर्कश"},{d:"P",e:"Sharp, loud, forceful",h:"तीक्ष्ण, ऊँची, बलशाली"},{d:"K",e:"Deep, melodious, sweet",h:"गहरी, सुरीली, मधुर"}]},
+  {l:"Sparsha (skin/touch)",o:[{d:"V",e:"Cold, dry, rough",h:"ठंडी, रूखी, खुरदरी"},{d:"P",e:"Warm, soft, moist",h:"गर्म, मुलायम, नम"},{d:"K",e:"Cool, smooth, oily",h:"ठंडी, चिकनी, तैलीय"}]},
+  {l:"Druk (eyes) lustre",o:[{d:"V",e:"Dull, dry, nervous",h:"फीकी, रूखी, चंचल"},{d:"P",e:"Bright, sharp, slightly red",h:"चमकदार, तीक्ष्ण, लाल"},{d:"K",e:"Large, lustrous, calm, white",h:"बड़ी, चमकदार, शांत, सफेद"}]},
+  {l:"Aakruti (overall build)",o:[{d:"V",e:"Thin, lean, bony",h:"पतला, दुबला, हड्डियाँ"},{d:"P",e:"Medium, muscular, confident gait",h:"मध्यम, मांसल, आत्मविश्वासी"},{d:"K",e:"Heavy, broad, steady gait",h:"भारी, चौड़ा, स्थिर चाल"}]},
+];
+const DASH_Q=[
+  {l:"Vikriti (current dosha)",o:[{d:"V",e:"Vata — pain, dry, constipation, anxiety",h:"वात — दर्द, रूखापन, कब्ज़"},{d:"P",e:"Pitta — inflammation, burning, fever",h:"पित्त — सूजन, जलन, ज्वर"},{d:"K",e:"Kapha — congestion, heaviness, mucus",h:"कफ — जमाव, भारीपन"},{d:"M",e:"Tridosha / Sannipataja",h:"त्रिदोष/सन्निपात"}]},
+  {l:"Ama (toxin) status",o:[{d:"M",e:"Nirama — No Ama (clean)",h:"निराम — आम नहीं"},{d:"K",e:"Sama — Ama present (white coat, heaviness, foul smell)",h:"साम — आम है (सफेद लेप, भारीपन, दुर्गंध)"}]},
+  {l:"Sara (tissue quality)",o:[{d:"P",e:"Tvak/Rakta Sara — skin/blood quality",h:"त्वक्/रक्त सार"},{d:"K",e:"Mamsa/Meda Sara — muscle/fat quality",h:"मांस/मेद सार"},{d:"V",e:"Asthi/Majja Sara — bone quality",h:"अस्थि/मज्जा सार"}]},
+  {l:"Satmya (adaptability)",o:[{d:"M",e:"Sarvarasa — adapts to all",h:"सर्वरस — सभी के अनुकूल"},{d:"M",e:"Madhyama — moderately adaptable",h:"मध्यम"},{d:"V",e:"Ekadesha — adapts to one only",h:"एकदेश — केवल एक के अनुकूल"}]},
+  {l:"Satva (mental strength)",o:[{d:"P",e:"Pravara — fearless, strong will",h:"प्रवर — निर्भय, दृढ़"},{d:"M",e:"Madhyama — moderate",h:"मध्यम"},{d:"V",e:"Avara — fearful, weak will",h:"अवर — कमज़ोर, भयभीत"}]},
+  {l:"Agni (digestive fire)",o:[{d:"M",e:"Samagni — balanced",h:"समाग्नि — संतुलित"},{d:"V",e:"Vishamagni — irregular (Vata)",h:"विषमाग्नि — अनियमित"},{d:"P",e:"Teekshna Agni — sharp (Pitta)",h:"तीक्ष्णाग्नि — तेज़"},{d:"K",e:"Mandagni — slow (Kapha)",h:"मंदाग्नि — धीमी"}]},
+  {l:"Vaya (age group)",o:[{d:"K",e:"Bala (0–16) — Kapha phase",h:"बाल — कफ प्रधान"},{d:"P",e:"Madhyama (16–60) — Pitta phase",h:"मध्यम — पित्त प्रधान"},{d:"V",e:"Vruddha (60+) — Vata phase",h:"वृद्ध — वात प्रधान"}]},
+];
+
+const state={sv:0,sp:0,sk:0};
+
+function renderPQ(){
+  const c=document.getElementById('pqs');
+  PQS.forEach((cat,ci)=>{
+    const s=document.createElement('div');s.className='card';
+    s.innerHTML=`<div class="catbadge">${cat.cat}</div>`;
+    cat.qs.forEach((q,qi)=>{
+      const qd=document.createElement('div');qd.className='qb';
+      qd.innerHTML=`<div class="ql">${q.l}</div>${q.h?`<div class="qh">${q.h}</div>`:''}<div class="opts" id="pq-${ci}-${qi}"></div>`;
+      s.appendChild(qd);
+      q.o.forEach(o=>{
+        const b=document.createElement('div');b.className='opt';
+        const dc=o.d.toLowerCase();
+        b.innerHTML=`<span class="dot d${dc}"></span><span class="badge b${dc}">${o.d}</span><div><div style="font-size:11px;color:var(--text-primary)">${o.e}</div><div style="font-size:10px;color:var(--text-muted);margin-top:1px">${o.h}</div></div>`;
+        b.onclick=()=>{qd.querySelectorAll('.opt').forEach(x=>x.classList.remove('sv','sp','sk'));b.classList.add('s'+dc);recalc();};
+        qd.querySelector(`#pq-${ci}-${qi}`).appendChild(b);
+      });
+    });
+    c.appendChild(s);
+  });
+}
+
+function recalc(){
+  const sv=document.querySelectorAll('#pqs .sv').length;
+  const sp=document.querySelectorAll('#pqs .sp').length;
+  const sk=document.querySelectorAll('#pqs .sk').length;
+  state.sv=sv;state.sp=sp;state.sk=sk;
+  const total=sv+sp+sk||1;
+  const vp=Math.round(sv/total*100),pp=Math.round(sp/total*100),kp=Math.round(sk/total*100);
+  document.getElementById('pscore').innerHTML=`
+    <div class="mrow"><div class="mc"><div class="mv" style="color:#3b82f6">${sv}</div><div class="ml">Vata (${vp}%)</div></div>
+    <div class="mc"><div class="mv" style="color:#f59e0b">${sp}</div><div class="ml">Pitta (${pp}%)</div></div>
+    <div class="mc"><div class="mv" style="color:#22c55e">${sk}</div><div class="ml">Kapha (${kp}%)</div></div></div>
+    <div class="sbwrap"><div class="sbhd"><span style="color:#1d4ed8">Vata</span><span>${vp}%</span></div><div class="sb"><div class="sf fv" style="width:${vp}%"></div></div></div>
+    <div class="sbwrap" style="margin-top:4px"><div class="sbhd"><span style="color:#92400e">Pitta</span><span>${pp}%</span></div><div class="sb"><div class="sf fp" style="width:${pp}%"></div></div></div>
+    <div class="sbwrap" style="margin-top:4px"><div class="sbhd"><span style="color:#14532d">Kapha</span><span>${kp}%</span></div><div class="sb"><div class="sf fk" style="width:${kp}%"></div></div></div>
+    <div class="rb ${sv>=sp&&sv>=sk?'rbv':sp>sv&&sp>=sk?'rbp':'rbk'}" style="margin-top:8px">Prakriti: <strong>${getPk(sv,sp,sk)}</strong></div>`;
+}
+
+function getPk(v,p,k){
+  if(!v&&!p&&!k)return'Not yet determined';
+  const mx=Math.max(v,p,k);const a=[];
+  if(v===mx)a.push('Vata');if(p===mx)a.push('Pitta');if(k===mx)a.push('Kapha');
+  if(a.length===3)return'Tridosha Sama';if(a.length===2)return a.join('-')+' Prakriti';
+  return a[0]+' Prakriti';
+}
+
+function renderAQ(){
+  const c=document.getElementById('astha-qs');
+  ASTHA_Q.forEach((q,i)=>{
+    const qd=document.createElement('div');qd.className='qb';
+    qd.innerHTML=`<div class="ql">${i+1}. ${q.l}</div><div class="opts" id="aq-${i}"></div>`;
+    c.appendChild(qd);
+    q.o.forEach(o=>{
+      const b=document.createElement('div');b.className='opt';
+      const dc=o.d==='M'?'m':o.d.toLowerCase();
+      b.innerHTML=`<span class="dot d${dc}"></span><span class="badge b${dc}">${o.d}</span><div><div style="font-size:11px;color:var(--text-primary)">${o.e}</div><div style="font-size:10px;color:var(--text-muted);margin-top:1px">${o.h}</div></div>`;
+      b.onclick=()=>{qd.querySelectorAll('.opt').forEach(x=>x.classList.remove('sv','sp','sk','sm'));b.classList.add('s'+dc);};
+      qd.querySelector(`#aq-${i}`).appendChild(b);
+    });
+  });
+}
+
+function renderDQ(){
+  const c=document.getElementById('dash-qs');
+  DASH_Q.forEach((q,i)=>{
+    const qd=document.createElement('div');qd.className='qb';
+    qd.innerHTML=`<div class="ql">${i+1+(i===0?'. Vikriti':i===1?'. Ama':i===2?'. Sara':i===3?'. Satmya':i===4?'. Satva':i===5?'. Agni':'. Vaya')}</div><div class="opts" id="dq-${i}"></div>`;
+    c.appendChild(qd);
+    q.o.forEach(o=>{
+      const b=document.createElement('div');b.className='opt';
+      const dc=o.d==='M'?'m':o.d.toLowerCase();
+      b.innerHTML=`<span class="dot d${dc}"></span><span class="badge b${dc}">${o.d}</span><div><div style="font-size:11px;color:var(--text-primary)">${o.e}</div><div style="font-size:10px;color:var(--text-muted);margin-top:1px">${o.h}</div></div>`;
+      b.onclick=()=>{qd.querySelectorAll('.opt').forEach(x=>x.classList.remove('sv','sp','sk','sm'));b.classList.add('s'+dc);};
+      qd.querySelector(`#dq-${i}`).appendChild(b);
+    });
+  });
+}
+
+function renderNidan(){
+  const dis=document.getElementById('dis-sel').value;
+  const out=document.getElementById('nidan-out');
+  if(!dis){out.innerHTML='';return;}
+  const D=NIDAN[dis];
+  out.innerHTML=`
+  <div class="card">
+    <div class="cardtitle"><i class="ti ti-microscope" aria-hidden="true" style="color:var(--text-accent)"></i>Nidan Panchak — ${D.name}</div>
+    <div class="ndp">
+      <div class="ndcard"><div class="ndcth">1. Nidana / निदान (causes)</div><div class="ndctxt">${D.nidana}</div><div class="ndctxt" style="color:var(--text-muted);margin-top:4px">${D.nidana_h}</div></div>
+      <div class="ndcard"><div class="ndcth">2. Purvarupa / पूर्वरूप (prodrome)</div><div class="ndctxt">${D.purvarupa}</div><div class="ndctxt" style="color:var(--text-muted);margin-top:4px">${D.purvarupa_h}</div></div>
+      <div class="ndcard"><div class="ndcth">3. Rupa / रूप (signs &amp; symptoms)</div><div class="ndctxt">${D.rupa}</div><div class="ndctxt" style="color:var(--text-muted);margin-top:4px">${D.rupa_h}</div></div>
+      <div class="ndcard"><div class="ndcth">4. Upashaya / उपशय (therapeutic trial)</div><div class="ndctxt">${D.upashaya}</div><div class="ndctxt" style="color:var(--text-muted);margin-top:4px">${D.upashaya_h}</div></div>
+    </div>
+    <div class="ndcard" style="margin-top:7px"><div class="ndcth">5. Samprapti / सम्प्राप्ति (pathogenesis)</div><div class="ndctxt" style="font-size:12px">${D.samprapti}</div><div class="ndctxt" style="color:var(--text-muted);margin-top:4px">${D.samprapti_h}</div><div style="margin-top:6px"><span class="pill pv">Dosha: ${D.dosha}</span></div></div>
+  </div>`;
+}
+
+function renderChikitsa(){
+  const dis=document.getElementById('dis-sel').value;
+  const {sv,sp,sk}=state;
+  const pk=getPk(sv,sp,sk);
+  const ritu=document.getElementById('r-ritu').value;
+  const S=ritu?SEASON[ritu]:null;
+  const D=dis?NIDAN[dis]:null;
+  let html='';
+  if(D){
+    html+=`
+    <div class="card">
+      <div class="cardtitle"><i class="ti ti-pill" aria-hidden="true" style="color:var(--text-accent)"></i>Herbal medicines / औषधि — ${D.name}</div>
+      <div class="tbl">${D.herbs}</div>
+    </div>
+    <div class="card">
+      <div class="cardtitle"><i class="ti ti-spa" aria-hidden="true" style="color:var(--text-accent)"></i>Panchakarma protocol / पंचकर्म</div>
+      <div class="tbl">${D.panchkarma}</div>
+    </div>
+    <div class="two">
+      <div class="card">
+        <div class="cardtitle"><i class="ti ti-check" aria-hidden="true" style="color:var(--text-success)"></i>Pathya (recommended) / पथ्य</div>
+        <div class="tbl" style="color:var(--text-success)">${D.good_diet}</div>
+      </div>
+      <div class="card">
+        <div class="cardtitle"><i class="ti ti-x" aria-hidden="true" style="color:var(--text-danger)"></i>Apathya (avoid) / अपथ्य</div>
+        <div class="tbl" style="color:var(--text-danger)">${D.avoid_diet}</div>
+      </div>
+    </div>`;
+  }
+  html+=`
+  <div class="card">
+    <div class="cardtitle"><i class="ti ti-dna" aria-hidden="true" style="color:var(--text-accent)"></i>Prakriti-based general protocol / प्रकृति अनुसार चिकित्सा</div>
+    ${!sv&&!sp&&!sk?'<div class="warn">Complete Prakriti assessment first</div>':''}
+    <div class="tbl"><strong>Prakriti:</strong> ${pk}<br>
+    ${sv>=sp&&sv>=sk?'<strong>Vata Protocol:</strong> Snehana (oil therapy) + Basti (enema) primary. Warm unctuous diet. Abhyanga with Tila/Mahanarayan Taila. Nadi Shodhana + Bhramari Pranayama. Avoid cold/dry/raw foods. Regular meal timing.'
+    :sp>sv&&sp>=sk?'<strong>Pitta Protocol:</strong> Virechana (purgation) primary. Cool-sweet-bitter diet. Shirodhara (milk/oil). Sitali + Chandrabhedana Pranayama. Avoid spicy/sour/hot. Moonlight walks. Amalaki + Shatavari.'
+    :'<strong>Kapha Protocol:</strong> Vamana (emesis) primary. Light-dry-pungent diet. Udwarthana (dry powder massage). Kapalbhati + Bhastrika Pranayama. Increase exercise. Trikatu + Guggulu. Avoid heavy/cold/sweet foods.'}</div>
+  </div>
+  <div class="card">
+    <div class="cardtitle"><i class="ti ti-calendar" aria-hidden="true" style="color:var(--text-accent)"></i>Rasayana (rejuvenation) / रसायन</div>
+    <div class="tbl">${sv>=sp&&sv>=sk?'Ashwagandha, Bala, Shatavari, Ghee + Milk daily, Chyawanprash (Vasanta/Sharad), Brahmi':sp>sv&&sp>=sk?'Amalaki (Amla) — primary Rasayana for Pitta; Shatavari, Brahmi, Guduchi, Pomegranate, Triphala':'Chyawanprash (primary), Ashwagandha (low dose), Haritaki, Pippali Rasayana, Honey + Ginger'}</div>
+  </div>`;
+  if(S){
+    html+=`
+    <div class="card" style="border-color:${S.bdr}">
+      <div class="cardtitle"><i class="ti ti-leaf" aria-hidden="true" style="color:${S.txt}"></i>Ritucharya for ${S.name} / ऋतुचर्या</div>
+      <div class="tbl"><strong>Dominant Dosha:</strong> ${S.dosha}<br><strong>Seasonal advice:</strong> ${S.ritukarma}<br><strong>Yoga this season:</strong> ${S.yoga}</div>
+    </div>`;
+  }
+  document.getElementById('chikitsa-out').innerHTML=html;
+}
+
+function renderDiet(){
+  const {sv,sp,sk}=state;
+  const ritu=document.getElementById('r-ritu').value;
+  const S=ritu?SEASON[ritu]:null;
+  const pk=getPk(sv,sp,sk);
+  const dom=sv>=sp&&sv>=sk,pdom=sp>sv&&sp>=sk;
+  const dietRows=dom?[
+    ['Early morning (5:30–6 AM)','Warm water with Sunthi + Mishri / Triphala water','गर्म पानी + सोंठ + मिश्री / त्रिफला जल'],
+    ['Breakfast (7:30–8 AM)','Wheat daliya with ghee / Methi paratha / Warm moong dal','गेहूँ दलिया + घी / मेथी पराठा / गर्म मूंग दाल'],
+    ['Mid-morning','Soaked almonds (7) + warm milk / Sesame-jaggery laddoo','भीगे बादाम + गर्म दूध / तिल-गुड़ लड्डू'],
+    ['Lunch (12–1 PM)','Old rice + Toor/Urad dal + cooked vegetable + cow ghee','पुराना चावल + अरहर/उड़द दाल + पकी सब्जी + गाय घी'],
+    ['Evening (4–5 PM)','Ginger tea / Herbal soup / Makhana','अदरक चाय / हर्बल सूप / मखाना'],
+    ['Dinner (6:30–7:30 PM)','Wheat roti + moong dal + lauki/parwal sabzi','गेहूँ रोटी + मूंग दाल + लौकी/परवल'],
+    ['Bedtime (9 PM)','Warm Ashwagandha milk with mishri + nutmeg','गर्म अश्वगंधा दूध + मिश्री + जायफल'],
+  ]:pdom?[
+    ['Early morning','Cool water with Amla juice / Triphala water','ठंडा आँवला रस / त्रिफला जल'],
+    ['Breakfast','Poha / Moong dal chilla / Cucumber-mint raita','पोहा / मूंग दाल चीला / खीरा-पुदीना रायता'],
+    ['Mid-morning','Coconut water / Sweet grapes / Pomegranate juice','नारियल पानी / मीठे अंगूर / अनार रस'],
+    ['Lunch','Old rice + cool ghee + moong dal + bitter gourd / Lauki','पुराना चावल + ठंडा घी + मूंग दाल + करेला/लौकी'],
+    ['Evening','Sattu sharbat / Fennel water / Coriander water','सत्तू शरबत / सौंफ पानी / धनिया जल'],
+    ['Dinner','Barley/wheat roti + moong + cucumber sabzi — no sour','जौ/गेहूँ रोटी + मूंग + खीरा सब्जी — खट्टा नहीं'],
+    ['Bedtime','Cool milk with Shatavari + Mishri','ठंडा शतावरी दूध + मिश्री'],
+  ]:[
+    ['Early morning','Hot water with Ginger + Honey (raw)','गर्म पानी + अदरक + कच्चा शहद'],
+    ['Breakfast','Jau (barley) roti / Upma (no oil excess) / Moong sprouts','जौ की रोटी / उपमा / मूंग अंकुरित'],
+    ['Mid-morning','Roasted makhana / Karela juice / Ajwain water','भुना मखाना / करेले का रस / अजवाइन पानी'],
+    ['Lunch','Old rice (small) + Kulthi dal + bitter sabzi + no ghee excess','पुराना चावल (कम) + कुलथी दाल + कड़वी सब्जी'],
+    ['Evening','Ginger-tulsi tea / Hot barley water / Light sprout salad','अदरक-तुलसी चाय / गर्म जौ पानी'],
+    ['Dinner','Bajra/ragi roti + moong dal (thin) + methi/karela sabzi — no dairy','बाजरा/रागी रोटी + पतली मूंग दाल + मेथी/करेला'],
+    ['Bedtime','Warm low-fat milk (1 cup only) / Turmeric water','गर्म कम वसा दूध (1 कप) / हल्दी पानी'],
+  ];
+
+  const yogaCards=dom?[
+    ['Pawanmuktasana','पवनमुक्तासन','Gas, digestion / वायु विकार'],
+    ['Vajrasana','वज्रासन','Digestion post-meal / भोजनोपरांत'],
+    ['Setu Bandhasana','सेतुबंधासन','Back, thyroid / पीठ'],
+    ['Bhujangasana','भुजंगासन','Spine, strength / रीढ़'],
+    ['Nadi Shodhana','नाड़ी शोधन','All doshas / सभी दोष'],
+    ['Bhramari','भ्रामरी','Stress, mind / तनाव'],
+    ['Yoga Nidra','योग निद्रा','Sleep, relaxation / नींद'],
+    ['Shavasana (long)','शवासन (लंबा)','Total rest / पूर्ण विश्राम'],
+  ]:pdom?[
+    ['Chandrasana','चंद्रासन','Cooling / शीतलता'],
+    ['Paschimottanasana','पश्चिमोत्तानासन','Liver, calm / यकृत'],
+    ['Matsyasana','मत्स्यासन','Thyroid, throat / थायरॉइड'],
+    ['Sarvangasana','सर्वांगासन','Circulation / परिसंचरण'],
+    ['Sitali Pranayama','शीतली प्राणायाम','Cooling, BP / शीतलता'],
+    ['Chandra Bhedana','चंद्र भेदन','Pitta ↓ / पित्त शमन'],
+    ['Trataka','त्राटक','Eyes, focus / आँखें'],
+    ['Yoga Nidra','योग निद्रा','Stress / तनाव'],
+  ]:[
+    ['Surya Namaskar (12)','सूर्य नमस्कार','Stimulate, warm / उत्तेजना'],
+    ['Utkatasana','उत्कटासन','Thighs, metabol. / जाँघ'],
+    ['Trikonasana','त्रिकोणासन','Lateral stretch / पार्श्व'],
+    ['Kapalbhati ★','कपालभाती ★','Kapha ↓ / कफ नाश'],
+    ['Bhastrika','भस्त्रिका','Energy, Kapha ↓ / ऊर्जा'],
+    ['Surya Bhedana','सूर्य भेदन','Warming / उष्णता'],
+    ['Nauli','नौलि','Digestion / पाचन'],
+    ['Vigorous walk','तेज़ चलना','Daily 45 min / 45 मिनट'],
+  ];
+
+  document.getElementById('diet-out').innerHTML=`
+  <div class="card">
+    <div class="cardtitle"><i class="ti ti-calendar" aria-hidden="true" style="color:var(--text-accent)"></i>Daily Dinacharya — ideal schedule</div>
+    <table class="diettable">
+      <tr><th>Time / समय</th><th>Activity / गतिविधि</th></tr>
+      ${[['5:00–5:30 AM','Wake up — Brahma Muhurta; oral hygiene; Gandusha (oil pulling) / ब्राह्म मुहूर्त; मुख शुद्धि; गंडूष'],
+         ['5:30–6:00 AM','Nasya (2 drops Anu Taila each nostril) + Bowel / नस्य + शौच'],
+         ['6:00–7:00 AM','Yoga + Pranayama + Meditation (see below) / योग + प्राणायाम + ध्यान'],
+         ['7:00–7:30 AM','Abhyanga (self oil massage) + warm bath / अभ्यंग + उष्ण स्नान'],
+         ['7:30–8:30 AM','Breakfast (see diet chart) / नाश्ता'],
+         ['12:00–1:00 PM','Lunch — main meal; Pitta peak time / मुख्य भोजन; पित्त चरम समय'],
+         ['1:00–1:30 PM','15-min walk after lunch; NO sleep / भोजनोपरांत 15 मिनट टहलना; सोना नहीं'],
+         ['4:00–5:00 PM','Evening snack + herbal tea / शाम का नाश्ता + हर्बल चाय'],
+         ['6:00–7:00 PM','Light yoga / pranayama / evening walk / हल्का योग / सैर'],
+         ['7:00–8:00 PM','Dinner — light, warm, before sunset / हल्का गर्म भोजन, सूर्यास्त से पहले'],
+         ['9:00–9:30 PM','Warm milk + bedtime routine / गर्म दूध + सोने की तैयारी'],
+         ['10:00 PM','Sleep — left-side preferred / नींद — बाईं करवट']].map(([t,a])=>`<tr><td style="font-size:10px;color:var(--text-accent);white-space:nowrap">${t}</td><td>${a}</td></tr>`).join('')}
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="cardtitle"><i class="ti ti-salad" aria-hidden="true" style="color:var(--text-accent)"></i>Diet chart — Prakriti: ${pk}</div>
+    <table class="diettable">
+      <tr><th>Meal / भोजन</th><th>Recommended / अनुशंसित</th><th>हिन्दी</th></tr>
+      ${dietRows.map(([m,e,h])=>`<tr><td style="font-size:10px;color:var(--text-accent);white-space:nowrap">${m}</td><td style="font-size:11px">${e}</td><td style="font-size:11px;color:var(--text-muted)">${h}</td></tr>`).join('')}
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="cardtitle"><i class="ti ti-run" aria-hidden="true" style="color:var(--text-accent)"></i>Yoga & pranayama prescription — ${pk}</div>
+    <div class="yogagrid">
+      ${yogaCards.map(([e,h,b])=>`<div class="yogacard"><div class="ytitle">${e}</div><div style="font-size:10px;color:var(--text-muted);margin-bottom:2px">${h}</div><div class="ytxt">${b}</div></div>`).join('')}
+    </div>
+  </div>
+
+  ${S?`<div class="card" style="border-color:${S.bdr}">
+    <div class="cardtitle" style="color:${S.txt}"><i class="ti ti-leaf" aria-hidden="true"></i>${S.name} — Ritucharya diet</div>
+    <div class="two">
+      <div><div class="suc" style="font-size:11px"><strong>Pathya (eat):</strong> ${S.pathya}</div><div style="font-size:10px;color:var(--text-muted);margin-top:3px">${S.pathya_h}</div></div>
+      <div><div class="warn" style="font-size:11px"><strong>Apathya (avoid):</strong> ${S.apathya}</div><div style="font-size:10px;color:var(--text-muted);margin-top:3px">${S.apathya_h}</div></div>
+    </div>
+  </div>`:'<div class="warn"><i class="ti ti-alert-triangle" aria-hidden="true"></i> Select current Ritu (season) in Registration to see Ritucharya diet</div>'}
+
+  <div class="card">
+    <div class="cardtitle"><i class="ti ti-calendar-event" aria-hidden="true" style="color:var(--text-accent)"></i>All six seasons — quick reference</div>
+    <div class="seasongrid">
+      ${Object.values(SEASON).map(s=>`<div class="scard" style="background:${s.col};border-color:${s.bdr}">
+        <div class="stitle" style="color:${s.txt}">${s.name}</div>
+        <div class="stxt" style="color:${s.txt}">${s.dosha}</div>
+        <div class="stxt">${s.ritukarma.split(';')[0]}</div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function buildReport(){
+  go('report');
+  const nm=document.getElementById('r-nm').value||'Patient';
+  const age=document.getElementById('r-age').value||'—';
+  const gen=document.getElementById('r-gen').value||'—';
+  const cc=document.getElementById('r-cc').value||'—';
+  const dur=document.getElementById('r-dur').value||'—';
+  const rashi=document.getElementById('r-rashi').value||'—';
+  const opd=document.getElementById('r-opd').value||'—';
+  const ritu=document.getElementById('r-ritu').value;
+  const {sv,sp,sk}=state;
+  const total=sv+sp+sk||1;
+  const pk=getPk(sv,sp,sk);
+  const vp=Math.round(sv/total*100),pp=Math.round(sp/total*100),kp=Math.round(sk/total*100);
+  const dis=document.getElementById('dis-sel').value;
+  const D=dis?NIDAN[dis]:null;
+  const S=ritu?SEASON[ritu]:null;
+  const dom=sv>=sp&&sv>=sk,pdom=sp>sv&&sp>=sk;
+  const now=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  const amaEl=document.querySelector('#dq-1 .sk,.dq-1 .sm');
+  const amaPresent=!!document.querySelector('#dash-qs .sk');
+  document.getElementById('rep-out').innerHTML=`
+  <div class="card">
+    <div class="cardtitle"><i class="ti ti-report-medical" aria-hidden="true" style="color:var(--text-accent)"></i>SR-AIIMS — Integrated Ayurvedic clinical report</div>
+    <div style="font-size:10px;color:var(--text-secondary);margin-bottom:8px">Date: ${now} | OPD: ${opd} | Dr. Saurabh Bharill, MD (Ay.) | www.shantiratnam.com</div>
+    <div class="two" style="margin-bottom:8px">
+      <div><span class="fl">Patient</span><strong>${nm}</strong></div>
+      <div><span class="fl">Age / Gender</span><strong>${age} yrs / ${gen}</strong></div>
+      <div><span class="fl">Chief complaint</span><strong>${cc} (${dur})</strong></div>
+      <div><span class="fl">Rashi / Season</span><strong>${rashi} | ${S?S.name:'—'}</strong></div>
+    </div>
+    <hr class="sep">
+
+    <div class="mrow">
+      <div class="mc"><div class="mv" style="color:#3b82f6">${sv} (${vp}%)</div><div class="ml">Vata</div></div>
+      <div class="mc"><div class="mv" style="color:#f59e0b">${sp} (${pp}%)</div><div class="ml">Pitta</div></div>
+      <div class="mc"><div class="mv" style="color:#22c55e">${sk} (${kp}%)</div><div class="ml">Kapha</div></div>
+    </div>
+    <div class="rb ${dom?'rbv':pdom?'rbp':'rbk'}">Prakriti: <strong>${pk}</strong></div>
+    ${amaPresent?'<div class="warn" style="margin-top:6px"><i class="ti ti-alert-triangle" aria-hidden="true"></i> Ama Sanchaya present — begin Deepana-Pachana before Shodhana</div>':''}
+    <hr class="sep">
+
+    ${D?`<div style="font-size:12px;font-weight:500;margin-bottom:6px">Disease: ${D.name}</div>
+    <div class="ndp">
+      <div class="ndcard"><div class="ndcth">Nidana</div><div class="ndctxt">${D.nidana_h}</div></div>
+      <div class="ndcard"><div class="ndcth">Purvarupa</div><div class="ndctxt">${D.purvarupa_h}</div></div>
+      <div class="ndcard"><div class="ndcth">Rupa</div><div class="ndctxt">${D.rupa_h}</div></div>
+      <div class="ndcard"><div class="ndcth">Samprapti</div><div class="ndctxt">${D.samprapti_h}</div></div>
+    </div>
+    <div class="tblock" style="margin-top:6px"><div class="tbtitle"><i class="ti ti-pill" aria-hidden="true"></i>Herbs</div><div class="tbl">${D.herbs}</div></div>
+    <div class="tblock"><div class="tbtitle"><i class="ti ti-spa" aria-hidden="true"></i>Panchakarma</div><div class="tbl">${D.panchkarma}</div></div>
+    <hr class="sep">`:''}
+
+    <div class="tblock"><div class="tbtitle"><i class="ti ti-dna" aria-hidden="true"></i>Prakriti protocol</div><div class="tbl">
+      ${dom?'Vata — Snehana + Basti primary. Warm unctuous diet. Abhyanga. Nadi Shodhana + Bhramari Pranayama.':pdom?'Pitta — Virechana primary. Cool-sweet-bitter diet. Shirodhara. Sitali Pranayama. Amalaki + Shatavari.':'Kapha — Vamana primary. Light-dry-pungent diet. Udwarthana. Kapalbhati + Bhastrika. Increase exercise.'}
+    </div></div>
+
+    ${S?`<div class="tblock" style="border-color:${S.bdr}"><div class="tbtitle" style="color:${S.txt}"><i class="ti ti-leaf" aria-hidden="true"></i>${S.name} Ritucharya</div>
+    <div class="tbl"><strong>Eat:</strong> ${S.pathya_h}<br><strong>Avoid:</strong> ${S.apathya_h}<br><strong>Yoga:</strong> ${S.yoga}</div></div>`:''}
+
+    <div style="margin-top:10px;font-size:10px;color:var(--text-muted);text-align:center">SR-AIIMS | Shanti Ratnam AYUSH Hospital, Sagar M.P. | Dr. Saurabh Bharill MD (Ay.) | www.shantiratnam.com</div>
+  </div>`;
+}
+
+function go(id){
+  document.querySelectorAll('.tp').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById('t-'+id).classList.add('on');
+  const map={reg:0,prakriti:1,nidan:2,chikitsa:3,diet:4,report:5};
+  document.querySelectorAll('.tab')[map[id]].classList.add('on');
+  if(id==='chikitsa')renderChikitsa();
+  if(id==='diet')renderDiet();
+  if(id==='report')buildReport();
+}
+
+renderPQ();renderAQ();renderDQ();recalc();
+</script>

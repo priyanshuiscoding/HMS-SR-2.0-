@@ -219,6 +219,7 @@ export function AppointmentsPage() {
         appointmentNumber: response.item.appointmentNumber,
         tokenNumber: response.item.tokenNumber,
         patientName: response.item.patientName,
+        patientUhid: response.item.patientUhid || patients.find((patient) => patient.id === response.item.patientId)?.uhid || "",
         doctorName: masters.doctors.find((doctor) => doctor.id === response.item.doctorId)?.fullName || "Doctor",
         department: response.item.department,
         appointmentDate: response.item.appointmentDate,
@@ -526,6 +527,7 @@ export function AppointmentsPage() {
                 <div>
                   <strong>Token {appointment.tokenNumber}</strong>
                   <div className="timeline-copy">{appointment.patientName}</div>
+                  <div className="timeline-copy"><strong>UHID:</strong> {appointment.patientUhid || "Not assigned"}</div>
                   <div className="timeline-copy">{appointment.department}</div>
                   <div className="timeline-copy">{formatTimeLabel(appointment.appointmentTime)}</div>
                   <div className="timeline-copy">Slip {appointment.consultationPayment?.receiptNumber || "-"}</div>
@@ -596,6 +598,7 @@ export function AppointmentsPage() {
                       ) : (
                         appointment.patientName
                       )}
+                      <div className="muted-text">UHID: {appointment.patientUhid || linkedPatient?.uhid || "Not assigned"}</div>
                     </td>
                     <td>{doctor?.fullName || "Unassigned"}</td>
                     <td>{appointment.appointmentDate}</td>
@@ -630,6 +633,7 @@ export function AppointmentsPage() {
             <div><strong>Slip No.</strong><span>{lastReceipt.receiptNumber}</span></div>
             <div><strong>Appointment No.</strong><span>{lastReceipt.appointmentNumber}</span></div>
             <div><strong>Patient</strong><span>{lastReceipt.patientName}</span></div>
+            <div><strong>UHID</strong><span>{lastReceipt.patientUhid || "Not assigned"}</span></div>
             <div><strong>Doctor</strong><span>{lastReceipt.doctorName}</span></div>
             <div><strong>Department</strong><span>{lastReceipt.department}</span></div>
             <div><strong>Date / Time</strong><span>{lastReceipt.appointmentDate} {formatTimeLabel(lastReceipt.appointmentTime)}</span></div>

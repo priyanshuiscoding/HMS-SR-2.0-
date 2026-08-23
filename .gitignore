@@ -18,3 +18,4 @@ frontend.dev.log
 frontend.dev.err.log
 .DS_Store
 Thumbs.db
+.edge-audit-profile/

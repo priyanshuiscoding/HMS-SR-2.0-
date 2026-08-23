@@ -4,7 +4,7 @@ import { Link } from "../../router.jsx";
 import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
-import { createPatient, deletePatient, getPatients } from "../../services/api.js";
+import { createPatient, deletePatient, getPatientRecycleBin, getPatients, restorePatient } from "../../services/api.js";
 
 const titleOptionsByGender = {
   male: ["Master", "Mr", "Shri"],
@@ -168,17 +168,14 @@ function calculateAge(dateOfBirth) {
   return age;
 }
 
-const patientDeleteReceptionEmails = new Set(["reception@sraiims.in"]);
-
 function canDeletePatientRecord(user = {}) {
-  return user.role === "admin" || user.role === "hr" || (
-    user.role === "reception" && patientDeleteReceptionEmails.has(String(user.email || "").toLowerCase())
-  );
+  return user.role === "admin" || user.role === "hr";
 }
 
 export function PatientsPage() {
   const { user } = useAuth();
   const [patients, setPatients] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState(initialFilters);
   const [sort, setSort] = useState("newest");
@@ -190,12 +187,18 @@ export function PatientsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deletingPatientId, setDeletingPatientId] = useState("");
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isRecycleBinOpen, setIsRecycleBinOpen] = useState(false);
+  const [recycleBinPatients, setRecycleBinPatients] = useState([]);
+  const [recycleBinMeta, setRecycleBinMeta] = useState({ page: 1, pageSize: 25, total: 0, totalPages: 1 });
+  const [recycleBinLoading, setRecycleBinLoading] = useState(false);
+  const [restoringPatientId, setRestoringPatientId] = useState("");
 
-  async function loadPatients(searchValue = "") {
+  async function loadPatients(searchValue = "", page = 1) {
     setLoading(true);
     try {
-      const response = await getPatients(searchValue);
-      setPatients(response.items);
+      const response = await getPatients(searchValue, { page, pageSize: pagination.pageSize });
+      setPatients(response.items || []);
+      setPagination((current) => ({ ...current, ...(response.meta || {}), page }));
     } catch (apiError) {
       setError(apiError.message || "Unable to load patients.");
     } finally {
@@ -210,11 +213,11 @@ export function PatientsPage() {
   const stats = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
     return {
-      total: patients.length,
+      total: pagination.total,
       today: patients.filter((patient) => patient.registrationDate === today).length,
       fromSagar: patients.filter((patient) => (patient.cityDistrict || patient.city) === "Sagar").length
     };
-  }, [patients]);
+  }, [patients, pagination.total]);
 
   const cityOptions = useMemo(() => {
     const uniqueCities = new Map();
@@ -314,7 +317,7 @@ export function PatientsPage() {
     event.preventDefault();
     setError("");
     setSuccess("");
-    await loadPatients(search);
+    await loadPatients(search, 1);
   };
 
   const handleCreatePatient = async (event) => {
@@ -331,6 +334,7 @@ export function PatientsPage() {
       const response = await createPatient(formState);
       setSuccess(response.message);
       setPatients((current) => [response.item, ...current.filter((patient) => patient.id !== response.item.id)]);
+      setPagination((current) => ({ ...current, total: current.total + 1, totalPages: Math.max(1, Math.ceil((current.total + 1) / current.pageSize)) }));
       // Clear any active filter/sort so the freshly registered patient is visible at the top.
       setFilters(initialFilters);
       setSort("newest");
@@ -345,27 +349,70 @@ export function PatientsPage() {
 
   const handleDeletePatient = async (patient) => {
     if (!canDeletePatients) {
-      setError("Only admin, HR, and authorized reception can delete patients.");
+      setError("Only admin and HR can archive patients.");
       return;
     }
 
     const patientLabel = patient.registrationNumber || patient.uhid || patient.firstName || "this patient";
-    if (!window.confirm(`Delete patient ${patientLabel}?`)) {
+    const reason = window.prompt(`Reason for archiving patient ${patientLabel}:`);
+    if (reason === null) {
       return;
     }
+
+    if (!reason.trim()) {
+      setError("An archive reason is required.");
+      return;
+    }
+
+    if (!window.confirm(`Move patient ${patientLabel} to the recycle bin? Their clinical records will remain preserved.`)) return;
 
     setDeletingPatientId(patient.id);
     setError("");
     setSuccess("");
 
     try {
-      const response = await deletePatient(patient.uhid || patient.id);
+      const response = await deletePatient(patient.uhid || patient.id, reason.trim());
       setPatients((current) => current.filter((entry) => entry.id !== patient.id));
-      setSuccess(response.message || "Patient deleted successfully.");
+      setPagination((current) => ({ ...current, total: Math.max(0, current.total - 1), totalPages: Math.max(1, Math.ceil(Math.max(0, current.total - 1) / current.pageSize)) }));
+      setSuccess(response.message || "Patient moved to the recycle bin.");
     } catch (apiError) {
       setError(apiError.message || "Unable to delete patient.");
     } finally {
       setDeletingPatientId("");
+    }
+  };
+
+  const openRecycleBin = async (page = 1) => {
+    if (!canDeletePatients) return;
+    setIsRecycleBinOpen(true);
+    setRecycleBinLoading(true);
+    setError("");
+    try {
+      const response = await getPatientRecycleBin({ page, pageSize: recycleBinMeta.pageSize });
+      setRecycleBinPatients(response.items || []);
+      setRecycleBinMeta((current) => ({ ...current, ...(response.meta || {}), page }));
+    } catch (apiError) {
+      setError(apiError.message || "Unable to load the patient recycle bin.");
+    } finally {
+      setRecycleBinLoading(false);
+    }
+  };
+
+  const handleRestorePatient = async (patient) => {
+    if (!canDeletePatients || !window.confirm(`Restore ${patient.fullName || patient.firstName} to the active patient registry?`)) return;
+    setRestoringPatientId(patient.id);
+    setError("");
+    try {
+      const response = await restorePatient(patient.id);
+      setRecycleBinPatients((current) => current.filter((entry) => entry.id !== patient.id));
+      setPatients((current) => [response.item, ...current.filter((entry) => entry.id !== response.item.id)]);
+      setRecycleBinMeta((current) => ({ ...current, total: Math.max(0, current.total - 1), totalPages: Math.max(1, Math.ceil(Math.max(0, current.total - 1) / current.pageSize)) }));
+      setPagination((current) => ({ ...current, total: current.total + 1, totalPages: Math.max(1, Math.ceil((current.total + 1) / current.pageSize)) }));
+      setSuccess(response.message || "Patient restored successfully.");
+    } catch (apiError) {
+      setError(apiError.message || "Unable to restore patient.");
+    } finally {
+      setRestoringPatientId("");
     }
   };
 
@@ -391,12 +438,12 @@ export function PatientsPage() {
           <article className="stat-card">
             <div className="stat-label">Today</div>
             <div className="stat-value">{stats.today}</div>
-            <div className="stat-note">New registrations</div>
+            <div className="stat-note">New registrations on this page</div>
           </article>
           <article className="stat-card">
             <div className="stat-label">Sagar Base</div>
             <div className="stat-value">{stats.fromSagar}</div>
-            <div className="stat-note">Primary city count</div>
+            <div className="stat-note">Primary city count on this page</div>
           </article>
           <article className="stat-card">
             <div className="stat-label">Phase 2</div>
@@ -411,9 +458,10 @@ export function PatientsPage() {
               <div className="eyebrow">Find Patient</div>
               <h3>Search and review registry</h3>
             </div>
-            <Button type="button" onClick={handleOpenForm} disabled={!canRegisterPatient}>
-              Add Patient
-            </Button>
+            <div className="action-row">
+              {canDeletePatients ? <Button type="button" variant="secondary" onClick={() => openRecycleBin(1)}>Recycle Bin</Button> : null}
+              <Button type="button" onClick={handleOpenForm} disabled={!canRegisterPatient}>Add Patient</Button>
+            </div>
           </div>
 
           <form className="toolbar patients-search-toolbar" onSubmit={handleSearchSubmit}>
@@ -491,8 +539,9 @@ export function PatientsPage() {
 
           <div className="patients-filter-summary">
             <span>
-              Showing {visiblePatients.length} of {patients.length} patients
+              Showing {visiblePatients.length} on page {pagination.page} of {pagination.total} patients
               {activeFilterCount ? ` (${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""} applied)` : ""}
+              {activeFilterCount ? " · filters apply to this page" : ""}
             </span>
             <button
               className="table-link button-link"
@@ -552,7 +601,7 @@ export function PatientsPage() {
                             onClick={() => handleDeletePatient(patient)}
                             disabled={deletingPatientId === patient.id}
                           >
-                            {deletingPatientId === patient.id ? "Deleting..." : "Delete"}
+                            {deletingPatientId === patient.id ? "Archiving..." : "Soft delete"}
                           </button>
                         </td>
                       ) : null}
@@ -566,6 +615,13 @@ export function PatientsPage() {
                   {patients.length
                     ? "No patients match the selected filters."
                     : "No patients found for the current search."}
+                </div>
+              ) : null}
+              {pagination.totalPages > 1 ? (
+                <div className="action-row">
+                  <Button type="button" variant="secondary" disabled={pagination.page <= 1} onClick={() => loadPatients(search, pagination.page - 1)}>Previous</Button>
+                  <span>Page {pagination.page} of {pagination.totalPages}</span>
+                  <Button type="button" variant="secondary" disabled={pagination.page >= pagination.totalPages} onClick={() => loadPatients(search, pagination.page + 1)}>Next</Button>
                 </div>
               ) : null}
             </div>
@@ -747,6 +803,40 @@ export function PatientsPage() {
                 </button>
               </div>
             </form>
+          </section>
+        </div>
+      ) : null}
+
+      {isRecycleBinOpen ? (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setIsRecycleBinOpen(false)}>
+          <section className="content-card patient-form-modal" role="dialog" aria-modal="true" aria-labelledby="recycle-bin-title" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="section-header patient-form-modal-header">
+              <div><div className="eyebrow">Recovery</div><h3 id="recycle-bin-title">Patient recycle bin</h3></div>
+              <button className="modal-close-button" type="button" onClick={() => setIsRecycleBinOpen(false)}>x</button>
+            </div>
+            <div className="empty-state patients-registration-note">Archived patients are hidden from active workflows, while their clinical records remain preserved. No permanent-delete action is available.</div>
+            {recycleBinLoading ? <div className="empty-state">Loading recycle bin...</div> : (
+              <div className="table-shell patients-table-shell">
+                <table className="data-table">
+                  <thead><tr><th>UHID</th><th>Patient</th><th>Archived</th><th>By</th><th>Reason</th><th></th></tr></thead>
+                  <tbody>{recycleBinPatients.map((patient) => (
+                    <tr key={patient.id}>
+                      <td>{patient.uhid}</td><td>{patient.fullName || `${patient.firstName} ${patient.lastName}`}</td>
+                      <td>{patient.deletedAt ? new Date(patient.deletedAt).toLocaleString() : "-"}</td><td>{patient.deletedByName || "System"}</td><td>{patient.deletionReason || "Not recorded"}</td>
+                      <td><Button type="button" variant="secondary" onClick={() => handleRestorePatient(patient)} disabled={restoringPatientId === patient.id}>{restoringPatientId === patient.id ? "Restoring..." : "Restore"}</Button></td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+                {!recycleBinPatients.length ? <div className="empty-state">Recycle bin is empty.</div> : null}
+                {recycleBinMeta.totalPages > 1 ? (
+                  <div className="action-row">
+                    <Button type="button" variant="secondary" disabled={recycleBinLoading || recycleBinMeta.page <= 1} onClick={() => openRecycleBin(recycleBinMeta.page - 1)}>Previous</Button>
+                    <span>Page {recycleBinMeta.page} of {recycleBinMeta.totalPages} · {recycleBinMeta.total} archived patients</span>
+                    <Button type="button" variant="secondary" disabled={recycleBinLoading || recycleBinMeta.page >= recycleBinMeta.totalPages} onClick={() => openRecycleBin(recycleBinMeta.page + 1)}>Next</Button>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </section>
         </div>
       ) : null}

@@ -3,6 +3,7 @@ import { Router } from "express";
 import { authorize, authorizeRolesOnly } from "../../middleware/rbac.js";
 import {
   assessmentSaveHandler,
+  clinicalHistoryHandler,
   completeVisitHandler,
   createVisitLabOrderHandler,
   createVisitHandler,
@@ -22,6 +23,7 @@ const opdRouter = Router();
 
 opdRouter.get("/queue", authorize(["admin", "reception", "doctor", "nursing"]), queueHandler);
 opdRouter.get("/masters", authorize(["admin", "doctor", "reception", "nursing"]), mastersHandler);
+opdRouter.get("/history", authorize(["admin", "doctor", "reception", "nursing"]), clinicalHistoryHandler);
 opdRouter.post("/visits", authorizeRolesOnly(["admin", "reception", "doctor"]), createVisitHandler);
 opdRouter.get("/visits/:id", authorize(["admin", "doctor", "reception", "nursing"]), visitDetailsHandler);
 opdRouter.put("/visits/:id/vitals", authorizeRolesOnly(["admin", "doctor", "nursing"]), vitalsHandler);

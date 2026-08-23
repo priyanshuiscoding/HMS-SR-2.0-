@@ -5,6 +5,7 @@ const nursingEmail = String(process.env.SMOKE_NURSING_EMAIL || "").trim();
 const nursingPassword = String(process.env.SMOKE_NURSING_PASSWORD || "");
 const doctorEmail = String(process.env.SMOKE_DOCTOR_EMAIL || "").trim();
 const doctorPassword = String(process.env.SMOKE_DOCTOR_PASSWORD || "");
+const missingId = "00000000-0000-0000-0000-000000000000";
 const results = [];
 
 function record(name, status, detail = "") {
@@ -94,10 +95,13 @@ if (!email || !password) {
       ["Current user", "/api/v1/auth/me"],
       ["System overview", "/api/v1/system/overview"],
       ["Patients", "/api/v1/patients"],
+      ["Patient pagination", "/api/v1/patients?page=2&pageSize=2"],
+      ["Paginated patient text search", "/api/v1/patients?search=Validate%20Opd&page=1&pageSize=2"],
       ["Appointments", "/api/v1/appointments"],
       ["Appointment masters", "/api/v1/appointments/masters"],
       ["OPD queue", "/api/v1/opd/queue"],
       ["OPD masters", "/api/v1/opd/masters"],
+      ["OPD clinical history", "/api/v1/opd/history?search=Validate%20Opd&page=1&pageSize=2"],
       ["Laboratory summary", "/api/v1/lab/summary"],
       ["Laboratory tests", "/api/v1/lab/tests"],
       ["Billing summary", "/api/v1/billing/summary"],
@@ -121,6 +125,11 @@ if (!email || !password) {
     for (const [name, path] of readEndpoints) {
       await expectStatus(name, path, 200, { headers: authHeaders });
     }
+    await expectStatus("Patient archive requires a reason", `/api/v1/patients/${missingId}`, 400, {
+      method: "DELETE",
+      headers: authHeaders,
+      body: JSON.stringify({ reason: "" })
+    });
     await expectStatus("User creation requires an explicit strong password", "/api/v1/users", 400, {
       method: "POST",
       headers: authHeaders,
@@ -173,7 +182,6 @@ async function roleSession(label, roleEmail, rolePassword) {
   return { token: payload.accessToken, cookie: cookieFrom(response) };
 }
 
-const missingId = "00000000-0000-0000-0000-000000000000";
 if (nursingEmail && nursingPassword) {
   const nursing = await roleSession("Nursing", nursingEmail, nursingPassword);
   if (nursing) {

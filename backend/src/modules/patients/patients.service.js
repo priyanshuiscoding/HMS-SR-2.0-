@@ -2,11 +2,13 @@ import { db, createId } from "../../data/store.js";
 import { createError } from "../../utils/errors.js";
 import {
   findPatientById,
+  findDeletedPatients,
   findPatients,
   generateNextUhid,
   insertPatient,
   patientPhoneExists,
   softDeletePatientRecord,
+  restorePatientRecord,
   updatePatientRecord
 } from "./patients.repository.js";
 import {
@@ -511,8 +513,13 @@ export async function updatePatient(id, payload) {
   return savedPatient;
 }
 
-export async function deletePatient(id) {
-  const deletedPatient = await softDeletePatientRecord(id);
+export async function deletePatient(id, actorId, reason = "") {
+  const deletionReason = String(reason || "").trim();
+  if (!deletionReason) {
+    throw createError("An archive reason is required.");
+  }
+
+  const deletedPatient = await softDeletePatientRecord(id, actorId, deletionReason);
 
   if (!deletedPatient) {
     throw createError("Patient not found.", 404);
@@ -524,4 +531,17 @@ export async function deletePatient(id) {
   }
 
   return deletedPatient;
+}
+
+export async function listDeletedPatients(query = {}) {
+  return findDeletedPatients(query);
+}
+
+export async function restorePatient(id) {
+  const patient = await restorePatientRecord(id);
+  if (!patient) {
+    throw createError("Archived patient not found.", 404);
+  }
+  syncPatientMirror(patient);
+  return patient;
 }

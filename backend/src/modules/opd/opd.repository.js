@@ -21,6 +21,11 @@ export function toCamelVisit(row) {
     opdNumber: row.opd_number,
     patientId: row.patient_id || null,
     patientName: row.patient_name,
+    patientUhid: row.patient_uhid || row.uhid || "",
+    patientRegistrationNumber: row.patient_registration_number || row.registration_number || "",
+    doctorName: row.doctor_name || "",
+    prescriptionNumber: row.prescription_number || "",
+    prescriptionDiagnosis: row.prescription_diagnosis || "",
     doctorId: row.doctor_id || "",
     appointmentId: row.appointment_id || "",
     visitDate: toIsoDate(row.visit_date),
@@ -290,6 +295,7 @@ function toCamelQueueItem(row) {
     appointmentNumber: row.appointment_number,
     patientId: row.patient_id || null,
     patientName: row.patient_name,
+    patientUhid: row.patient_uhid || "",
     patientAge: row.patient_age,
     patientGender: row.patient_gender || "",
     patientMobile: row.patient_mobile || "",
@@ -326,6 +332,7 @@ export async function listOpdQueue(date, doctorId = "") {
       a.appointment_number,
       a.patient_id,
       a.patient_name,
+      p.uhid AS patient_uhid,
       a.patient_age,
       a.patient_gender,
       a.patient_mobile,
@@ -345,6 +352,7 @@ export async function listOpdQueue(date, doctorId = "") {
       v.status AS visit_status,
       v.metadata AS visit_metadata
     FROM appointments a
+    LEFT JOIN patients p ON p.id = a.patient_id AND p.deleted_at IS NULL
     LEFT JOIN users u ON u.id = a.doctor_id
     LEFT JOIN opd_visits v ON v.appointment_id = a.id
     WHERE a.appointment_date = $1
@@ -375,14 +383,68 @@ export async function listVisitRecords(filters = {}) {
 
   if (filters.patientId) {
     params.push(filters.patientId);
-    conditions.push(`patient_id = $${params.length}`);
+    conditions.push(`v.patient_id = $${params.length}`);
+  }
+
+  if (filters.date) {
+    params.push(filters.date);
+    conditions.push(`v.visit_date = $${params.length}`);
+  }
+
+  if (filters.search) {
+    params.push(`%${String(filters.search).trim().toLowerCase()}%`);
+    conditions.push(`(
+      LOWER(COALESCE(p.uhid, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(p.registration_number, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(v.patient_name, '')) LIKE $${params.length}
+      OR LOWER(COALESCE(p.phone, '')) LIKE $${params.length}
+    )`);
+  }
+
+  const isPaginated = Number.isInteger(filters.pageSize) && Number.isInteger(filters.offset);
+  let total = 0;
+  let limitClause = "";
+  if (isPaginated) {
+    const countResult = await query(
+      `SELECT COUNT(*)::int AS total
+       FROM opd_visits v
+       LEFT JOIN patients p ON p.id = v.patient_id AND p.deleted_at IS NULL
+       WHERE ${conditions.join(" AND ")}`,
+      params
+    );
+    total = countResult.rows[0]?.total || 0;
+    params.push(filters.pageSize);
+    const limitParam = params.length;
+    params.push(filters.offset);
+    const offsetParam = params.length;
+    limitClause = `LIMIT $${limitParam} OFFSET $${offsetParam}`;
   }
 
   const result = await query(
-    `SELECT * FROM opd_visits WHERE ${conditions.join(" AND ")} ORDER BY visit_date DESC, created_at DESC`,
+    `SELECT
+       v.*,
+       p.uhid AS patient_uhid,
+       p.registration_number AS patient_registration_number,
+       u.full_name AS doctor_name,
+       rx.prescription_number,
+       rx.prescription_diagnosis
+     FROM opd_visits v
+     LEFT JOIN patients p ON p.id = v.patient_id AND p.deleted_at IS NULL
+     LEFT JOIN users u ON u.id = v.doctor_id
+     LEFT JOIN LATERAL (
+       SELECT prescription_number, diagnosis AS prescription_diagnosis
+       FROM prescriptions
+       WHERE visit_id = v.id
+       ORDER BY updated_at DESC, created_at DESC
+       LIMIT 1
+     ) rx ON true
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY v.visit_date DESC, v.created_at DESC
+     ${limitClause}`,
     params
   );
-  return result.rows.map(toCamelVisit);
+  const items = result.rows.map(toCamelVisit);
+  return isPaginated ? { items, total } : items;
 }
 
 export async function findGeneralExaminationByVisitId(visitId) {

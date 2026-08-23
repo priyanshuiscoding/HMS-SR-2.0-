@@ -2,7 +2,7 @@ import { db } from "../backend/src/data/store.js";
 import { createAppointment, getAvailableSlots } from "../backend/src/modules/appointments/appointments.service.js";
 import { createBill, collectPayment } from "../backend/src/modules/billing/billing.service.js";
 import { admitPatient, addAdmissionNote, addAdmissionVitals, dischargeAdmission, loadIpdMirrorsFromDatabase } from "../backend/src/modules/ipd/ipd.service.js";
-import { collectLabSample, createLabBill, createLabOrder, getLabMasters, getLabOrderDetails, saveLabResults } from "../backend/src/modules/laboratory/laboratory.service.js";
+import { collectLabSample, createLabOrder, getLabMasters, getLabOrderDetails, saveLabResults } from "../backend/src/modules/laboratory/laboratory.service.js";
 import { saveAssessment, completeVisit, createVisit, saveDischargeSummary, savePrescription, saveVitals } from "../backend/src/modules/opd/opd.service.js";
 import { completePanchkarmaSession, createPanchkarmaSchedule, getPanchkarmaMasters, startPanchkarmaSession } from "../backend/src/modules/panchkarma/panchkarma.service.js";
 import { dispensePrescription } from "../backend/src/modules/pharmacy/pharmacy.service.js";
@@ -218,7 +218,13 @@ await run("Laboratory collection to reporting flow", async () => {
     },
     actor.id
   );
-  await createLabBill(order.id, {}, actor.id);
+  await createBill({
+    patientId: patient.id,
+    visitId: visit.id,
+    billType: "lab",
+    createdBy: actor.id,
+    charges: [{ source: "lab", sourceId: order.id }]
+  });
   const detail = await getLabOrderDetails(order.id);
 
   assert(detail.status === "reported", "Expected lab order to be reported.");
@@ -258,12 +264,19 @@ await run("IPD admission to discharge billing flow", async () => {
   );
   await addAdmissionNote(admission.id, { category: "progress", note: "Responding well" }, actor.id);
   await addAdmissionVitals(admission.id, { bp: "118/76", pulse: 70 }, actor.id);
-  const discharged = await dischargeAdmission(admission.id, { dischargeNote: "Recovered", createBill: true }, actor.id);
+  const discharged = await dischargeAdmission(admission.id, { dischargeNote: "Recovered" }, actor.id);
+  const bill = await createBill({
+    patientId: patient.id,
+    bedId: bed.id,
+    billType: "ipd",
+    createdBy: actor.id,
+    charges: [{ source: "ipd", sourceId: admission.id }]
+  });
 
   assert(discharged.status === "discharged", "Expected IPD admission to be discharged.");
-  assert(discharged.billId, "Expected discharge to create a bill.");
+  assert(bill.id, "Expected discharged IPD admission to create a centralized bill.");
 
-  return `Admission ${admission.admissionNumber}, bill ${discharged.billId}`;
+  return `Admission ${admission.admissionNumber}, bill ${bill.billNumber}`;
 });
 
 await run("Panchkarma schedule to therapy billing flow", async () => {
@@ -292,17 +305,23 @@ await run("Panchkarma schedule to therapy billing flow", async () => {
     schedule.id,
     {
       outcome: "Session tolerated well",
-      createBill: true,
       addMaterialCharges: true,
       materialsUsed: [{ medicineId: materialMedicineId, quantity: 1 }]
     },
     actor.id
   );
+  const bill = await createBill({
+    patientId: patient.id,
+    visitId: schedule.linkedVisitId || "",
+    billType: "therapy",
+    createdBy: actor.id,
+    charges: [{ source: "therapy", sourceId: schedule.id }]
+  });
 
   assert(completed.status === "completed", "Expected Panchkarma session to be completed.");
-  assert(completed.billId, "Expected Panchkarma completion to create a bill.");
+  assert(bill.id, "Expected completed Panchkarma session to create a centralized bill.");
 
-  return `Schedule ${schedule.scheduleNumber}, bill ${completed.billId}`;
+  return `Schedule ${schedule.scheduleNumber}, bill ${bill.billNumber}`;
 });
 
 await run("Patient timeline integration", async () => {
