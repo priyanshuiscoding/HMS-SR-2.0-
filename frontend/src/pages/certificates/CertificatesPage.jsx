@@ -648,6 +648,7 @@ export function CertificatesPage() {
                 value={form.patientId}
                 customValue={form.patientName}
                 options={patients}
+                loadOptions={(query) => getPatients(query, { pageSize: 30 }).then((response) => response.items || [])}
                 onChange={handlePatientSelect}
                 onCustomValueChange={handlePatientNameChange}
                 placeholder="Search UHID, name, or mobile"

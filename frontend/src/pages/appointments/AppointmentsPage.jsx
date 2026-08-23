@@ -367,6 +367,7 @@ export function AppointmentsPage() {
               <SearchableSelect
                 value={formState.patientId}
                 options={patients}
+                loadOptions={(query) => getPatients(query, { pageSize: 30 }).then((response) => response.items || [])}
                 onChange={handlePatientSelect}
                 placeholder="Click and type patient name, UHID, phone, father name, address, or city"
                 emptyLabel="Patient not registered. Register the patient before booking an appointment."

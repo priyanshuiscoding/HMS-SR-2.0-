@@ -555,6 +555,7 @@ export function IpdPage() {
               <SearchableSelect
                 value={admissionForm.patientId}
                 options={patients}
+                loadOptions={(query) => getPatients(query, { pageSize: 30 }).then((response) => response.items || [])}
                 onChange={(value) => updateAdmissionField("patientId", value)}
                 placeholder="Search patient by name, UHID, phone, father name, or city"
                 emptyLabel="No matching patient"

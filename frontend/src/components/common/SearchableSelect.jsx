@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export function SearchableSelect({
   value,
@@ -12,15 +12,22 @@ export function SearchableSelect({
   getOptionLabel = (option) => option?.name ?? "",
   getOptionMeta = () => "",
   getSearchText,
+  loadOptions,
   disabled = false,
   limit = 30
 }) {
   const [query, setQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
+  const [remoteOptions, setRemoteOptions] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const requestIdRef = useRef(0);
+  const loadOptionsRef = useRef(loadOptions);
+  loadOptionsRef.current = loadOptions;
+  const availableOptions = remoteOptions ?? options;
 
   const selectedOption = useMemo(
-    () => options.find((option) => String(getOptionValue(option)) === String(value)),
-    [getOptionValue, options, value]
+    () => [...availableOptions, ...options].find((option) => String(getOptionValue(option)) === String(value)),
+    [availableOptions, getOptionValue, options, value]
   );
   const selectedLabel = selectedOption ? getOptionLabel(selectedOption) : customValue;
   const searchTerm = query.trim().toLowerCase();
@@ -35,10 +42,46 @@ export function SearchableSelect({
     }
   }, [customValue, selectedLabel, selectedOption, value]);
 
+  useEffect(() => {
+    if (!loadOptionsRef.current || !isOpen) {
+      return undefined;
+    }
+
+    const term = query.trim();
+    if (!term) {
+      requestIdRef.current += 1;
+      setRemoteOptions(null);
+      setIsLoading(false);
+      return undefined;
+    }
+
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    const timeoutId = window.setTimeout(async () => {
+      setIsLoading(true);
+      try {
+        const loadedOptions = await loadOptionsRef.current(term);
+        if (requestIdRef.current === requestId) {
+          setRemoteOptions(Array.isArray(loadedOptions) ? loadedOptions : []);
+        }
+      } catch {
+        if (requestIdRef.current === requestId) {
+          setRemoteOptions([]);
+        }
+      } finally {
+        if (requestIdRef.current === requestId) {
+          setIsLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isOpen, query]);
+
   const filteredOptions = useMemo(() => {
     const visibleOptions = !searchTerm
-      ? options
-      : options.filter((option) => {
+      ? availableOptions
+      : availableOptions.filter((option) => {
         const text = getSearchText
           ? getSearchText(option)
           : [getOptionLabel(option), getOptionMeta(option)].filter(Boolean).join(" ");
@@ -46,7 +89,7 @@ export function SearchableSelect({
       });
 
     return visibleOptions.slice(0, limit);
-  }, [getOptionLabel, getOptionMeta, getSearchText, limit, options, searchTerm]);
+  }, [availableOptions, getOptionLabel, getOptionMeta, getSearchText, limit, searchTerm]);
 
   const handleInputChange = (event) => {
     const nextQuery = event.target.value;
@@ -94,7 +137,7 @@ export function SearchableSelect({
               </button>
             );
           })}
-          {!filteredOptions.length ? <div className="searchable-select-empty">{emptyLabel}</div> : null}
+          {!filteredOptions.length ? <div className="searchable-select-empty">{isLoading ? "Searching..." : emptyLabel}</div> : null}
         </div>
       ) : null}
     </div>

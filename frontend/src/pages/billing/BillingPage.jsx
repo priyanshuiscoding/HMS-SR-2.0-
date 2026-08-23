@@ -536,6 +536,7 @@ export function BillingPage() {
               <SearchableSelect
                 value={chargePatientId}
                 options={patients}
+                loadOptions={(query) => getPatients(query, { pageSize: 30 }).then((response) => response.items || [])}
                 onChange={handleChargePatientChange}
                 placeholder="Search patient by name, UHID, phone, father name, or city"
                 emptyLabel="No matching patient"
