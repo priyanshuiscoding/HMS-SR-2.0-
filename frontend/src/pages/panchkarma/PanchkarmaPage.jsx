@@ -385,6 +385,7 @@ export function PanchkarmaPage() {
               <SearchableSelect
                 value={scheduleForm.patientId}
                 options={patients}
+                loadOptions={(query) => getPatients(query, { pageSize: 30 }).then((response) => response.items || [])}
                 onChange={(value) => updateScheduleField("patientId", value)}
                 placeholder="Search patient"
                 emptyLabel="No matching patient"

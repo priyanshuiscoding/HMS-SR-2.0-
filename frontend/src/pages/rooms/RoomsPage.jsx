@@ -301,6 +301,7 @@ export function RoomsPage() {
                 <SearchableSelect
                   value={assignForm.patientId}
                   options={patients}
+                  loadOptions={(query) => getPatients(query, { pageSize: 30 }).then((response) => response.items || [])}
                   onChange={handleAssignPatientChange}
                   placeholder="Search patient by name, UHID, phone, father name, or city"
                   emptyLabel="No matching patient"
