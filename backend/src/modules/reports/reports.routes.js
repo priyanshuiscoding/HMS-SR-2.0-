@@ -20,7 +20,7 @@ reportsRouter.get(
   authorize(["admin", "reception", "doctor", "pharmacy", "lab", "therapist", "nursing", "housekeeping", "accounts", "hr"]),
   dashboardSummaryHandler
 );
-reportsRouter.get("/daily-hospital", authorizeRolesOnly(["admin", "hr"]), dailyHospitalReportsHandler);
+reportsRouter.get("/daily-hospital", authorizeRolesOnly(["admin", "hr"], { allowGrantedModule: false }), dailyHospitalReportsHandler);
 reportsRouter.get("/overview", authorize(["admin", "doctor", "accounts"]), reportsOverviewHandler);
 reportsRouter.get("/daily-opd", authorize(["admin", "doctor", "reception"]), dailyOpdReportHandler);
 reportsRouter.get("/ipd-census", authorize(["admin", "doctor", "accounts", "nursing", "reception"]), ipdCensusReportHandler);

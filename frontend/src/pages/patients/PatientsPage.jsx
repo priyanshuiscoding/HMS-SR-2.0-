@@ -4,6 +4,7 @@ import { Link } from "../../router.jsx";
 import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import { createPatient, deletePatient, getPatientRecycleBin, getPatients, restorePatient } from "../../services/api.js";
 
 const titleOptionsByGender = {
@@ -267,7 +268,7 @@ export function PatientsPage() {
     [filters]
   );
 
-  const canRegisterPatient = ["admin", "reception"].includes(user?.role);
+  const canRegisterPatient = canPerformModuleAction(user, "patients", ["admin", "reception", "doctor"]);
   const canDeletePatients = canDeletePatientRecord(user);
 
   const handleInputChange = (event) => {

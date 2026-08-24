@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import { formatCurrency } from "../../utils/format.js";
 import {
   collectLabSample,
@@ -89,8 +90,8 @@ export function LaboratoryPage() {
     pendingBilling: 0
   };
 
-  const canCollectSamples = ["admin", "lab", "reception", "doctor"].includes(user?.role);
-  const canSaveResults = ["admin", "lab", "doctor"].includes(user?.role);
+  const canCollectSamples = canPerformModuleAction(user, "lab", ["admin", "lab", "reception", "doctor"]);
+  const canSaveResults = canPerformModuleAction(user, "lab", ["admin", "lab", "doctor"]);
 
   const selectedOrderCharge = useMemo(() => {
     return selectedOrder?.tests?.reduce((sum, test) => {

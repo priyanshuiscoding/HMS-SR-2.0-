@@ -6,6 +6,7 @@ import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { Toast } from "../../components/common/Toast.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import { calculatePrakruti, initialAyurvedaFields } from "./ayurvedaParikshanData.js";
 import { GeneralExaminationForm } from "./GeneralExaminationForm.jsx";
 import { createInitialHistoryTaking, HistoryTakingForm, normalizeHistoryTaking } from "./HistoryTakingForm.jsx";
@@ -849,10 +850,11 @@ export function OpdPage() {
         return leftIndex - rightIndex;
       });
   }, [masters.labTests]);
-  const canStartVisit = ["admin", "reception", "doctor"].includes(user?.role);
-  const canSaveVitals = ["admin", "doctor", "nursing"].includes(user?.role) && !historicalView;
-  const canClinicalDocument = ["admin", "doctor"].includes(user?.role) && !historicalView;
-  const canPrintPrescription = ["admin", "doctor", "reception"].includes(user?.role);
+  const canStartVisit = canPerformModuleAction(user, "opd", ["admin", "reception", "doctor"]);
+  const canSaveVitals = canPerformModuleAction(user, "opd", ["admin", "doctor", "nursing"]) && !historicalView;
+  const canClinicalDocument = canPerformModuleAction(user, "opd", ["admin", "doctor"]) && !historicalView;
+  const canPrintPrescription = canPerformModuleAction(user, "opd", ["admin", "doctor", "reception"]);
+  const canManageWorkflow = canPerformModuleAction(user, "opd", ["admin", "doctor", "reception", "nursing"]);
 
   const handleDoctorFilter = async (event) => {
     const doctorId = event.target.value;
@@ -1302,7 +1304,7 @@ export function OpdPage() {
       return;
     }
 
-    if (!["admin", "doctor", "reception", "nursing"].includes(user?.role)) {
+    if (!canManageWorkflow) {
       setError("You do not have permission to update OPD workflow status.");
       return;
     }

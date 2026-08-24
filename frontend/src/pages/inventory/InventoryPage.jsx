@@ -4,6 +4,7 @@ import { Button } from "../../components/common/Button.jsx";
 import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import {
   adjustHospitalInventoryStock,
   createHospitalInventoryItem,
@@ -45,8 +46,8 @@ export function InventoryPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const canManage = ["admin", "accounts"].includes(user?.role);
-  const canMoveStock = ["admin", "accounts", "nursing"].includes(user?.role);
+  const canManage = canPerformModuleAction(user, "inventory", ["admin", "accounts"]);
+  const canMoveStock = canPerformModuleAction(user, "inventory", ["admin", "accounts", "nursing"]);
 
   async function loadAll(searchValue = search) {
     try {

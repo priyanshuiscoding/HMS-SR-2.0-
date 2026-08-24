@@ -5,6 +5,7 @@ import { Button } from "../../components/common/Button.jsx";
 import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import {
   createAppointment,
   getAppointmentMasters,
@@ -143,7 +144,7 @@ export function AppointmentsPage() {
     };
   }, [appointments, todayQueue]);
 
-  const canManageAppointments = ["admin", "reception"].includes(user?.role);
+  const canManageAppointments = canPerformModuleAction(user, "appointments", ["admin", "reception", "doctor"]);
 
   const patientLabel = (patient) => {
     if (!patient) {
@@ -197,7 +198,7 @@ export function AppointmentsPage() {
   const handleBookAppointment = async (event) => {
     event.preventDefault();
     if (!canManageAppointments) {
-      setError("Only admin and reception users can book appointments.");
+      setError("You do not have permission to book appointments.");
       return;
     }
 
@@ -265,7 +266,7 @@ export function AppointmentsPage() {
 
   const handleQueueAction = async (id, action, label = action) => {
     if (!canManageAppointments) {
-      setError("Only admin and reception users can manage appointment workflow actions.");
+      setError("You do not have permission to manage appointment workflow actions.");
       return;
     }
 
@@ -510,7 +511,7 @@ export function AppointmentsPage() {
             <div className="field-span-2 action-row">
               <Button type="submit" disabled={!canManageAppointments}>Collect Fee & Generate Token</Button>
             </div>
-            {!canManageAppointments ? <div className="empty-state field-span-2">Appointment booking and cancellation are limited to admin and reception roles.</div> : null}
+            {!canManageAppointments ? <div className="empty-state field-span-2">You do not have permission to book or cancel appointments.</div> : null}
           </form>
         </article>
 

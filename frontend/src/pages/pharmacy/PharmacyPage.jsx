@@ -4,6 +4,7 @@ import { Button } from "../../components/common/Button.jsx";
 import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import {
   dispensePrescription,
   getDispensations,
@@ -45,6 +46,8 @@ export function PharmacyPage() {
   const [statusFilter, setStatusFilter] = useState("pending");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const canManagePharmacy = canPerformModuleAction(user, "pharmacy", ["admin", "pharmacy"]);
+  const canReopenPharmacy = canPerformModuleAction(user, "pharmacy", ["admin", "pharmacy", "doctor"]);
 
   async function loadAll(filter = statusFilter) {
     try {
@@ -114,7 +117,7 @@ export function PharmacyPage() {
   const canReopen =
     Boolean(selectedPrescription) &&
     (selectedPrescription.isDispensed || selectedPrescription.pharmacyStatus === "cancelled") &&
-    ["admin", "pharmacy", "doctor"].includes(user?.role);
+    canReopenPharmacy;
 
   const handleDispense = async () => {
     if (!selectedPrescription || !dispenseLines.length) {
@@ -178,7 +181,7 @@ export function PharmacyPage() {
   const handleReceiveStock = async (event) => {
     event.preventDefault();
 
-    if (!["admin", "pharmacy"].includes(user?.role)) {
+    if (!canManagePharmacy) {
       setError("Only admin and pharmacy users can receive pharmacy stock.");
       return;
     }
@@ -294,7 +297,7 @@ export function PharmacyPage() {
                   !selectedPrescription ||
                   selectedPrescription.pharmacyStatus === "cancelled" ||
                   !dispenseLines.length ||
-                  !["admin", "pharmacy"].includes(user?.role)
+                  !canManagePharmacy
                 }
               >
                 {selectedPrescription?.isDispensed ? "Dispense Again" : "Dispense Medicine"}
@@ -326,7 +329,7 @@ export function PharmacyPage() {
                     <div><strong>Dispense status:</strong> {selectedPrescription.pharmacyStatus}</div>
                     <div><strong>Prescribed / given / balance:</strong> {selectedPrescription.prescribedTotal} / {selectedPrescription.dispensedTotal} / {selectedPrescription.balanceTotal}</div>
                     <div><strong>Visit:</strong> {selectedPrescription.visit?.opdNumber || "Linked OPD visit"}</div>
-                    {!["admin", "pharmacy"].includes(user?.role) ? (
+                    {!canManagePharmacy ? (
                       <div><strong>Access:</strong> View only</div>
                     ) : null}
                   </div>
@@ -352,7 +355,7 @@ export function PharmacyPage() {
                             <input
                               value={dispenseQuantities[item.id] ?? ""}
                               onChange={(event) => handleDispenseQuantityChange(item.id, event.target.value)}
-                              disabled={!["admin", "pharmacy"].includes(user?.role)}
+                              disabled={!canManagePharmacy}
                             />
                           </div>
                           {quantity > item.balanceQuantity ? (
@@ -470,7 +473,7 @@ export function PharmacyPage() {
               <div className="field"><label>Purchase price</label><input name="purchasePrice" value={receiveForm.purchasePrice} onChange={handleReceiveChange} /></div>
               <div className="field"><label>Selling price</label><input name="sellingPrice" value={receiveForm.sellingPrice} onChange={handleReceiveChange} /></div>
               <div className="field field-span-2"><label>Note</label><input name="note" value={receiveForm.note} onChange={handleReceiveChange} /></div>
-              <div className="field field-span-2"><Button type="submit" disabled={!["admin", "pharmacy"].includes(user?.role)}>Receive Pharmacy Stock</Button></div>
+              <div className="field field-span-2"><Button type="submit" disabled={!canManagePharmacy}>Receive Pharmacy Stock</Button></div>
             </form>
           </article>
 

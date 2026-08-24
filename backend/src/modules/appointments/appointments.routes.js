@@ -17,14 +17,14 @@ import {
 const appointmentsRouter = Router();
 
 appointmentsRouter.get("/", authorize(["admin", "reception", "doctor"]), listAppointmentsHandler);
-appointmentsRouter.post("/", authorizeRolesOnly(["admin", "reception"]), createAppointmentHandler);
+appointmentsRouter.post("/", authorizeRolesOnly(["admin", "reception", "doctor"]), createAppointmentHandler);
 appointmentsRouter.get("/today", authorize(["admin", "reception", "doctor"]), todayAppointmentsHandler);
 appointmentsRouter.get("/available-slots", authorize(["admin", "reception", "doctor"]), availableSlotsHandler);
 appointmentsRouter.get("/masters", authorize(["admin", "reception", "doctor"]), appointmentMastersHandler);
 appointmentsRouter.get("/:id", authorize(["admin", "reception", "doctor"]), getAppointmentHandler);
-appointmentsRouter.put("/:id", authorizeRolesOnly(["admin", "reception"]), updateAppointmentHandler);
+appointmentsRouter.put("/:id", authorizeRolesOnly(["admin", "reception", "doctor"]), updateAppointmentHandler);
 appointmentsRouter.put("/:id/status", authorizeRolesOnly(["admin", "reception", "doctor"]), updateAppointmentStatusHandler);
 appointmentsRouter.put("/:id/queue-action", authorizeRolesOnly(["admin", "reception", "doctor"]), updateAppointmentQueueActionHandler);
-appointmentsRouter.delete("/:id", authorizeRolesOnly(["admin", "reception"]), cancelAppointmentHandler);
+appointmentsRouter.delete("/:id", authorizeRolesOnly(["admin", "reception", "doctor"]), cancelAppointmentHandler);
 
 export { appointmentsRouter };

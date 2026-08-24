@@ -5,6 +5,7 @@ import { Button } from "../../components/common/Button.jsx";
 import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -131,8 +132,8 @@ export function CalendarPage() {
   const [success, setSuccess] = useState("");
 
   const range = useMemo(() => visibleRange(view, anchorDate), [view, anchorDate]);
-  const canWrite = ["admin", "reception", "doctor", "nursing", "lab", "therapist", "pharmacy", "accounts", "hr"].includes(user?.role);
-  const canDelete = ["admin", "reception", "doctor", "hr"].includes(user?.role);
+  const canWrite = canPerformModuleAction(user, "calendar", ["admin", "reception", "doctor", "nursing", "lab", "therapist", "pharmacy", "accounts", "hr"]);
+  const canDelete = canPerformModuleAction(user, "calendar", ["admin", "reception", "doctor", "hr"]);
 
   async function loadCalendar() {
     setLoading(true);
