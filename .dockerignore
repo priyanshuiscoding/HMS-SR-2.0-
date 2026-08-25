@@ -14,6 +14,10 @@ backend.dev.err.log
 frontend.dev.log
 frontend.dev.err.log
 backups
+reports
+transfer
+secure-imports
+Secure_imports
 data/raw
 data/Patient_PhoneNumberSRAIIMS*.txt
 .DS_Store
