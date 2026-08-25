@@ -1,4 +1,4 @@
-import { query, withTransaction } from "../../config/postgres.js";
+import { query } from "../../config/postgres.js";
 import { toIsoDate, toTime } from "../../utils/dateTime.js";
 
 export function toCamelPatient(row) {
@@ -497,22 +497,7 @@ export async function restorePatientRecord(id) {
   return toCamelPatient(result.rows[0]);
 }
 
-export async function generateNextUhid(registrationDate = new Date()) {
-  const identityDate = new Date(registrationDate);
-  const safeDate = Number.isNaN(identityDate.getTime()) ? new Date() : identityDate;
-  const yearSuffix = String(safeDate.getFullYear()).slice(-2);
-  const prefix = `SRH${yearSuffix}`;
-
-  return withTransaction(async (client) => {
-    await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`patients-uhid-${yearSuffix}`]);
-    const result = await client.query(
-      `
-      SELECT COALESCE(MAX(SUBSTRING(uhid FROM 6 FOR 6)::int), 0) + 1 AS next_number
-      FROM patients
-      WHERE uhid ~ $1
-      `,
-      [`^${prefix}[0-9]{6}$`]
-    );
-    return `${prefix}${String(result.rows[0].next_number).padStart(6, "0")}`;
-  });
+export async function generateNextUhid() {
+  const result = await query("SELECT nextval('patient_numeric_uhid_seq')::text AS next_number");
+  return result.rows[0].next_number;
 }
