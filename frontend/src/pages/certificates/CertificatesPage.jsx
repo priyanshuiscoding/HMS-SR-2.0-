@@ -7,6 +7,7 @@ import { Button } from "../../components/common/Button.jsx";
 import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import {
   createCertificate,
   getCertificates,
@@ -437,7 +438,7 @@ export function CertificatesPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-  const canCreate = ["admin", "doctor"].includes(user?.role);
+  const canCreate = canPerformModuleAction(user, "certificates", ["admin", "doctor"]);
 
   async function loadData() {
     const [patientResponse, doctorResponse, certificateResponse] = await Promise.all([

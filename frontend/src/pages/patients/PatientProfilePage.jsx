@@ -4,6 +4,7 @@ import { Link, useParams } from "../../router.jsx";
 import { Button } from "../../components/common/Button.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import { historyTakingSections } from "../opd/HistoryTakingForm.jsx";
 import { systemicExaminationSections } from "../opd/SystemicExaminationForm.jsx";
 import {
@@ -130,9 +131,9 @@ export function PatientProfilePage() {
   const [patientEditError, setPatientEditError] = useState("");
   const [savingPatient, setSavingPatient] = useState(false);
 
-  const canUploadDocuments = ["admin", "reception", "doctor"].includes(user?.role);
-  const canDeleteDocuments = ["admin", "reception"].includes(user?.role);
-  const canEditPatient = ["admin", "reception"].includes(user?.role);
+  const canUploadDocuments = canPerformModuleAction(user, "patients", ["admin", "reception", "doctor"]);
+  const canDeleteDocuments = canPerformModuleAction(user, "patients", ["admin", "reception", "doctor"]);
+  const canEditPatient = canPerformModuleAction(user, "patients", ["admin", "reception", "doctor"]);
 
   async function loadPatientProfile() {
     try {

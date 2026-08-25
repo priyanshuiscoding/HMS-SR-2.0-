@@ -4,6 +4,7 @@ import { Button } from "../../components/common/Button.jsx";
 import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import { formatCurrency } from "../../utils/format.js";
 import {
   completePanchkarmaSession,
@@ -574,7 +575,7 @@ export function PanchkarmaPage() {
             </div>
             <div className="action-row">
               {selectedSchedule?.status === "scheduled" ? (
-                <Button onClick={handleStartSession} disabled={!["admin", "doctor", "therapist"].includes(user?.role)}>
+                <Button onClick={handleStartSession} disabled={!canPerformModuleAction(user, "panchkarma", ["admin", "doctor", "therapist"])}>
                   Start Session
                 </Button>
               ) : null}

@@ -19,18 +19,18 @@ import {
 
 const patientsRouter = Router();
 const patientReadRoles = ["admin", "reception", "doctor", "pharmacy", "lab", "therapist", "nursing", "housekeeping", "accounts", "hr"];
-const patientWriteRoles = ["admin", "reception"];
+const patientWriteRoles = ["admin", "reception", "doctor"];
 const patientDeleteRoles = ["admin", "hr"];
 const patientDocumentRoles = ["admin", "doctor", "reception"];
 
 patientsRouter.get("/", authorize(patientReadRoles), listPatientsHandler);
 patientsRouter.post("/", authorizeRolesOnly(patientWriteRoles), createPatientHandler);
 patientsRouter.get("/search", authorize(patientReadRoles), searchPatientsHandler);
-patientsRouter.get("/recycle-bin", authorizeRolesOnly(patientDeleteRoles), recycleBinHandler);
-patientsRouter.put("/recycle-bin/:id/restore", authorizeRolesOnly(patientDeleteRoles), restorePatientHandler);
+patientsRouter.get("/recycle-bin", authorizeRolesOnly(patientDeleteRoles, { allowGrantedModule: false }), recycleBinHandler);
+patientsRouter.put("/recycle-bin/:id/restore", authorizeRolesOnly(patientDeleteRoles, { allowGrantedModule: false }), restorePatientHandler);
 patientsRouter.get("/:id", authorize(patientReadRoles), getPatientHandler);
 patientsRouter.put("/:id", authorizeRolesOnly(patientWriteRoles), updatePatientHandler);
-patientsRouter.delete("/:id", authorizeRolesOnly(patientDeleteRoles), deletePatientHandler);
+patientsRouter.delete("/:id", authorizeRolesOnly(patientDeleteRoles, { allowGrantedModule: false }), deletePatientHandler);
 patientsRouter.get("/:id/history", authorize(patientReadRoles), patientHistoryHandler);
 patientsRouter.get("/:id/documents", authorize(patientReadRoles), listPatientDocumentsHandler);
 patientsRouter.post("/:id/documents", authorizeRolesOnly(patientDocumentRoles), uploadPatientDocumentHandler);

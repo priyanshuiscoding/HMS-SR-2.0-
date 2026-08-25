@@ -71,12 +71,8 @@ function buildAddress(payload) {
   return payload.address?.trim() || segments.join(", ");
 }
 
-function nextRegistrationNumber() {
-  return `REG-${new Date().getFullYear()}-${String(db.patients.length + 1).padStart(5, "0")}`;
-}
-
-async function nextDatabaseUhid(registrationDate) {
-  return generateNextUhid(registrationDate);
+async function nextDatabaseUhid() {
+  return generateNextUhid();
 }
 
 function syncPatientMirror(patient) {
@@ -409,10 +405,11 @@ export async function createPatient(payload, createdBy) {
 
   const ageYears = payload.dateOfBirth ? calculateAge(payload.dateOfBirth) : normalizeAgeYears(payload.ageYears);
 
+  const nextUhid = await nextDatabaseUhid(registrationDate);
   const patient = {
     id: createId(),
-    uhid: await nextDatabaseUhid(registrationDate),
-    registrationNumber: nextRegistrationNumber(),
+    uhid: nextUhid,
+    registrationNumber: nextUhid,
     opdIpdNumber: payload.opdIpdNumber?.trim() || "",
     registrationDate,
     registrationTime,

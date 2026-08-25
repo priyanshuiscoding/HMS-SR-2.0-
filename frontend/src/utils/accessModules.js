@@ -42,5 +42,20 @@ export function canAccess({ role, grantedModules = [], allowedRoles, moduleKey }
     return true;
   }
 
-  return Boolean(moduleKey) && grantedModules.includes(moduleKey);
+  const privilegedModules = new Set(["users", "hr", "settings"]);
+  if (role === "doctor" && moduleKey && !privilegedModules.has(moduleKey)) {
+    return true;
+  }
+
+  return Boolean(moduleKey) && !privilegedModules.has(moduleKey) && grantedModules.includes(moduleKey);
+}
+
+export function canPerformModuleAction(user, moduleKey, allowedRoles = []) {
+  if (allowedRoles.includes(user?.role)) {
+    return true;
+  }
+
+  return Boolean(moduleKey)
+    && !["users", "hr", "settings"].includes(moduleKey)
+    && (user?.grantedModules || []).includes(moduleKey);
 }

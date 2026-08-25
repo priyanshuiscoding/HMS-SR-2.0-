@@ -25,10 +25,10 @@ inventoryRouter.post("/hospital-items/stock", authorizeRolesOnly(["admin", "acco
 inventoryRouter.get("/hospital-transactions", authorize(["admin", "accounts", "nursing", "hr", "housekeeping"]), hospitalInventoryTransactionsHandler);
 inventoryRouter.get("/batches", authorize(["admin", "pharmacy", "accounts"]), inventoryBatchesHandler);
 inventoryRouter.get("/transactions", authorize(["admin", "pharmacy", "accounts"]), stockTransactionsHandler);
-inventoryRouter.get("/suppliers", authorizeRolesOnly(["admin"]), suppliersHandler);
-inventoryRouter.post("/suppliers", authorizeRolesOnly(["admin"]), createSupplierHandler);
-inventoryRouter.get("/purchase-orders", authorizeRolesOnly(["admin"]), purchaseOrdersHandler);
-inventoryRouter.post("/purchase-orders", authorizeRolesOnly(["admin"]), createPurchaseOrderHandler);
+inventoryRouter.get("/suppliers", authorizeRolesOnly(["admin"], { allowGrantedModule: false }), suppliersHandler);
+inventoryRouter.post("/suppliers", authorizeRolesOnly(["admin"], { allowGrantedModule: false }), createSupplierHandler);
+inventoryRouter.get("/purchase-orders", authorizeRolesOnly(["admin"], { allowGrantedModule: false }), purchaseOrdersHandler);
+inventoryRouter.post("/purchase-orders", authorizeRolesOnly(["admin"], { allowGrantedModule: false }), createPurchaseOrderHandler);
 inventoryRouter.post("/receive", authorizeRolesOnly(["admin", "pharmacy"]), receiveStockHandler);
 
 export { inventoryRouter };

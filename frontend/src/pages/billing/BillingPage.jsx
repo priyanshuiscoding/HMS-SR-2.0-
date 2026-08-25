@@ -4,6 +4,7 @@ import { Button } from "../../components/common/Button.jsx";
 import { SearchableSelect } from "../../components/common/SearchableSelect.jsx";
 import { DashboardLayout } from "../../components/layout/DashboardLayout.jsx";
 import { useAuth } from "../../hooks/useAuth.js";
+import { canPerformModuleAction } from "../../utils/accessModules.js";
 import { formatCurrency } from "../../utils/format.js";
 import {
   collectBillPayment,
@@ -283,8 +284,8 @@ export function BillingPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const canCreateBill = ["admin", "accounts", "doctor", "reception"].includes(user?.role);
-  const canCollectPayment = ["admin", "accounts", "reception"].includes(user?.role);
+  const canCreateBill = canPerformModuleAction(user, "billing", ["admin", "accounts", "doctor", "reception"]);
+  const canCollectPayment = canPerformModuleAction(user, "billing", ["admin", "accounts", "reception"]);
 
   async function loadAll(nextFilters = filters, selectedId = selectedBill?.item?.id) {
     try {

@@ -24,6 +24,8 @@
     "db:backup": "node scripts/db-backup.mjs",
     "db:restore": "node scripts/db-restore.mjs",
     "phase0:baseline": "node scripts/capture-phase0-baseline.mjs",
+    "patients:audit-reconciliation": "node scripts/patient-reconciliation-audit.mjs",
+    "patients:reconciliation-master": "node scripts/reconcile-master-patients.mjs",
     "patients:import-puru": "node scripts/import-puru-patients.mjs",
     "check:deployment": "node scripts/check-deployment.mjs",
     "check:api": "node scripts/api-smoke-test.mjs",
